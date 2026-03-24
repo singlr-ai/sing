@@ -1,0 +1,97 @@
+# sing.yaml — Java fullstack project
+# Helidon 4 backend + React frontend, with Postgres, Redis, and Meilisearch.
+# 4 CPU cores, 12GB RAM, 150GB disk.
+
+name: acme-platform
+description: "Java fullstack — Helidon + React + Postgres + Redis + Meilisearch"
+
+resources:
+  cpu: 4
+  memory: 12GB
+  disk: 150GB
+
+image: ubuntu/24.04
+
+packages:
+  - postgresql-client-16
+
+runtimes:
+  jdk: 25
+  node: 22
+  maven: "3.9.12"
+
+git:
+  name: "Your Name"
+  email: "you@example.com"
+  auth: token
+
+repos:
+  - url: "https://github.com/your-org/backend.git"
+    path: "backend"
+    branch: "main"
+  - url: "https://github.com/your-org/webapp.git"
+    path: "webapp"
+    branch: "main"
+
+services:
+  postgres:
+    image: postgres:16
+    ports: [5432]
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports: [6379]
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    ports: [7700]
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - msdata:/meili_data
+
+processes:
+  app:
+    command: "java -jar target/app.jar"
+    workdir: "backend"
+  web:
+    command: "npm run dev"
+    workdir: "webapp"
+
+agent:
+  type: claude-code
+  auto_branch: true
+  branch_prefix: "sing/"
+  auto_snapshot: true
+  install:
+    - claude-code
+    - codex
+
+agent_context:
+  tech_stack: |
+    Backend: JDK 25, Helidon 4.3.x, Jackson 3
+    Frontend: React 19, Tailwind 4
+    Database: Postgres 16
+    Search: Meilisearch (keyword + vector)
+    Cache: Redis 7
+  conventions: |
+    - Records for all DTOs
+    - Virtual threads for all I/O
+    - Pattern matching for type checks
+  build_commands: |
+    cd backend && mvn clean package
+    cd webapp && npm install && npm run build
+  project_specific: |
+    Edit this section with project-specific instructions for your AI agent.
+
+ssh:
+  user: dev
+  authorized_keys:
+    - "ssh-ed25519 AAAA... you@laptop"

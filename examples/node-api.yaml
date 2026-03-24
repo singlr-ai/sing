@@ -1,0 +1,67 @@
+# sing.yaml — Node.js API project
+# Express/Fastify backend with Postgres and Redis.
+# 2 CPU cores, 8GB RAM, 80GB disk.
+
+name: my-api
+description: "Node.js API — Postgres + Redis"
+
+resources:
+  cpu: 2
+  memory: 8GB
+  disk: 80GB
+
+image: ubuntu/24.04
+
+runtimes:
+  node: 22
+
+git:
+  name: "Your Name"
+  email: "you@example.com"
+  auth: token
+
+repos:
+  - url: "https://github.com/your-org/api.git"
+    path: "api"
+    branch: "main"
+
+services:
+  postgres:
+    image: postgres:16
+    ports: [5432]
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports: [6379]
+
+processes:
+  api:
+    command: "npm run dev"
+    workdir: "api"
+
+agent:
+  type: claude-code
+  auto_branch: true
+  branch_prefix: "sing/"
+  auto_snapshot: true
+  install:
+    - claude-code
+
+agent_context:
+  tech_stack: |
+    Runtime: Node.js 22
+    Database: Postgres 16
+    Cache: Redis 7
+  build_commands: |
+    cd api && npm install && npm test
+
+ssh:
+  user: dev
+  authorized_keys:
+    - "ssh-ed25519 AAAA... you@laptop"

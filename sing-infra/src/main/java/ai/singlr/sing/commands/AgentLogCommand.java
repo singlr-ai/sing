@@ -1,0 +1,118 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.commands;
+
+import ai.singlr.sing.config.YamlUtil;
+import ai.singlr.sing.engine.AgentSession;
+import ai.singlr.sing.engine.Banner;
+import ai.singlr.sing.engine.ContainerExec;
+import ai.singlr.sing.engine.ContainerManager;
+import ai.singlr.sing.engine.ContainerState;
+import ai.singlr.sing.engine.NameValidator;
+import ai.singlr.sing.engine.ShellExecutor;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Objects;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Help.Ansi;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Spec;
+
+@Command(name = "log", description = "View agent session output.", mixinStandardHelpOptions = true)
+public final class AgentLogCommand implements Runnable {
+
+  @Parameters(index = "0", description = "Project name.")
+  private String name;
+
+  @Option(
+      names = {"-f", "--follow"},
+      description = "Follow log output.")
+  private boolean follow;
+
+  @Option(names = "--tail", description = "Number of lines to show.", defaultValue = "50")
+  private int tail;
+
+  @Option(names = "--json", description = "Output in JSON format.")
+  private boolean json;
+
+  @Spec private CommandSpec spec;
+
+  @Override
+  public void run() {
+    try {
+      execute();
+    } catch (Exception e) {
+      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
+      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
+      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
+    }
+  }
+
+  private void execute() throws Exception {
+    NameValidator.requireValidProjectName(name);
+    var shell = new ShellExecutor(false);
+    var mgr = new ContainerManager(shell);
+
+    var state = mgr.queryState(name);
+    switch (state) {
+      case ContainerState.Running ignored -> {}
+      case ContainerState.Stopped ignored ->
+          throw new IllegalStateException(
+              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+      case ContainerState.NotCreated ignored ->
+          throw new IllegalStateException(
+              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+      case ContainerState.Error e ->
+          throw new IllegalStateException("Container error: " + e.message());
+    }
+
+    var logPath = AgentSession.logPath();
+
+    if (follow) {
+      var sshCmd = List.of("ssh", "-t", "dev@" + name, "--", "tail -f " + logPath);
+      var pb = new ProcessBuilder(sshCmd);
+      pb.inheritIO();
+      var process = pb.start();
+      process.waitFor();
+    } else {
+      var cmd = ContainerExec.asDevUser(name, List.of("tail", "-n", String.valueOf(tail), logPath));
+      var result = shell.exec(cmd);
+      if (!result.ok()) {
+        if (result.stderr().contains("No such file")) {
+          if (json) {
+            var map = new LinkedHashMap<String, Object>();
+            map.put("name", name);
+            map.put("lines", List.of());
+            map.put("error", "No agent log found");
+            System.out.println(YamlUtil.dumpJson(map));
+            return;
+          }
+          System.out.println(
+              Ansi.AUTO.string(
+                  "  @|faint No agent log found. Launch an agent with: sing agent launch "
+                      + name
+                      + " --task \"...\" --background|@"));
+          return;
+        }
+        throw new java.io.IOException("Failed to read agent log: " + result.stderr());
+      }
+
+      if (json) {
+        var lines = Arrays.stream(result.stdout().split("\n")).filter(l -> !l.isEmpty()).toList();
+        var map = new LinkedHashMap<String, Object>();
+        map.put("name", name);
+        map.put("lines", lines);
+        System.out.println(YamlUtil.dumpJson(map));
+        return;
+      }
+
+      System.out.print(result.stdout());
+    }
+  }
+}

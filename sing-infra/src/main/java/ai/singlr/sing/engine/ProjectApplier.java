@@ -1,0 +1,455 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.engine;
+
+import ai.singlr.sing.config.SingYaml;
+import ai.singlr.sing.config.YamlUtil;
+import ai.singlr.sing.gen.AgentContextGenerator;
+import ai.singlr.sing.gen.CodeReviewGenerator;
+import ai.singlr.sing.gen.GeneratedFile;
+import ai.singlr.sing.gen.PostTaskHooksGenerator;
+import ai.singlr.sing.gen.SecurityAuditGenerator;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * Applies incremental changes to an already-provisioned project container. Detects what is already
+ * present in the container and only applies the delta — adding missing services, repos, agent
+ * tools, etc. Also supports declarative reconciliation: removing services that are running in the
+ * container but no longer declared in sing.yaml.
+ *
+ * <p>Unlike {@link ProjectProvisioner} (which runs the full provisioning pipeline from scratch),
+ * this engine is safe to run on a live container at any time.
+ */
+public final class ProjectApplier {
+
+  private static final Duration INSTALL_TIMEOUT = Duration.ofMinutes(10);
+
+  /** Result of an apply operation for a single section. */
+  public record ApplyResult(int added, int removed, int skipped, List<String> warnings) {
+    public static ApplyResult empty() {
+      return new ApplyResult(0, 0, 0, List.of());
+    }
+  }
+
+  private final ShellExec shell;
+  private final PrintStream out;
+
+  public ProjectApplier(ShellExec shell, PrintStream out) {
+    this.shell = shell;
+    this.out = out;
+  }
+
+  /**
+   * Applies new services from the config. Services already running in the container are skipped.
+   */
+  public ApplyResult applyServices(String name, Map<String, SingYaml.Service> services)
+      throws IOException, InterruptedException, TimeoutException {
+    if (services == null || services.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    var added = 0;
+    var skipped = 0;
+    for (var entry : services.entrySet()) {
+      var svcName = entry.getKey();
+      var svc = entry.getValue();
+      var check =
+          shell.exec(
+              ContainerExec.asDevUser(name, List.of("podman", "container", "inspect", svcName)));
+      if (check.ok()) {
+        out.println("  [skip] Service '" + svcName + "' already running");
+        skipped++;
+        continue;
+      }
+      out.println("  [add] Starting service '" + svcName + "' (" + svc.image() + ")...");
+      var cmd = PodmanCommands.buildRunCommand(svcName, svc);
+      var result = shell.exec(ContainerExec.asDevUser(name, cmd), null, INSTALL_TIMEOUT);
+      if (!result.ok()) {
+        throw new IOException("Failed to start service '" + svcName + "': " + result.stderr());
+      }
+      added++;
+    }
+    return new ApplyResult(added, 0, skipped, List.of());
+  }
+
+  /** Clones new repos. Repos whose target directory already exists are skipped. */
+  public ApplyResult applyRepos(
+      String name,
+      List<SingYaml.Repo> repos,
+      String sshUser,
+      Map<String, String> gitTokens,
+      SingYaml.Git git)
+      throws IOException, InterruptedException, TimeoutException {
+    if (repos == null || repos.isEmpty()) {
+      return ApplyResult.empty();
+    }
+
+    ensureCredentialStore(name, sshUser, gitTokens, repos);
+    ensureSshKey(name, sshUser, git);
+
+    var added = 0;
+    var skipped = 0;
+    for (var repo : repos) {
+      var targetDir = "/home/" + sshUser + "/workspace/" + repo.path();
+      var check = shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", targetDir)));
+      if (check.ok()) {
+        out.println("  [skip] Repo '" + repo.path() + "' already cloned");
+        skipped++;
+        continue;
+      }
+      out.println("  [add] Cloning '" + repo.url() + "' into " + repo.path() + "...");
+      var cloneCmd = new ArrayList<>(List.of("git", "clone"));
+      if (repo.branch() != null && !repo.branch().isBlank()) {
+        cloneCmd.addAll(List.of("--branch", repo.branch()));
+      }
+      cloneCmd.add(repo.url());
+      cloneCmd.add(targetDir);
+      var result = shell.exec(ContainerExec.asDevUser(name, cloneCmd), null, INSTALL_TIMEOUT);
+      if (!result.ok()) {
+        throw new IOException("Failed to clone " + repo.url() + ": " + result.stderr());
+      }
+      added++;
+    }
+    return new ApplyResult(added, 0, skipped, List.of());
+  }
+
+  /** Installs missing agent CLI tools. Tools already on PATH are skipped. */
+  public ApplyResult applyAgentTools(String name, List<String> install, SingYaml.Runtimes runtimes)
+      throws IOException, InterruptedException, TimeoutException {
+    if (install == null || install.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    var added = 0;
+    var skipped = 0;
+    for (var agentName : install) {
+      var tool = AgentCli.fromYamlName(agentName);
+      var check = shell.exec(ContainerExec.asDevUser(name, List.of("which", tool.binaryName())));
+      if (check.ok()) {
+        out.println("  [skip] Agent '" + agentName + "' already installed");
+        skipped++;
+        continue;
+      }
+      if (tool.requiresNode()) {
+        var nodeCheck = shell.exec(ContainerExec.asDevUser(name, List.of("which", "node")));
+        if (!nodeCheck.ok()) {
+          throw new IOException(
+              "Agent '"
+                  + agentName
+                  + "' requires Node.js but it is not installed."
+                  + "\n  Add a 'runtimes.node' entry to sing.yaml and re-run.");
+        }
+      }
+      out.println("  [add] Installing agent '" + agentName + "'...");
+      var result =
+          shell.exec(
+              ContainerExec.asDevUser(name, List.of("bash", "-c", tool.installCommand())),
+              null,
+              INSTALL_TIMEOUT);
+      if (!result.ok()) {
+        throw new IOException("Failed to install agent '" + agentName + "': " + result.stderr());
+      }
+      added++;
+    }
+    return new ApplyResult(added, 0, skipped, List.of());
+  }
+
+  /** Re-applies git config (always idempotent). */
+  public ApplyResult applyGitConfig(String name, SingYaml.Git git, String sshUser)
+      throws IOException, InterruptedException, TimeoutException {
+    if (git == null) {
+      return ApplyResult.empty();
+    }
+    out.println("  [apply] Git config (name=" + git.name() + ", email=" + git.email() + ")");
+    var nameResult =
+        shell.exec(
+            ContainerExec.asDevUser(
+                name, List.of("git", "config", "--global", "user.name", git.name())));
+    if (!nameResult.ok()) {
+      throw new IOException("Failed to set git user.name: " + nameResult.stderr());
+    }
+    var emailResult =
+        shell.exec(
+            ContainerExec.asDevUser(
+                name, List.of("git", "config", "--global", "user.email", git.email())));
+    if (!emailResult.ok()) {
+      throw new IOException("Failed to set git user.email: " + emailResult.stderr());
+    }
+    return new ApplyResult(1, 0, 0, List.of());
+  }
+
+  /** Regenerates agent context files (per-agent context + SECURITY.md + audit hooks). */
+  public ApplyResult applyAgentContext(String name, SingYaml config) throws Exception {
+    var contextFiles = AgentContextGenerator.generateFiles(config);
+    var excludeAgents = resolveSecurityAuditorExclude(config);
+    var auditFiles = new ArrayList<GeneratedFile>();
+    auditFiles.addAll(SecurityAuditGenerator.generateFiles(config));
+    auditFiles.addAll(CodeReviewGenerator.generateFiles(config, excludeAgents));
+    auditFiles.addAll(PostTaskHooksGenerator.generateFiles(config, excludeAgents));
+
+    if (contextFiles.isEmpty() && auditFiles.isEmpty()) {
+      return ApplyResult.empty();
+    }
+
+    var sshUser = config.sshUser();
+    shell.exec(
+        ContainerExec.asDevUser(name, List.of("mkdir", "-p", "/home/" + sshUser + "/workspace")));
+
+    for (var file : contextFiles) {
+      out.println("  [apply] Agent context \u2192 " + file.remotePath());
+      pushFile(name, file.remotePath(), file.content(), sshUser);
+    }
+
+    for (var file : auditFiles) {
+      var parentDir = file.remotePath().substring(0, file.remotePath().lastIndexOf('/'));
+      shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", parentDir)));
+      pushFile(name, file.remotePath(), file.content(), sshUser);
+      if (file.executable()) {
+        shell.exec(ContainerExec.asDevUser(name, List.of("chmod", "+x", file.remotePath())));
+      }
+      out.println("  [apply] Audit file \u2192 " + file.remotePath());
+    }
+    return new ApplyResult(contextFiles.size() + auditFiles.size(), 0, 0, List.of());
+  }
+
+  private static Set<String> resolveSecurityAuditorExclude(SingYaml config) {
+    if (config.agent() != null
+        && config.agent().securityAudit() != null
+        && config.agent().securityAudit().enabled()) {
+      var resolved =
+          config
+              .agent()
+              .securityAudit()
+              .resolveAuditor(config.agent().type(), config.agent().install());
+      if (resolved != null) {
+        return Set.of(resolved);
+      }
+    }
+    return Set.of();
+  }
+
+  /**
+   * Stops and removes the named Podman services from the container.
+   *
+   * @param name the Incus container name
+   * @param serviceNames the service names to remove
+   * @return result with removed and skipped counts
+   */
+  public ApplyResult removeServices(String name, List<String> serviceNames)
+      throws IOException, InterruptedException, TimeoutException {
+    if (serviceNames == null || serviceNames.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    var removed = 0;
+    var skipped = 0;
+    for (var svcName : serviceNames) {
+      var check =
+          shell.exec(
+              ContainerExec.asDevUser(name, List.of("podman", "container", "inspect", svcName)));
+      if (!check.ok()) {
+        out.println("  [skip] Service '" + svcName + "' not found in container");
+        skipped++;
+        continue;
+      }
+      out.println("  [remove] Stopping service '" + svcName + "'...");
+      shell.exec(ContainerExec.asDevUser(name, List.of("podman", "stop", svcName)));
+      shell.exec(ContainerExec.asDevUser(name, List.of("podman", "rm", "-f", svcName)));
+      removed++;
+    }
+    return new ApplyResult(0, removed, skipped, List.of());
+  }
+
+  /**
+   * Reconciles running services against the config: stops and removes any Podman containers that
+   * are running in the Incus container but are not declared in the services map.
+   *
+   * @param name the Incus container name
+   * @param services the desired services from sing.yaml (may be null)
+   * @return result with removed count for orphaned services
+   */
+  public ApplyResult reconcileServices(String name, Map<String, SingYaml.Service> services)
+      throws IOException, InterruptedException, TimeoutException {
+    var running = queryRunningServiceNames(name);
+    if (running.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    var desired = services != null ? services.keySet() : Set.<String>of();
+    var orphans = running.stream().filter(n -> !desired.contains(n)).toList();
+    if (orphans.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    var removed = 0;
+    for (var orphan : orphans) {
+      out.println("  [remove] Orphaned service '" + orphan + "' not in sing.yaml");
+      shell.exec(ContainerExec.asDevUser(name, List.of("podman", "stop", orphan)));
+      shell.exec(ContainerExec.asDevUser(name, List.of("podman", "rm", "-f", orphan)));
+      removed++;
+    }
+    return new ApplyResult(0, removed, 0, List.of());
+  }
+
+  /**
+   * Queries running Podman container names inside the Incus container. Returns an empty list if no
+   * containers are running or the query fails.
+   */
+  @SuppressWarnings("unchecked")
+  List<String> queryRunningServiceNames(String containerName)
+      throws IOException, InterruptedException, TimeoutException {
+    var cmd = ContainerExec.asDevUser(containerName, List.of("podman", "ps", "--format", "json"));
+    var result = shell.exec(cmd);
+    if (!result.ok() || result.stdout().isBlank()) {
+      return List.of();
+    }
+    var containers = YamlUtil.parseList(result.stdout());
+    return containers.stream()
+        .map(c -> c.get("Names"))
+        .filter(n -> n instanceof List<?>)
+        .map(n -> (List<String>) n)
+        .filter(n -> !n.isEmpty())
+        .map(List::getFirst)
+        .toList();
+  }
+
+  /**
+   * Pushes workspace files from the local {@code files/} directory into the container at {@code
+   * ~/workspace/}. Pushes each file individually to preserve correct path structure.
+   */
+  public ApplyResult applyWorkspaceFiles(String name, Path singYamlPath, String sshUser)
+      throws IOException, InterruptedException, TimeoutException {
+    var filesDir = WorkspaceFiles.resolveFilesDir(singYamlPath);
+    if (filesDir == null) {
+      return ApplyResult.empty();
+    }
+    var entries = WorkspaceFiles.listFiles(filesDir);
+    if (entries.isEmpty()) {
+      return ApplyResult.empty();
+    }
+    out.println("  [apply] Pushing " + entries.size() + " workspace file(s)...");
+    var workspace = "/home/" + sshUser + "/workspace/";
+    for (var entry : entries) {
+      var cmd =
+          new ArrayList<>(List.of("incus", "file", "push", "-p", "--uid", "1000", "--gid", "1000"));
+      if (WorkspaceFiles.isExecutable(entry.relativePath())) {
+        cmd.addAll(List.of("--mode", "0755"));
+      }
+      cmd.add(entry.hostPath().toString());
+      cmd.add(name + workspace + entry.relativePath());
+      var pushResult = shell.exec(cmd);
+      if (!pushResult.ok()) {
+        throw new IOException(
+            "Failed to push workspace file '" + entry.relativePath() + "': " + pushResult.stderr());
+      }
+    }
+    return new ApplyResult(entries.size(), 0, 0, List.of());
+  }
+
+  /** Checks for config sections that cannot be changed post-creation and returns warnings. */
+  public List<String> checkUnsupportedChanges(SingYaml config) {
+    var warnings = new ArrayList<String>();
+    if (config.resources() != null) {
+      warnings.add(
+          "Resource changes (CPU/memory/disk) require 'sing down' + 'sing up' to take effect.");
+    }
+    return warnings;
+  }
+
+  /**
+   * Refreshes the git credential store inside the container so that {@code git clone} can
+   * authenticate without embedding the token in the URL (which would leak to /proc/cmdline). Writes
+   * one credential entry per unique HTTPS host found in the repo URLs.
+   */
+  private void ensureCredentialStore(
+      String name, String sshUser, Map<String, String> gitTokens, List<SingYaml.Repo> repos)
+      throws IOException, InterruptedException, TimeoutException {
+    var credContent = ProjectProvisioner.buildCredentialStore(gitTokens, repos);
+    if (credContent.isEmpty()) {
+      return;
+    }
+    var credPath = "/home/" + sshUser + "/.git-credentials";
+    pushFile(name, credPath, credContent, sshUser, "0600");
+    var helperResult =
+        shell.exec(
+            ContainerExec.asDevUser(
+                name, List.of("git", "config", "--global", "credential.helper", "store")));
+    if (!helperResult.ok()) {
+      throw new IOException("Failed to configure git credential helper: " + helperResult.stderr());
+    }
+  }
+
+  /**
+   * Pushes the SSH private key (and optional public key) into the container so that {@code git
+   * clone} can authenticate via SSH. Only acts when {@code git.auth} is {@code "ssh"} and a key
+   * path is configured.
+   */
+  private void ensureSshKey(String name, String sshUser, SingYaml.Git git)
+      throws IOException, InterruptedException, TimeoutException {
+    if (git == null || !"ssh".equals(git.auth()) || git.sshKey() == null) {
+      return;
+    }
+    var sshKeyHostPath = ProjectProvisioner.resolveHostPath(git.sshKey());
+    if (!Files.exists(sshKeyHostPath)) {
+      throw new IOException(
+          "SSH key not found: "
+              + sshKeyHostPath
+              + "\n  Check the 'git.ssh_key' path in sing.yaml points to an existing private key.");
+    }
+    var sshDir = "/home/" + sshUser + "/.ssh";
+    shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", sshDir)));
+    shell.exec(ContainerExec.asDevUser(name, List.of("chmod", "700", sshDir)));
+
+    var keyContent = Files.readString(sshKeyHostPath);
+    pushFile(name, sshDir + "/id_ed25519", keyContent, sshUser, "0600");
+
+    var pubKeyPath = Path.of(sshKeyHostPath + ".pub");
+    if (Files.exists(pubKeyPath)) {
+      var pubContent = Files.readString(pubKeyPath);
+      pushFile(name, sshDir + "/id_ed25519.pub", pubContent, sshUser);
+    }
+  }
+
+  /** Pushes content to a file inside the container via temp file + incus file push + chown. */
+  private void pushFile(String containerName, String remotePath, String content, String sshUser)
+      throws IOException, InterruptedException, TimeoutException {
+    pushFile(containerName, remotePath, content, sshUser, null);
+  }
+
+  /** Pushes content with optional file mode (e.g. "0600" for credentials). */
+  private void pushFile(
+      String containerName, String remotePath, String content, String sshUser, String mode)
+      throws IOException, InterruptedException, TimeoutException {
+    var tmpFile = Files.createTempFile("sing-push-", ".tmp");
+    try {
+      Files.writeString(tmpFile, content);
+      var cmd = new ArrayList<>(List.of("incus", "file", "push"));
+      if (mode != null) {
+        cmd.addAll(List.of("--mode", mode));
+      }
+      cmd.add(tmpFile.toString());
+      cmd.add(containerName + remotePath);
+      var pushResult = shell.exec(cmd);
+      if (!pushResult.ok()) {
+        throw new IOException("Failed to push file to " + remotePath + ": " + pushResult.stderr());
+      }
+    } finally {
+      Files.deleteIfExists(tmpFile);
+    }
+    var chownResult =
+        shell.exec(
+            ContainerExec.asDevUser(
+                containerName, List.of("chown", sshUser + ":" + sshUser, remotePath)));
+    if (!chownResult.ok()) {
+      throw new IOException(
+          "Failed to set ownership on " + remotePath + ": " + chownResult.stderr());
+    }
+  }
+}

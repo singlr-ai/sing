@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.engine;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+
+class GitHubFetcherTest {
+
+  @Test
+  void buildUrlConstructsCorrectPath() {
+    var url = GitHubFetcher.buildUrl("singlr-ai/projects", "acme-health/sing.yaml", "main");
+
+    assertEquals(
+        "https://raw.githubusercontent.com/singlr-ai/projects/main/acme-health/sing.yaml", url);
+  }
+
+  @Test
+  void buildUrlWithCustomRef() {
+    var url = GitHubFetcher.buildUrl("org/repo", "global.yaml", "v2.0");
+
+    assertEquals("https://raw.githubusercontent.com/org/repo/v2.0/global.yaml", url);
+  }
+
+  @Test
+  void buildUrlWithNestedPath() {
+    var url = GitHubFetcher.buildUrl("org/repo", "deep/nested/path/file.yaml", "develop");
+
+    assertEquals(
+        "https://raw.githubusercontent.com/org/repo/develop/deep/nested/path/file.yaml", url);
+  }
+
+  @Test
+  void buildUrlRejectsInvalidRepo() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> GitHubFetcher.buildUrl("not-a-valid-repo", "file.yaml", "main"));
+  }
+
+  @Test
+  void buildUrlEncodesRefWithSpecialChars() {
+    var url = GitHubFetcher.buildUrl("org/repo", "file.yaml", "feature/my branch");
+
+    assertTrue(url.contains("feature%2Fmy+branch") || url.contains("feature%2Fmy%20branch"));
+    assertFalse(url.contains("feature/my branch"), "Ref must be URL-encoded");
+  }
+}

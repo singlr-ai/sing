@@ -1,0 +1,94 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.engine;
+
+import ai.singlr.sing.config.YamlUtil;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
+
+/**
+ * Builds {@code incus exec} command lists that run inside an Incus container as the dev user (UID
+ * 1000). Pure utility — no side effects, no shell execution. The returned lists are passed directly
+ * to {@link ShellExec}.
+ */
+public final class ContainerExec {
+
+  /** The dev user's UID inside Incus containers. */
+  public static final String DEV_UID = "1000";
+
+  /** The dev user's GID inside Incus containers. */
+  public static final String DEV_GID = "1000";
+
+  /** The dev user's home directory inside Incus containers. */
+  public static final String DEV_HOME = "/home/dev";
+
+  /** The dev user's XDG_RUNTIME_DIR inside Incus containers. */
+  public static final String DEV_XDG_RUNTIME_DIR = "/run/user/1000";
+
+  private ContainerExec() {}
+
+  /**
+   * Builds an {@code incus exec} command that runs the given args as UID/GID 1000 (dev user) with
+   * the correct environment variables set.
+   *
+   * @param containerName the Incus container name
+   * @param args the command and arguments to run inside the container
+   * @return an unmodifiable command list ready for {@link ShellExec#exec}
+   */
+  public static List<String> asDevUser(String containerName, List<String> args) {
+    var prefix =
+        List.of(
+            "incus",
+            "exec",
+            containerName,
+            "--user",
+            DEV_UID,
+            "--group",
+            DEV_GID,
+            "--env",
+            "HOME=" + DEV_HOME,
+            "--env",
+            "XDG_RUNTIME_DIR=" + DEV_XDG_RUNTIME_DIR,
+            "--env",
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=" + DEV_XDG_RUNTIME_DIR + "/bus",
+            "--");
+    return Stream.concat(prefix.stream(), args.stream()).toList();
+  }
+
+  /**
+   * Queries running Podman containers inside an Incus container and extracts the published host
+   * ports. Returns a deduplicated, sorted list of port numbers. Returns an empty list if no
+   * containers are running or the query fails.
+   *
+   * @param shell the shell executor
+   * @param containerName the Incus container name
+   * @return sorted list of unique published port numbers
+   */
+  @SuppressWarnings("unchecked")
+  public static List<Integer> queryServicePorts(ShellExec shell, String containerName)
+      throws IOException, InterruptedException, TimeoutException {
+    var cmd = asDevUser(containerName, List.of("podman", "ps", "--format", "json"));
+    var result = shell.exec(cmd);
+    if (!result.ok()) {
+      return List.of();
+    }
+    var containers = YamlUtil.parseList(result.stdout());
+    return containers.stream()
+        .map(c -> c.get("Ports"))
+        .filter(p -> p instanceof List<?>)
+        .flatMap(p -> ((List<Map<String, Object>>) p).stream())
+        .map(port -> port.get("host_port"))
+        .filter(hp -> hp instanceof Number)
+        .map(hp -> ((Number) hp).intValue())
+        .filter(p -> p > 0)
+        .distinct()
+        .sorted()
+        .toList();
+  }
+}

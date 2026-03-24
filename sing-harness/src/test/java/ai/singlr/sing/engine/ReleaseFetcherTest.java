@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.engine;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+
+class ReleaseFetcherTest {
+
+  @Test
+  void buildDownloadUrlForBinary() {
+    assertEquals(
+        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sing",
+        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sing"));
+  }
+
+  @Test
+  void buildDownloadUrlForChecksum() {
+    assertEquals(
+        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sing.sha256",
+        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sing.sha256"));
+  }
+
+  @Test
+  void apiBasePointsToGitHub() {
+    assertTrue(ReleaseFetcher.API_BASE.contains("api.github.com"));
+    assertTrue(ReleaseFetcher.API_BASE.contains("singlr-ai/sing"));
+  }
+
+  @Test
+  void downloadBasePointsToGitHubReleases() {
+    assertTrue(ReleaseFetcher.DOWNLOAD_BASE.contains("github.com"));
+    assertTrue(ReleaseFetcher.DOWNLOAD_BASE.contains("releases/download"));
+  }
+
+  @Test
+  void githubRepoIsCorrect() {
+    assertEquals("singlr-ai/sing", ReleaseFetcher.GITHUB_REPO);
+  }
+}
