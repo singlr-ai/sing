@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.commands;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+import picocli.CommandLine;
+
+class AgentStatusCommandTest {
+
+  @Test
+  void helpTextIncludesOptions() {
+    var cmd = new CommandLine(new AgentStatusCommand());
+    var usage = cmd.getUsageMessage();
+
+    assertTrue(usage.contains("status"));
+    assertTrue(usage.contains("--json"));
+    assertTrue(usage.contains("--file"));
+  }
+
+  @Test
+  void helpMentionsOptionalProjectName() {
+    var cmd = new CommandLine(new AgentStatusCommand());
+    var usage = cmd.getUsageMessage();
+
+    assertTrue(usage.contains("Omit project name"));
+  }
+
+  @Test
+  void acceptsNoArguments() {
+    var cmd = new CommandLine(new AgentStatusCommand());
+    var parseResult = cmd.parseArgs();
+
+    assertNotNull(parseResult);
+  }
+}

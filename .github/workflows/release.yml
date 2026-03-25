@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: mvn clean test
+
+      - name: Build native image
+        run: mvn package -Pnative -DskipTests
+
+      - name: Smoke test
+        run: ./sing-infra/target/sing -V
+
+      - name: Generate checksum
+        run: sha256sum sing-infra/target/sing | awk '{print $1}' > sing-infra/target/sing.sha256
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sing-infra/target/sing
+            sing-infra/target/sing.sha256
+          generate_release_notes: true
