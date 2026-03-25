@@ -329,7 +329,7 @@ public record SingYaml(
           (List<String>) map.get("install"),
           (Map<String, String>) map.get("config"),
           guardrailsRaw != null ? Guardrails.fromMap(guardrailsRaw) : null,
-          validatedSpecsDir((String) map.get("specs_dir")),
+          validatedSpecsDir(Objects.requireNonNullElse((String) map.get("specs_dir"), "specs")),
           securityAuditRaw != null ? SecurityAudit.fromMap(securityAuditRaw) : null,
           codeReviewRaw != null ? CodeReview.fromMap(codeReviewRaw) : null,
           notificationsRaw != null ? Notifications.fromMap(notificationsRaw) : null,
@@ -345,7 +345,7 @@ public record SingYaml(
       if (install != null) map.put("install", new ArrayList<>(install));
       if (config != null) map.put("config", new LinkedHashMap<>(config));
       if (guardrails != null) map.put("guardrails", guardrails.toMap());
-      if (specsDir != null) map.put("specs_dir", specsDir);
+      map.put("specs_dir", Objects.requireNonNullElse(specsDir, "specs"));
       if (securityAudit != null) map.put("security_audit", securityAudit.toMap());
       if (codeReview != null) map.put("code_review", codeReview.toMap());
       if (notifications != null) map.put("notifications", notifications.toMap());

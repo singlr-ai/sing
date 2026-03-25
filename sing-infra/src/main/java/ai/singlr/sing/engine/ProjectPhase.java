@@ -48,6 +48,8 @@ public enum ProjectPhase {
   AGENT_TOOLS_INSTALLED,
   /** Agent context file (e.g. CLAUDE.md) generated and pushed into workspace. */
   CONTEXT_GENERATED,
+  /** Specs scaffold directory created inside workspace. */
+  SPECS_SCAFFOLD_CREATED,
   /** Project state written inside container. Provisioning complete. */
   COMPLETE,
 }

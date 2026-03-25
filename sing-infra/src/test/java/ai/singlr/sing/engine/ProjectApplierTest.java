@@ -818,6 +818,54 @@ class ProjectApplierTest {
                         && c.contains(CONTAINER + "/home/dev/workspace/")));
   }
 
+  @Test
+  void applySpecsScaffoldCreatesWhenDirDoesNotExist() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail("test -d /home/dev/workspace/specs", "not found")
+            .onOk("mkdir")
+            .onOk("incus file push")
+            .onOk("chown");
+    var applier = applier(shell);
+    var config = configWithSpecsDir("specs");
+
+    var result = applier.applySpecsScaffold(CONTAINER, config);
+
+    assertEquals(1, result.added());
+    assertEquals(0, result.skipped());
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("mkdir") && c.contains("specs/archive")));
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("incus file push") && c.contains("index.yaml")));
+  }
+
+  @Test
+  void applySpecsScaffoldSkipsWhenDirExists() throws Exception {
+    var shell = new ScriptedShellExecutor().onOk("test -d /home/dev/workspace/specs");
+    var applier = applier(shell);
+    var config = configWithSpecsDir("specs");
+
+    var result = applier.applySpecsScaffold(CONTAINER, config);
+
+    assertEquals(0, result.added());
+    assertEquals(1, result.skipped());
+  }
+
+  @Test
+  void applySpecsScaffoldReturnsEmptyWhenSpecsDirNull() throws Exception {
+    var shell = new ScriptedShellExecutor();
+    var applier = applier(shell);
+    var config = minimalConfig("claude-code");
+
+    var result = applier.applySpecsScaffold(CONTAINER, config);
+
+    assertEquals(0, result.added());
+    assertEquals(0, result.skipped());
+    assertTrue(shell.invocations().isEmpty());
+  }
+
   private static ProjectApplier applier(ShellExec shell) {
     return new ProjectApplier(shell, new PrintStream(new ByteArrayOutputStream()));
   }
@@ -826,6 +874,26 @@ class ProjectApplierTest {
     var agent =
         new SingYaml.Agent(
             agentType, true, "sing/", true, null, null, null, null, null, null, null);
+    return new SingYaml(
+        "test",
+        null,
+        new SingYaml.Resources(2, "4GB", "50GB"),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        agent,
+        null,
+        null);
+  }
+
+  private static SingYaml configWithSpecsDir(String specsDir) {
+    var agent =
+        new SingYaml.Agent(
+            "claude-code", true, "sing/", true, null, null, null, specsDir, null, null, null);
     return new SingYaml(
         "test",
         null,

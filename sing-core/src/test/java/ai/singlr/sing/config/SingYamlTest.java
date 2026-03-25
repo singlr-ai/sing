@@ -487,7 +487,7 @@ class SingYamlTest {
     var config = SingYaml.fromMap(YamlUtil.parseMap(yaml));
 
     assertNull(config.agent().guardrails());
-    assertNull(config.agent().specsDir());
+    assertEquals("specs", config.agent().specsDir());
   }
 
   @Test

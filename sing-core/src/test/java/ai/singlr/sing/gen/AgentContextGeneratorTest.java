@@ -1226,6 +1226,40 @@ class AgentContextGeneratorTest {
     assertEquals(8, files.size());
   }
 
+  @Test
+  void specSectionIncludedWhenSpecsDirConfigured() {
+    var agent =
+        new SingYaml.Agent(
+            "claude-code", true, "sing/", true, null, null, null, "specs", null, null, null);
+    var config = configWithAgent(agent);
+
+    var md = AgentContextGenerator.generateClaudeMd(config);
+
+    assertTrue(md.contains("## Spec-Driven Development"));
+    assertTrue(md.contains("specs/"));
+    assertTrue(md.contains("index.yaml"));
+    assertTrue(md.contains("spec.md"));
+    assertTrue(md.contains("Status Lifecycle"));
+    assertTrue(md.contains("pending"));
+    assertTrue(md.contains("in_progress"));
+    assertTrue(md.contains("depends_on"));
+    assertTrue(md.contains("Assignee Filtering"));
+    assertTrue(md.contains("Interactive Mode"));
+    assertTrue(md.contains("Autonomous Mode"));
+  }
+
+  @Test
+  void specSectionOmittedWhenSpecsDirNull() {
+    var agent =
+        new SingYaml.Agent(
+            "claude-code", true, "sing/", true, null, null, null, null, null, null, null);
+    var config = configWithAgent(agent);
+
+    var md = AgentContextGenerator.generateClaudeMd(config);
+
+    assertFalse(md.contains("Spec-Driven Development"));
+  }
+
   private static SingYaml configWithAgent(SingYaml.Agent agent) {
     return new SingYaml(
         "test",

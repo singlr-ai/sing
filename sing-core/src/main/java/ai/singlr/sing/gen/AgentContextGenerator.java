@@ -240,6 +240,8 @@ public final class AgentContextGenerator {
       sb.append(MethodologyGenerator.generateMethodologyInstructions(config.agent().methodology()));
     }
 
+    appendSpecSection(sb, config);
+
     appendAutonomousSection(sb, config);
 
     return sb.toString();
@@ -433,6 +435,75 @@ public final class AgentContextGenerator {
         - Destructuring for function parameters and object access.
         - Strict null checks enabled. Handle undefined/null explicitly.
         """;
+  }
+
+  /** Appends the spec-driven development section when a specs directory is configured. */
+  private static void appendSpecSection(StringBuilder sb, SingYaml config) {
+    if (config.agent() == null || config.agent().specsDir() == null) {
+      return;
+    }
+    var specsDir = config.agent().specsDir();
+    sb.append("\n## Spec-Driven Development\n\n");
+    sb.append("This project uses spec-driven development. ");
+    sb.append("Specs live in `").append(specsDir).append("/` and describe units of work.\n");
+    sb.append(
+        """
+
+        ### Directory Structure
+        ```
+        %s/
+        \u251c\u2500\u2500 index.yaml          # Ordered list of all specs with status
+        \u251c\u2500\u2500 oauth-flow/
+        \u2502   \u251c\u2500\u2500 spec.md           # Detailed specification
+        \u2502   \u2514\u2500\u2500 plan.md           # Optional implementation plan
+        \u251c\u2500\u2500 search-api/
+        \u2502   \u2514\u2500\u2500 spec.md
+        \u2514\u2500\u2500 archive/            # Completed specs moved here
+        ```
+
+        ### index.yaml Format
+        ```yaml
+        specs:
+          - id: oauth-flow
+            title: "OAuth 2.0 authorization code flow"
+            status: in_progress
+            assignee: claude-code
+            depends_on: []
+            branch: feat/oauth-flow
+          - id: search-api
+            title: "Full-text search API with Meilisearch"
+            status: pending
+            assignee: claude-code
+            depends_on: [oauth-flow]
+            branch: feat/search-api
+        ```
+
+        ### Status Lifecycle
+        `pending` \u2192 `in_progress` \u2192 `review` \u2192 `done`
+
+        ### Interactive Mode
+        When the engineer asks you to brainstorm or write a spec:
+        1. Create a directory under `%1$s/` named after the spec id
+        2. Write `spec.md` with the detailed specification
+        3. Add the spec entry to `%1$s/index.yaml` with status `pending`
+
+        ### Autonomous Mode
+        When running autonomously (dispatched by `sing dispatch`):
+        1. Read your assigned spec from `%1$s/index.yaml` (filtered by assignee)
+        2. Read the spec's `spec.md` for implementation details
+        3. Set status to `in_progress` in index.yaml
+        4. Implement the spec, run tests, commit
+        5. Set status to `review` when complete
+
+        ### Dependencies
+        The `depends_on` field lists spec ids that must be `done` before this spec can start.
+        Never start a spec whose dependencies are not all `done`.
+
+        ### Assignee Filtering
+        Only pick up specs where `assignee` matches your agent type.
+        Leave unassigned specs (`assignee: null`) for the engineer to assign.
+        """
+            .formatted(specsDir));
   }
 
   /** Appends the autonomous operation section when guardrails or a task file are configured. */

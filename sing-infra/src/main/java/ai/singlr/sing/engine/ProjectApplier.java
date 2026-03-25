@@ -355,6 +355,28 @@ public final class ProjectApplier {
     return new ApplyResult(entries.size(), 0, 0, List.of());
   }
 
+  /**
+   * Creates the specs scaffold directory inside the container when {@code agent.specs_dir} is
+   * configured and the directory does not already exist.
+   */
+  public ApplyResult applySpecsScaffold(String name, SingYaml config)
+      throws IOException, InterruptedException, TimeoutException {
+    if (config.agent() == null || config.agent().specsDir() == null) {
+      return ApplyResult.empty();
+    }
+    var sshUser = config.sshUser();
+    var specsPath = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
+    var check = shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", specsPath)));
+    if (check.ok()) {
+      out.println("  [skip] Specs directory '" + config.agent().specsDir() + "' already exists");
+      return new ApplyResult(0, 0, 1, List.of());
+    }
+    out.println("  [add] Creating specs scaffold at " + config.agent().specsDir() + "/...");
+    shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", specsPath + "/archive")));
+    pushFile(name, specsPath + "/index.yaml", "specs: []\n", sshUser);
+    return new ApplyResult(1, 0, 0, List.of());
+  }
+
   /** Checks for config sections that cannot be changed post-creation and returns warnings. */
   public List<String> checkUnsupportedChanges(SingYaml config) {
     var warnings = new ArrayList<String>();

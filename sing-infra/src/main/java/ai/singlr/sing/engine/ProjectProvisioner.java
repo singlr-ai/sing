@@ -84,6 +84,7 @@ public final class ProjectProvisioner {
       configurePruneCron(config);
       installAgentTools(config);
       generateAgentContext(config);
+      createSpecsScaffold(config);
       writeProjectState(config);
       tracker.cleanup();
     } catch (Exception e) {
@@ -1061,13 +1062,43 @@ public final class ProjectProvisioner {
     return Set.of();
   }
 
+  private void createSpecsScaffold(SingYaml config) throws Exception {
+    currentPhase = ProjectPhase.SPECS_SCAFFOLD_CREATED;
+    if (tracker.isCompleted(currentPhase)) {
+      stepSkipped(19, "specs scaffold already created");
+      return;
+    }
+
+    if (config.agent() == null || config.agent().specsDir() == null) {
+      tracker.advance(currentPhase);
+      stepSkipped(19, "no specs directory configured");
+      return;
+    }
+
+    var user = sshUser(config);
+    var specsPath = "/home/" + user + "/workspace/" + config.agent().specsDir();
+    var check = execInContainer(config.name(), List.of("test", "-d", specsPath));
+    if (check.ok()) {
+      tracker.advance(currentPhase);
+      stepSkipped(19, "specs directory already exists");
+      return;
+    }
+
+    step(19, "Creating specs scaffold...");
+    execInContainer(config.name(), List.of("mkdir", "-p", specsPath + "/archive"));
+    pushFileToContainer(config.name(), specsPath + "/index.yaml", "specs: []\n");
+    execInContainer(config.name(), List.of("chown", "-R", user + ":" + user, specsPath));
+    tracker.advance(currentPhase);
+    stepDone(19, "specs scaffold created at " + config.agent().specsDir() + "/");
+  }
+
   private void writeProjectState(SingYaml config) throws Exception {
     currentPhase = ProjectPhase.COMPLETE;
     if (tracker.isCompleted(currentPhase)) {
-      stepSkipped(19, "project state already written");
+      stepSkipped(20, "project state already written");
       return;
     }
-    step(19, "Writing project state...");
+    step(20, "Writing project state...");
 
     var name = config.name();
     execInContainer(name, List.of("mkdir", "-p", "/etc/sing"));
@@ -1081,7 +1112,7 @@ public final class ProjectProvisioner {
     pushFileToContainer(name, "/etc/sing/project.yaml", yaml);
 
     tracker.advance(currentPhase);
-    stepDone(19, "Project config saved");
+    stepDone(20, "Project config saved");
   }
 
   /**

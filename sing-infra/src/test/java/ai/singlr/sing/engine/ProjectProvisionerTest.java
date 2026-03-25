@@ -123,9 +123,9 @@ class ProjectProvisionerTest {
 
     provisioner.provision(fullConfig(), hostYaml(), null, null);
 
-    assertEquals(34, steps.size());
+    assertEquals(35, steps.size());
     assertTrue(steps.stream().anyMatch(s -> s.contains("done:1/")));
-    assertTrue(steps.stream().anyMatch(s -> s.contains("done:19/")));
+    assertTrue(steps.stream().anyMatch(s -> s.contains("done:20/")));
   }
 
   @Test
@@ -164,7 +164,7 @@ class ProjectProvisionerTest {
 
     provisioner.provision(fullConfig(), hostYaml(), null, null);
 
-    assertEquals(31, steps.size());
+    assertEquals(32, steps.size());
     assertTrue(steps.get(0).contains("skipped:1/"));
     assertTrue(steps.get(1).contains("skipped:2/"));
     assertTrue(steps.get(2).contains("skipped:3/"));
@@ -195,7 +195,7 @@ class ProjectProvisionerTest {
 
     provisioner.provision(fullConfig(), hostYaml(), null, null);
 
-    assertEquals(29, steps.size());
+    assertEquals(30, steps.size());
     assertTrue(steps.get(0).contains("skipped:1/"));
     assertTrue(steps.get(4).contains("skipped:5/"));
     assertTrue(steps.get(5).contains("step:6/"));
@@ -223,7 +223,7 @@ class ProjectProvisionerTest {
 
     provisioner.provision(fullConfig(), hostYaml(), null, null);
 
-    assertEquals(28, steps.size());
+    assertEquals(29, steps.size());
     assertTrue(steps.get(0).contains("skipped:1/"));
     assertTrue(steps.get(5).contains("skipped:6/"));
     assertTrue(steps.get(6).contains("step:7/"));
@@ -243,7 +243,7 @@ class ProjectProvisionerTest {
 
     provisioner.provision(fullConfig(), hostYaml(), null, null);
 
-    assertEquals(19, steps.size());
+    assertEquals(20, steps.size());
     assertTrue(steps.stream().allMatch(s -> s.startsWith("skipped:")));
   }
 
