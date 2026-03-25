@@ -163,7 +163,7 @@ class ProjectApplierTest {
   void applyAgentToolsInstallsMissingAgent() throws Exception {
     var shell =
         new ScriptedShellExecutor()
-            .onFail("which codex", "not found")
+            .onFail("bash -lc which codex", "not found")
             .onOk("which node")
             .onOk("bash -c");
     var applier = applier(shell);
@@ -176,7 +176,7 @@ class ProjectApplierTest {
 
   @Test
   void applyAgentToolsSkipsInstalledAgent() throws Exception {
-    var shell = new ScriptedShellExecutor().onOk("which claude");
+    var shell = new ScriptedShellExecutor().onOk("bash -lc which claude");
     var applier = applier(shell);
 
     var result = applier.applyAgentTools(CONTAINER, List.of("claude-code"), null);
@@ -186,10 +186,38 @@ class ProjectApplierTest {
   }
 
   @Test
+  void applyAgentToolsUsesLoginShellForWhichCheck() throws Exception {
+    var shell = new ScriptedShellExecutor().onOk("bash -lc which claude");
+    var applier = applier(shell);
+
+    applier.applyAgentTools(CONTAINER, List.of("claude-code"), null);
+
+    assertTrue(
+        shell.invocations().stream().anyMatch(c -> c.contains("bash -lc which claude")),
+        "Agent check must use login shell to find binaries on extended PATH");
+  }
+
+  @Test
+  void applyAgentToolsInstallsNewAndSkipsExisting() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("bash -lc which claude")
+            .onFail("bash -lc which gemini", "not found")
+            .onOk("which node")
+            .onOk("bash -c");
+    var applier = applier(shell);
+
+    var result = applier.applyAgentTools(CONTAINER, List.of("claude-code", "gemini"), null);
+
+    assertEquals(1, result.added());
+    assertEquals(1, result.skipped());
+  }
+
+  @Test
   void applyAgentToolsThrowsWhenNodeMissingForNpmAgent() throws Exception {
     var shell =
         new ScriptedShellExecutor()
-            .onFail("which codex", "not found")
+            .onFail("bash -lc which codex", "not found")
             .onFail("which node", "not found");
     var applier = applier(shell);
 
@@ -235,6 +263,25 @@ class ProjectApplierTest {
     var result = applier.applyGitConfig(CONTAINER, null, "dev");
 
     assertEquals(0, result.added());
+  }
+
+  @Test
+  void applyAgentContextCreatesParentDirsBeforePush() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
+    var applier = applier(shell);
+    var config = minimalConfig("claude-code");
+
+    applier.applyAgentContext(CONTAINER, config);
+
+    var invocations = shell.invocations();
+    var mkdirCmds = invocations.stream().filter(c -> c.contains("mkdir -p")).toList();
+    var pushCmds =
+        invocations.stream()
+            .filter(c -> c.contains("incus file push") && c.contains(".context/"))
+            .toList();
+    assertFalse(
+        mkdirCmds.isEmpty(), "Should create parent directories before pushing context files");
+    assertFalse(pushCmds.isEmpty(), "Should push context files");
   }
 
   @Test
@@ -423,7 +470,7 @@ class ProjectApplierTest {
   void applyAgentToolsThrowsOnInstallFailure() {
     var shell =
         new ScriptedShellExecutor()
-            .onFail("which claude", "not found")
+            .onFail("bash -lc which claude", "not found")
             .onFail("bash -c", "npm install failed");
     var applier = applier(shell);
 
@@ -447,7 +494,8 @@ class ProjectApplierTest {
 
   @Test
   void applyAgentToolsSkipsNodeCheckForClaudeCode() throws Exception {
-    var shell = new ScriptedShellExecutor().onFail("which claude", "not found").onOk("bash -c");
+    var shell =
+        new ScriptedShellExecutor().onFail("bash -lc which claude", "not found").onOk("bash -c");
     var applier = applier(shell);
 
     var result = applier.applyAgentTools(CONTAINER, List.of("claude-code"), null);

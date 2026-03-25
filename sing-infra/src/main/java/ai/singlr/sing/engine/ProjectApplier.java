@@ -134,7 +134,9 @@ public final class ProjectApplier {
     var skipped = 0;
     for (var agentName : install) {
       var tool = AgentCli.fromYamlName(agentName);
-      var check = shell.exec(ContainerExec.asDevUser(name, List.of("which", tool.binaryName())));
+      var check =
+          shell.exec(
+              ContainerExec.asDevUser(name, List.of("bash", "-lc", "which " + tool.binaryName())));
       if (check.ok()) {
         out.println("  [skip] Agent '" + agentName + "' already installed");
         skipped++;
@@ -430,6 +432,8 @@ public final class ProjectApplier {
     var tmpFile = Files.createTempFile("sing-push-", ".tmp");
     try {
       Files.writeString(tmpFile, content);
+      var parentDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
+      shell.exec(ContainerExec.asDevUser(containerName, List.of("mkdir", "-p", parentDir)));
       var cmd = new ArrayList<>(List.of("incus", "file", "push"));
       if (mode != null) {
         cmd.addAll(List.of("--mode", mode));

@@ -12,8 +12,10 @@ import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.GitHubFetcher;
 import ai.singlr.sing.engine.NameValidator;
+import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.WorkspaceFiles;
 import ai.singlr.sing.gen.SingYamlGenerator;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -115,6 +117,10 @@ public final class ProjectPullCommand implements Runnable {
     }
     var projectContent = GitHubFetcher.fetchRawFile(repo, projectPath, token, ref);
     if (projectContent == null) {
+      var hint =
+          (token == null || token.isBlank())
+              ? "\n  If the repository is private, provide a token with --github-token or GITHUB_TOKEN."
+              : "\n  Check that the file exists and your token has 'repo' scope.";
       throw new IllegalStateException(
           "Project '"
               + name
@@ -124,7 +130,8 @@ public final class ProjectPullCommand implements Runnable {
               + ref
               + ").\n"
               + "  Expected file: "
-              + projectPath);
+              + projectPath
+              + hint);
     }
     if (!json) {
       System.out.println(Ansi.AUTO.string("  @|green \u2713|@ " + projectPath + " loaded"));
@@ -158,9 +165,9 @@ public final class ProjectPullCommand implements Runnable {
     if (!json) {
       System.out.println();
     }
-    var resolvedYaml = PlaceholderResolver.resolve(yamlContent);
 
     var outputPath = output != null ? Path.of(output) : Path.of(name, "sing.yaml");
+    var resolvedYaml = resolveWithExistingValues(yamlContent, outputPath);
     if (outputPath.getParent() != null) {
       Files.createDirectories(outputPath.getParent());
     }
@@ -191,7 +198,13 @@ public final class ProjectPullCommand implements Runnable {
               "  @|bold,green \u2713 Workspace files pulled:|@ " + filesPulled + " file(s)"));
     }
     System.out.println();
-    System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name));
+    var stateDir = SingPaths.projectDir(name);
+    if (Files.exists(stateDir)) {
+      System.out.println(
+          Ansi.AUTO.string("  @|bold Next:|@ sing project apply " + name + " -f " + outputPath));
+    } else {
+      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name));
+    }
   }
 
   private int pullFilesDirectory(String token, String projectName, Path outputDir)
@@ -224,6 +237,39 @@ public final class ProjectPullCommand implements Runnable {
       }
     }
     return entries.size();
+  }
+
+  private String resolveWithExistingValues(String yamlContent, Path outputPath) throws IOException {
+    if (Files.exists(outputPath)) {
+      var existingContent = Files.readString(outputPath);
+      var existingConfig = SingYaml.fromMap(YamlUtil.parseMap(existingContent));
+      var replacements = new java.util.LinkedHashMap<String, String>();
+      if (existingConfig.git() != null) {
+        if (existingConfig.git().name() != null) {
+          replacements.put("${GIT_NAME}", existingConfig.git().name());
+        }
+        if (existingConfig.git().email() != null) {
+          replacements.put("${GIT_EMAIL}", existingConfig.git().email());
+        }
+      }
+      if (existingConfig.ssh() != null
+          && existingConfig.ssh().authorizedKeys() != null
+          && !existingConfig.ssh().authorizedKeys().isEmpty()) {
+        replacements.put("${SSH_PUBLIC_KEY}", existingConfig.ssh().authorizedKeys().getFirst());
+      }
+      var resolved = yamlContent;
+      for (var entry : replacements.entrySet()) {
+        resolved = resolved.replace(entry.getKey(), entry.getValue());
+      }
+      if (!resolved.contains("${")) {
+        if (!json) {
+          System.out.println(
+              Ansi.AUTO.string("  @|faint → Using existing values from " + outputPath + "|@"));
+        }
+        return resolved;
+      }
+    }
+    return PlaceholderResolver.resolve(yamlContent);
   }
 
   private String resolveToken() {
