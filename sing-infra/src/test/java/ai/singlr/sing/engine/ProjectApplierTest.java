@@ -866,6 +866,83 @@ class ProjectApplierTest {
     assertTrue(shell.invocations().isEmpty());
   }
 
+  @Test
+  void applyCleanupCronInstallsScriptsAndCron() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", "")
+            .onOk("mkdir")
+            .onOk("incus file push")
+            .onOk("chown")
+            .onOk("crontab -u")
+            .onOk("rm -f");
+    var applier = applier(shell);
+
+    var result = applier.applyCleanupCron(CONTAINER, "dev");
+
+    assertEquals(1, result.added());
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-containers.sh")));
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-agents.sh")));
+  }
+
+  @Test
+  void applyCleanupCronSkipsWhenAlreadyUpgraded() throws Exception {
+    var cronWithScript = "0 * * * * /home/dev/.sing/cleanup-containers.sh >/dev/null 2>&1\n";
+    var shell = new ScriptedShellExecutor().onOk("crontab -l", cronWithScript);
+    var applier = applier(shell);
+
+    var result = applier.applyCleanupCron(CONTAINER, "dev");
+
+    assertEquals(0, result.added());
+    assertEquals(1, result.skipped());
+    assertFalse(shell.invocations().stream().anyMatch(c -> c.contains("incus file push")));
+  }
+
+  @Test
+  void applyCleanupCronReplacesLegacyCron() throws Exception {
+    var legacyCron = "0 * * * * podman system prune -f --filter \"until=1h\" >/dev/null 2>&1\n";
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", legacyCron)
+            .onOk("mkdir")
+            .onOk("incus file push")
+            .onOk("chown")
+            .onOk("crontab -u")
+            .onOk("rm -f");
+    var applier = applier(shell);
+
+    var result = applier.applyCleanupCron(CONTAINER, "dev");
+
+    assertEquals(1, result.added());
+  }
+
+  @Test
+  void applyCleanupCronPreservesOtherCronEntries() throws Exception {
+    var existingCron =
+        "30 2 * * * /usr/local/bin/backup.sh\n0 * * * * podman system prune -f --filter \"until=1h\" >/dev/null 2>&1\n";
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", existingCron)
+            .onOk("mkdir")
+            .onOk("incus file push")
+            .onOk("chown")
+            .onOk("crontab -u")
+            .onOk("rm -f");
+    var applier = applier(shell);
+
+    applier.applyCleanupCron(CONTAINER, "dev");
+
+    var pushCmds =
+        shell.invocations().stream()
+            .filter(c -> c.contains("incus file push") && c.contains("sing-crontab"))
+            .toList();
+    assertFalse(pushCmds.isEmpty());
+  }
+
   private static ProjectApplier applier(ShellExec shell) {
     return new ProjectApplier(shell, new PrintStream(new ByteArrayOutputStream()));
   }

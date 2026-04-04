@@ -377,6 +377,58 @@ public final class ProjectApplier {
     return new ApplyResult(1, 0, 0, List.of());
   }
 
+  /**
+   * Upgrades the container cleanup cron from the legacy {@code podman system prune} to the robust
+   * {@code cleanup-containers.sh} script that identifies stray containers by restart policy. Also
+   * installs the manual agent cleanup helper. Idempotent — skips if already upgraded.
+   */
+  public ApplyResult applyCleanupCron(String name, String sshUser)
+      throws IOException, InterruptedException, TimeoutException {
+    var check = shell.exec(ContainerExec.asDevUser(name, List.of("crontab", "-l")));
+    var existingCron = check.ok() ? check.stdout() : "";
+
+    if (existingCron.contains(CleanupScripts.CONTAINER_CLEANUP_PATH)) {
+      out.println("  [skip] Container cleanup cron already upgraded");
+      return new ApplyResult(0, 0, 1, List.of());
+    }
+
+    out.println("  [apply] Upgrading container cleanup cron...");
+
+    shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", CleanupScripts.SING_DIR)));
+    pushFile(
+        name,
+        CleanupScripts.CONTAINER_CLEANUP_PATH,
+        CleanupScripts.containerCleanupScript(),
+        sshUser,
+        "0755");
+    pushFile(
+        name,
+        CleanupScripts.AGENT_CLEANUP_PATH,
+        CleanupScripts.agentCleanupScript(),
+        sshUser,
+        "0755");
+
+    var cleaned =
+        existingCron
+            .lines()
+            .filter(l -> !l.contains(CleanupScripts.legacyCronPattern()))
+            .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
+    var newCron = (cleaned.isEmpty() ? "" : cleaned + "\n") + CleanupScripts.cronLine();
+    pushFile(name, "/tmp/sing-crontab.tmp", newCron, sshUser);
+    var cronResult =
+        shell.exec(
+            List.of(
+                "incus", "exec", name, "--", "crontab", "-u", sshUser, "/tmp/sing-crontab.tmp"));
+    shell.exec(List.of("incus", "exec", name, "--", "rm", "-f", "/tmp/sing-crontab.tmp"));
+    if (!cronResult.ok()) {
+      throw new IOException(
+          "Failed to install crontab for user '" + sshUser + "': " + cronResult.stderr());
+    }
+
+    out.println("  [apply] Agent cleanup helper \u2192 " + CleanupScripts.AGENT_CLEANUP_PATH);
+    return new ApplyResult(1, 0, 0, List.of());
+  }
+
   /** Checks for config sections that cannot be changed post-creation and returns warnings. */
   public List<String> checkUnsupportedChanges(SingYaml config) {
     var warnings = new ArrayList<String>();

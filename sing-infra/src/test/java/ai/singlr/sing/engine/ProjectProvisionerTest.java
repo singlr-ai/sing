@@ -1728,7 +1728,7 @@ class ProjectProvisionerTest {
             .onOk("echo $VERSION_CODENAME", "noble")
             .onFail("node --version", "not found")
             .onFail("podman container inspect", "no such container")
-            .onOk("crontab -l", "0 * * * * podman system prune -f --filter \"until=1h\"");
+            .onOk("crontab -l", "0 * * * * /home/dev/.sing/cleanup-containers.sh >/dev/null 2>&1");
     var steps = new ArrayList<String>();
     var provisioner = new ProjectProvisioner(shell, tracker(), new RecordingListener(steps));
 

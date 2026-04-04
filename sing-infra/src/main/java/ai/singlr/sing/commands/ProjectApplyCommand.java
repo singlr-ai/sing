@@ -153,6 +153,10 @@ public final class ProjectApplyCommand implements Runnable {
     totalAdded += specsResult.added();
     totalSkipped += specsResult.skipped();
 
+    var cleanupResult = applier.applyCleanupCron(name, sshUser);
+    totalAdded += cleanupResult.added();
+    totalSkipped += cleanupResult.skipped();
+
     if (json) {
       var map = new LinkedHashMap<String, Object>();
       map.put("name", name);

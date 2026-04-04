@@ -886,24 +886,38 @@ public final class ProjectProvisioner {
   private void configurePruneCron(SingYaml config) throws Exception {
     currentPhase = ProjectPhase.PRUNE_CRON_CONFIGURED;
     if (tracker.isCompleted(currentPhase)) {
-      stepSkipped(16, "prune cron already configured");
+      stepSkipped(16, "cleanup cron already configured");
       return;
     }
-    step(16, "Configuring stale container pruning...");
+    step(16, "Configuring stale container cleanup...");
 
     var name = config.name();
     var user = sshUser(config);
 
     var check = execAsDevUser(name, List.of("crontab", "-l"));
-    if (check.ok() && check.stdout().contains("podman system prune")) {
+    if (check.ok() && check.stdout().contains(CleanupScripts.CONTAINER_CLEANUP_PATH)) {
       tracker.advance(currentPhase);
       stepDone(16, "already configured");
       return;
     }
 
-    var cronLine = "0 * * * * podman system prune -f --filter \"until=1h\" >/dev/null 2>&1\n";
+    execAsDevUser(name, List.of("mkdir", "-p", CleanupScripts.SING_DIR));
+    pushFileToContainer(
+        name,
+        CleanupScripts.CONTAINER_CLEANUP_PATH,
+        CleanupScripts.containerCleanupScript(),
+        "0755");
+    pushFileToContainer(
+        name, CleanupScripts.AGENT_CLEANUP_PATH, CleanupScripts.agentCleanupScript(), "0755");
+    execInContainer(name, List.of("chown", "-R", user + ":" + user, CleanupScripts.SING_DIR));
+
     var existingCron = check.ok() ? check.stdout() : "";
-    var newCron = existingCron + cronLine;
+    var cleaned =
+        existingCron
+            .lines()
+            .filter(l -> !l.contains(CleanupScripts.legacyCronPattern()))
+            .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
+    var newCron = (cleaned.isEmpty() ? "" : cleaned + "\n") + CleanupScripts.cronLine();
     pushFileToContainer(name, "/tmp/sing-crontab.tmp", newCron);
     var cronResult = execInContainer(name, List.of("crontab", "-u", user, "/tmp/sing-crontab.tmp"));
     execInContainer(name, List.of("rm", "-f", "/tmp/sing-crontab.tmp"));
@@ -913,7 +927,7 @@ public final class ProjectProvisioner {
     }
 
     tracker.advance(currentPhase);
-    stepDone(16, "Podman cleanup scheduled (hourly)");
+    stepDone(16, "Container cleanup scheduled (hourly) + agent cleanup helper installed");
   }
 
   private void installAgentTools(SingYaml config) throws Exception {
