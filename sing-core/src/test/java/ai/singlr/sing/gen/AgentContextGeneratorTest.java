@@ -733,18 +733,18 @@ class AgentContextGeneratorTest {
             List.of("claude-code", "codex"),
             null,
             null,
-            null,
+            "specs",
             null,
             null,
             null);
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(7, files.size());
+    assertEquals(5, files.size());
     assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("CLAUDE.md")));
     assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("AGENTS.md")));
     assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("SECURITY.md")));
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().contains(".context/system/")));
+    assertTrue(files.stream().anyMatch(f -> f.remotePath().contains("spec-board/SKILL.md")));
   }
 
   @Test
@@ -758,7 +758,7 @@ class AgentContextGeneratorTest {
             List.of("claude-code", "codex", "gemini"),
             null,
             null,
-            null,
+            "specs",
             null,
             null,
             null);
@@ -1216,7 +1216,7 @@ class AgentContextGeneratorTest {
             List.of("claude-code", "codex", "gemini"),
             null,
             null,
-            null,
+            "specs",
             null,
             null,
             null);

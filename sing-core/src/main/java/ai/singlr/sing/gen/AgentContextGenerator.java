@@ -42,8 +42,6 @@ public final class AgentContextGenerator {
 
     files.add(new GeneratedFile(basePath + "SECURITY.md", generateSecurityMd(), false));
 
-    files.addAll(ContextRepoGenerator.generateFiles(basePath, config.name()));
-
     var methodology = config.agent() != null ? config.agent().methodology() : null;
     var specsDir = config.agent() != null ? config.agent().specsDir() : null;
     for (var agent : targetAgents) {
@@ -238,8 +236,6 @@ public final class AgentContextGenerator {
       sb.append(config.agentContext().projectSpecific().strip());
       sb.append("\n");
     }
-
-    sb.append(ContextRepoGenerator.generateContextInstructions());
 
     if (config.agent() != null) {
       sb.append(MethodologyGenerator.generateMethodologyInstructions(config.agent().methodology()));

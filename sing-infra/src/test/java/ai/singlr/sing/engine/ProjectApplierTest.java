@@ -277,11 +277,11 @@ class ProjectApplierTest {
     var mkdirCmds = invocations.stream().filter(c -> c.contains("mkdir -p")).toList();
     var pushCmds =
         invocations.stream()
-            .filter(c -> c.contains("incus file push") && c.contains(".context/"))
+            .filter(c -> c.contains("incus file push") && c.contains("spec-board/"))
             .toList();
     assertFalse(
         mkdirCmds.isEmpty(), "Should create parent directories before pushing context files");
-    assertFalse(pushCmds.isEmpty(), "Should push context files");
+    assertFalse(pushCmds.isEmpty(), "Should push skill files");
   }
 
   @Test
@@ -540,7 +540,7 @@ class ProjectApplierTest {
 
     var result = applier.applyAgentContext(CONTAINER, config);
 
-    assertEquals(8, result.added());
+    assertEquals(4, result.added());
     assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("security-audit.sh")));
     assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("chmod") && c.contains("+x")));
     assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("mkdir") && c.contains("-p")));
@@ -857,7 +857,24 @@ class ProjectApplierTest {
   void applySpecsScaffoldReturnsEmptyWhenSpecsDirNull() throws Exception {
     var shell = new ScriptedShellExecutor();
     var applier = applier(shell);
-    var config = minimalConfig("claude-code");
+    var agent =
+        new SingYaml.Agent(
+            "claude-code", true, "sing/", true, null, null, null, null, null, null, null);
+    var config =
+        new SingYaml(
+            "test",
+            null,
+            new SingYaml.Resources(2, "4GB", "50GB"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            agent,
+            null,
+            null);
 
     var result = applier.applySpecsScaffold(CONTAINER, config);
 
@@ -950,7 +967,7 @@ class ProjectApplierTest {
   private static SingYaml minimalConfig(String agentType) {
     var agent =
         new SingYaml.Agent(
-            agentType, true, "sing/", true, null, null, null, null, null, null, null);
+            agentType, true, "sing/", true, null, null, null, "specs", null, null, null);
     return new SingYaml(
         "test",
         null,
