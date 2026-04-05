@@ -510,7 +510,16 @@ public final class ProjectApplier {
       Files.writeString(tmpFile, content);
       var parentDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
       shell.exec(ContainerExec.asDevUser(containerName, List.of("mkdir", "-p", parentDir)));
-      var cmd = new ArrayList<>(List.of("incus", "file", "push"));
+      var cmd =
+          new ArrayList<>(
+              List.of(
+                  "incus",
+                  "file",
+                  "push",
+                  "--uid",
+                  ContainerExec.DEV_UID,
+                  "--gid",
+                  ContainerExec.DEV_GID));
       if (mode != null) {
         cmd.addAll(List.of("--mode", mode));
       }
@@ -522,14 +531,6 @@ public final class ProjectApplier {
       }
     } finally {
       Files.deleteIfExists(tmpFile);
-    }
-    var chownResult =
-        shell.exec(
-            ContainerExec.asDevUser(
-                containerName, List.of("chown", sshUser + ":" + sshUser, remotePath)));
-    if (!chownResult.ok()) {
-      throw new IOException(
-          "Failed to set ownership on " + remotePath + ": " + chownResult.stderr());
     }
   }
 }
