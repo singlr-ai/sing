@@ -209,6 +209,8 @@ public final class ProjectApplier {
 
     for (var file : contextFiles) {
       out.println("  [apply] Agent context \u2192 " + file.remotePath());
+      var parentDir = file.remotePath().substring(0, file.remotePath().lastIndexOf('/'));
+      shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", parentDir)));
       pushFile(name, file.remotePath(), file.content(), sshUser);
     }
 

@@ -1,0 +1,205 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.gen;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import ai.singlr.sing.engine.AgentCli;
+import org.junit.jupiter.api.Test;
+
+class SpecSkillGeneratorTest {
+
+  private static final String BASE = "/home/dev/workspace/";
+
+  @Test
+  void generateFilesReturnsEmptyWhenSpecsDirNull() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, null, BASE);
+
+    assertTrue(files.isEmpty());
+  }
+
+  @Test
+  void claudeCodeGeneratesSkillMdAndTemplate() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+
+    assertEquals(2, files.size());
+    assertEquals(BASE + ".claude/skills/spec-board/SKILL.md", files.get(0).remotePath());
+    assertEquals(BASE + ".claude/skills/spec-board/spec-template.md", files.get(1).remotePath());
+  }
+
+  @Test
+  void claudeSkillMdHasFrontmatter() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.startsWith("---\n"));
+    assertTrue(content.contains("name: spec-board"));
+    assertTrue(content.contains("description:"));
+    assertTrue(content.contains("argument-hint:"));
+  }
+
+  @Test
+  void claudeSkillMdReferencesSpecsDir() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "my-specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("my-specs/index.yaml"));
+    assertTrue(content.contains("my-specs/<id>/spec.md"));
+  }
+
+  @Test
+  void claudeSkillMdContainsAllCommands() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("list"), "Should contain list command");
+    assertTrue(content.contains("create"), "Should contain create command");
+    assertTrue(content.contains("show"), "Should contain show command");
+    assertTrue(content.contains("update"), "Should contain update command");
+    assertTrue(content.contains("Bulk creation"), "Should contain bulk creation");
+  }
+
+  @Test
+  void claudeSkillMdContainsKanbanBoard() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("Pending"));
+    assertTrue(content.contains("In Progress"));
+    assertTrue(content.contains("Review"));
+    assertTrue(content.contains("Done"));
+  }
+
+  @Test
+  void claudeSkillMdContainsStatusLifecycle() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("pending"));
+    assertTrue(content.contains("in_progress"));
+    assertTrue(content.contains("review"));
+    assertTrue(content.contains("done"));
+  }
+
+  @Test
+  void claudeTemplateFileContainsSpecStructure() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var template = files.get(1).content();
+
+    assertTrue(template.contains("## Goal"));
+    assertTrue(template.contains("## Requirements"));
+    assertTrue(template.contains("## Approach"));
+    assertTrue(template.contains("## Edge Cases"));
+    assertTrue(template.contains("## Test Strategy"));
+  }
+
+  @Test
+  void geminiGeneratesSkillAndCommand() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
+
+    assertEquals(2, files.size());
+    assertEquals(BASE + ".gemini/skills/spec-board/SKILL.md", files.get(0).remotePath());
+    assertEquals(BASE + ".gemini/commands/spec/board.toml", files.get(1).remotePath());
+  }
+
+  @Test
+  void geminiSkillHasFrontmatter() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.startsWith("---\n"));
+    assertTrue(content.contains("name: spec-board"));
+  }
+
+  @Test
+  void geminiCommandTomlHasPrompt() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
+    var toml = files.get(1).content();
+
+    assertTrue(toml.contains("[command]"));
+    assertTrue(toml.contains("[command.prompt]"));
+    assertTrue(toml.contains("kanban"));
+  }
+
+  @Test
+  void codexReturnsEmptyFiles() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CODEX, "specs", BASE);
+
+    assertTrue(files.isEmpty());
+  }
+
+  @Test
+  void codexInstructionsContainsSpecManagement() {
+    var instructions = SpecSkillGenerator.codexInstructions("specs");
+
+    assertFalse(instructions.isEmpty());
+    assertTrue(instructions.contains("Spec Management"));
+    assertTrue(instructions.contains("specs/index.yaml"));
+    assertTrue(instructions.contains("spec.md"));
+  }
+
+  @Test
+  void codexInstructionsReturnsEmptyWhenNull() {
+    var instructions = SpecSkillGenerator.codexInstructions(null);
+
+    assertTrue(instructions.isEmpty());
+  }
+
+  @Test
+  void codexInstructionsContainsAllOperations() {
+    var instructions = SpecSkillGenerator.codexInstructions("specs");
+
+    assertTrue(instructions.contains("Pending"));
+    assertTrue(instructions.contains("In Progress"));
+    assertTrue(instructions.contains("create"), "Should contain create instructions");
+    assertTrue(instructions.contains("update"), "Should contain update instructions");
+    assertTrue(instructions.contains("brainstormed"), "Should contain bulk creation instructions");
+  }
+
+  @Test
+  void filesAreNotExecutable() {
+    var claudeFiles = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var geminiFiles = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
+
+    for (var file : claudeFiles) {
+      assertFalse(file.executable());
+    }
+    for (var file : geminiFiles) {
+      assertFalse(file.executable());
+    }
+  }
+
+  @Test
+  void customSpecsDirIsUsedInAllAgents() {
+    var customDir = "work-items";
+
+    var claude = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, customDir, BASE);
+    assertTrue(claude.get(0).content().contains("work-items/index.yaml"));
+
+    var gemini = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, customDir, BASE);
+    assertTrue(gemini.get(0).content().contains("work-items/index.yaml"));
+
+    var codex = SpecSkillGenerator.codexInstructions(customDir);
+    assertTrue(codex.contains("work-items/index.yaml"));
+  }
+
+  @Test
+  void claudeSkillReferencesTemplateFile() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("spec-template.md"));
+  }
+
+  @Test
+  void dependencyRulesDocumented() {
+    var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
+    var content = files.get(0).content();
+
+    assertTrue(content.contains("depends_on"));
+    assertTrue(content.contains("blocked"));
+  }
+}
