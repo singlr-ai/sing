@@ -146,8 +146,8 @@ public final class AgentSession {
   }
 
   /**
-   * Builds the SSH command for launching an agent in detached/background mode. The task is read
-   * from a file inside the container to avoid shell escaping issues.
+   * Builds an {@code incus exec} command for launching an agent in detached/background mode. The
+   * task is read from a file inside the container to avoid shell escaping issues.
    *
    * @param agentCli the agent CLI enum (determines headless command syntax)
    */
@@ -157,7 +157,6 @@ public final class AgentSession {
       String workDir,
       boolean fullPermissions,
       AgentCli agentCli) {
-    var user = Objects.requireNonNullElse(sshUser, "dev");
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
     var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
     var script =
@@ -172,12 +171,12 @@ public final class AgentSession {
             + " 2>&1 & echo $! > "
             + PID_FILE
             + "'";
-    return List.of("ssh", user + "@" + containerName, "--", script);
+    return ContainerExec.asDevUser(containerName, List.of("bash", "-c", script));
   }
 
   /**
-   * Builds the SSH command for launching an agent in interactive headless mode (foreground, with
-   * task). The task is read from a file to avoid escaping issues.
+   * Builds an {@code incus exec} command for launching an agent in interactive headless mode
+   * (foreground, with task). The task is read from a file to avoid escaping issues.
    *
    * @param agentCli the agent CLI enum (determines headless command syntax)
    */
@@ -187,11 +186,10 @@ public final class AgentSession {
       String workDir,
       boolean fullPermissions,
       AgentCli agentCli) {
-    var user = Objects.requireNonNullElse(sshUser, "dev");
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
     var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
-    var script = "bash -l -c 'cd " + workDir + " && " + agentCmd + "'";
-    return List.of("ssh", "-t", user + "@" + containerName, "--", script);
+    var script = "cd " + workDir + " && " + agentCmd;
+    return ContainerExec.asDevUser(containerName, List.of("bash", "-l", "-c", script));
   }
 
   /** Returns the path to the agent log file inside the container. */

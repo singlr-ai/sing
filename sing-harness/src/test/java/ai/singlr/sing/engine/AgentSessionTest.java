@@ -159,15 +159,15 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", false, AgentCli.CLAUDE_CODE);
 
-    assertEquals("ssh", cmd.getFirst());
-    assertTrue(cmd.get(1).contains("dev@acme"));
-    var script = cmd.get(3);
-    assertTrue(script.contains("nohup"));
-    assertTrue(script.contains("claude --print"));
-    assertTrue(script.contains("agent.log"));
-    assertTrue(script.contains("agent.pid"));
-    assertTrue(script.contains("agent-task.txt"));
-    assertFalse(script.contains("--dangerously-skip-permissions"));
+    assertEquals("incus", cmd.getFirst());
+    assertTrue(cmd.contains("acme"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("nohup"));
+    assertTrue(joined.contains("claude --print"));
+    assertTrue(joined.contains("agent.log"));
+    assertTrue(joined.contains("agent.pid"));
+    assertTrue(joined.contains("agent-task.txt"));
+    assertFalse(joined.contains("--dangerously-skip-permissions"));
   }
 
   @Test
@@ -176,8 +176,8 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CLAUDE_CODE);
 
-    var script = cmd.get(3);
-    assertTrue(script.contains("--dangerously-skip-permissions"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("--dangerously-skip-permissions"));
   }
 
   @Test
@@ -186,10 +186,10 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", false, AgentCli.CODEX);
 
-    var script = cmd.get(3);
-    assertTrue(script.contains("codex exec"));
-    assertFalse(script.contains("--print"));
-    assertFalse(script.contains("claude"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("codex exec"));
+    assertFalse(joined.contains("--print"));
+    assertFalse(joined.contains("claude"));
   }
 
   @Test
@@ -198,8 +198,8 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX);
 
-    var script = cmd.get(3);
-    assertTrue(script.contains("codex exec --full-auto"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("codex exec --full-auto"));
   }
 
   @Test
@@ -208,10 +208,10 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", true, AgentCli.GEMINI);
 
-    var script = cmd.get(3);
-    assertTrue(script.contains("gemini --yolo"));
-    assertTrue(script.contains("-p"));
-    assertFalse(script.contains("--print"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("gemini --yolo"));
+    assertTrue(joined.contains("-p"));
+    assertFalse(joined.contains("--print"));
   }
 
   @Test
@@ -220,8 +220,8 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", "/home/dev/workspace", false, null);
 
-    var script = cmd.get(3);
-    assertTrue(script.contains("claude --print"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("claude --print"));
   }
 
   @Test
@@ -230,11 +230,11 @@ class AgentSessionTest {
         AgentSession.buildForegroundTaskCommand(
             "acme", "dev", "/home/dev/workspace", false, AgentCli.CLAUDE_CODE);
 
-    assertEquals("ssh", cmd.getFirst());
-    assertTrue(cmd.contains("-t"));
-    var script = cmd.get(4);
-    assertTrue(script.contains("claude --print"));
-    assertTrue(script.contains("agent-task.txt"));
+    assertEquals("incus", cmd.getFirst());
+    assertTrue(cmd.contains("acme"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("claude --print"));
+    assertTrue(joined.contains("agent-task.txt"));
   }
 
   @Test
@@ -243,9 +243,9 @@ class AgentSessionTest {
         AgentSession.buildForegroundTaskCommand(
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX);
 
-    var script = cmd.get(4);
-    assertTrue(script.contains("codex exec --full-auto"));
-    assertFalse(script.contains("claude"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("codex exec --full-auto"));
+    assertFalse(joined.contains("claude"));
   }
 
   @Test
@@ -254,10 +254,10 @@ class AgentSessionTest {
         AgentSession.buildForegroundTaskCommand(
             "acme", "dev", "/home/dev/workspace", true, AgentCli.GEMINI);
 
-    var script = cmd.get(4);
-    assertTrue(script.contains("gemini --yolo"));
-    assertTrue(script.contains("-p"));
-    assertFalse(script.contains("claude"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("gemini --yolo"));
+    assertTrue(joined.contains("-p"));
+    assertFalse(joined.contains("claude"));
   }
 
   @Test
@@ -265,8 +265,8 @@ class AgentSessionTest {
     var cmd =
         AgentSession.buildForegroundTaskCommand("acme", "dev", "/home/dev/workspace", false, null);
 
-    var script = cmd.get(4);
-    assertTrue(script.contains("claude --print"));
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("claude --print"));
   }
 
   @Test
