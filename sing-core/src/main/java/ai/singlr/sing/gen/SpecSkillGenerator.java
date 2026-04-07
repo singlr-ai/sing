@@ -100,9 +100,9 @@ public final class SpecSkillGenerator {
         name: spec-board
         description: >
           Manage the project spec board — create specs, list them as a kanban board, update status,
-          show spec details. Use when the engineer mentions specs, tasks, the board, planning work,
-          or wants to see what's pending/in-progress/done.
+          show spec details. Only invoked explicitly by the engineer with /spec-board.
         argument-hint: "[create|list|show|update] [args...]"
+        disable-model-invocation: true
         ---
 
         You are the spec manager for this project. The engineer interacts with you to plan and
@@ -153,8 +153,7 @@ public final class SpecSkillGenerator {
         name: spec-board
         description: >
           Manage the project spec board — create specs, list them as a kanban board, update status,
-          show spec details. Use when the engineer mentions specs, tasks, the board, planning work,
-          or wants to see what's pending/in-progress/done.
+          show spec details. Only invoked explicitly by the engineer.
         ---
 
         You are the spec manager for this project. The engineer interacts with you to plan and
