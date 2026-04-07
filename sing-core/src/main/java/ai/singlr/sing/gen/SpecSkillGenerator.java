@@ -38,10 +38,11 @@ public final class SpecSkillGenerator {
     if (specsDir == null) {
       return List.of();
     }
+    var absSpecsDir = "~/workspace/" + specsDir;
 
     return switch (agent) {
-      case CLAUDE_CODE -> claudeSkillFiles(specsDir, basePath);
-      case GEMINI -> geminiSkillFiles(specsDir, basePath);
+      case CLAUDE_CODE -> claudeSkillFiles(absSpecsDir, basePath);
+      case GEMINI -> geminiSkillFiles(absSpecsDir, basePath);
       case CODEX -> List.of();
     };
   }
@@ -57,6 +58,7 @@ public final class SpecSkillGenerator {
     if (specsDir == null) {
       return "";
     }
+    var absSpecsDir = "~/workspace/" + specsDir;
     return """
 
         ## Spec Management
@@ -65,7 +67,7 @@ public final class SpecSkillGenerator {
         update, or show specs, follow these instructions exactly.
 
         """
-        + coreInstructions(specsDir)
+        + coreInstructions(absSpecsDir)
         + specTemplate();
   }
 
@@ -318,9 +320,15 @@ public final class SpecSkillGenerator {
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
         - **pending**: ready to be picked up
-        - **in_progress**: agent is actively working on it (set immediately on start)
-        - **review**: PR created, waiting for human review
-        - **done**: PR merged, work complete (set by engineer)
+        - **in_progress**: agent is actively working on it (set by `sing dispatch`)
+        - **review**: PR created, waiting for human review (set by `sing`)
+        - **done**: PR merged, work complete (set by engineer via `sing`)
+        Status is managed by `sing`, not by the agent. Do not modify status in index.yaml
+        during autonomous execution.
+
+        ### Important
+        Specs live at `%1$s/` — an absolute path in the workspace root, NOT inside any repo.
+        Never create a `specs/` directory inside a source repository.
 
         ### Fields
         - **id** (required): directory name, lowercase with hyphens

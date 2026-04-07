@@ -170,12 +170,7 @@ public final class DispatchCommand implements Runnable {
 
     var agentType = config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
-    var workspaceBase = "/home/" + sshUser + "/workspace";
-    var workDir = resolveWorkDir(workspaceBase, config.repos());
-    var dirCheck = shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", workDir)));
-    if (!dirCheck.ok()) {
-      workDir = workspaceBase;
-    }
+    var workDir = "/home/" + sshUser + "/workspace";
     var fullPermissions = true;
 
     String branchName = null;
@@ -202,18 +197,34 @@ public final class DispatchCommand implements Runnable {
     if (config.agent().autoBranch()) {
       var prefix = config.agent().branchPrefix() != null ? config.agent().branchPrefix() : "sing/";
       branchName = nextSpec.branch() != null ? nextSpec.branch() : prefix + nextSpec.id();
-      if (!json) {
-        System.out.println(Ansi.AUTO.string("  @|bold Creating branch:|@ " + branchName + "..."));
+      var created = false;
+      if (config.repos() != null && config.repos().size() == 1) {
+        var repoDir = workDir + "/" + config.repos().getFirst().path();
+        var repoExists =
+            shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", repoDir + "/.git")));
+        if (repoExists.ok()) {
+          if (!json) {
+            System.out.println(
+                Ansi.AUTO.string("  @|bold Creating branch:|@ " + branchName + "..."));
+          }
+          var branchCmd =
+              ContainerExec.asDevUser(
+                  name, List.of("git", "-C", repoDir, "checkout", "-b", branchName));
+          var result = shell.exec(branchCmd);
+          if (!result.ok()) {
+            throw new IOException(
+                "Failed to create branch '" + branchName + "': " + result.stderr());
+          }
+          if (!json) {
+            System.out.println(Ansi.AUTO.string("  @|green \u2713|@ Branch " + branchName));
+            System.out.println();
+          }
+          created = true;
+        }
       }
-      var branchCmd =
-          ContainerExec.asDevUser(
-              name, List.of("git", "-C", workDir, "checkout", "-b", branchName));
-      var result = shell.exec(branchCmd);
-      if (!result.ok()) {
-        throw new IOException("Failed to create branch '" + branchName + "': " + result.stderr());
-      }
-      if (!json) {
-        System.out.println(Ansi.AUTO.string("  @|green \u2713|@ Branch " + branchName));
+      if (!created && !json) {
+        System.out.println(
+            Ansi.AUTO.string("  @|faint Branch:|@ " + branchName + " (create manually in repo)"));
         System.out.println();
       }
     }
@@ -339,17 +350,6 @@ public final class DispatchCommand implements Runnable {
                   + name,
               Ansi.AUTO));
     }
-  }
-
-  /**
-   * Resolves the git working directory for branch creation and agent launch. When repos are
-   * configured, uses the first repo's path. Falls back to the workspace root.
-   */
-  static String resolveWorkDir(String workspaceBase, List<SingYaml.Repo> repos) {
-    if (repos != null && !repos.isEmpty()) {
-      return workspaceBase + "/" + repos.getFirst().path();
-    }
-    return workspaceBase;
   }
 
   private static final Duration SNAPSHOT_INTERVAL = Duration.ofHours(24);

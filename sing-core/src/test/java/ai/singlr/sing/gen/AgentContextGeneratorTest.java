@@ -1241,7 +1241,7 @@ class AgentContextGeneratorTest {
     assertTrue(md.contains("depends_on"));
     assertTrue(md.contains("Assignee Filtering"));
     assertTrue(md.contains("Interactive Mode"));
-    assertTrue(md.contains("Autonomous Mode"));
+    assertTrue(md.contains("not inside any repo"));
   }
 
   @Test

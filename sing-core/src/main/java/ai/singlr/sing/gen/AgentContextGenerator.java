@@ -443,10 +443,11 @@ public final class AgentContextGenerator {
     if (config.agent() == null || config.agent().specsDir() == null) {
       return;
     }
-    var specsDir = config.agent().specsDir();
+    var specsDir = "~/workspace/" + config.agent().specsDir();
     sb.append("\n## Spec-Driven Development\n\n");
     sb.append("This project uses spec-driven development. ");
-    sb.append("Specs live in `").append(specsDir).append("/` and describe units of work.\n");
+    sb.append("Specs live in `").append(specsDir).append("/` (absolute path — ");
+    sb.append("not inside any repo).\n");
     sb.append(
         """
 
@@ -461,6 +462,9 @@ public final class AgentContextGenerator {
         \u2502   \u2514\u2500\u2500 spec.md
         \u2514\u2500\u2500 archive/            # Completed specs moved here
         ```
+
+        **Important:** Specs are managed separately from source repos. Never create a `specs/`
+        directory inside a repo. Always use the absolute path `%1$s/` for all spec operations.
 
         ### index.yaml Format
         ```yaml
@@ -481,20 +485,13 @@ public final class AgentContextGenerator {
 
         ### Status Lifecycle
         `pending` \u2192 `in_progress` \u2192 `review` \u2192 `done`
+        Spec status is managed by `sing`, not by you. Do not modify spec status in index.yaml.
 
         ### Interactive Mode
         When the engineer asks you to brainstorm or write a spec:
         1. Create a directory under `%1$s/` named after the spec id
         2. Write `spec.md` with the detailed specification
         3. Add the spec entry to `%1$s/index.yaml` with status `pending`
-
-        ### Autonomous Mode
-        When running autonomously (dispatched by `sing dispatch`):
-        1. Read your assigned spec from `%1$s/index.yaml` (filtered by assignee)
-        2. Read the spec's `spec.md` for implementation details
-        3. Set status to `in_progress` in index.yaml
-        4. Implement the spec, run tests, commit
-        5. Set status to `review` when complete
 
         ### Dependencies
         The `depends_on` field lists spec ids that must be `done` before this spec can start.
