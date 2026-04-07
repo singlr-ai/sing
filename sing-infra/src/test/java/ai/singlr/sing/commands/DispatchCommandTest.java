@@ -106,19 +106,17 @@ class DispatchCommandTest {
     assertTrue(prompt.contains("oauth-flow"));
     assertTrue(prompt.contains("Implement OAuth"));
     assertTrue(prompt.contains("Build Google OAuth integration"));
-    assertTrue(prompt.contains("specs/index.yaml"));
-    assertTrue(prompt.contains("\"in_progress\""));
-    assertTrue(prompt.contains("\"review\""));
-    assertTrue(prompt.contains("next pending spec"));
+    assertFalse(prompt.contains("index.yaml"), "Prompt should not contain lifecycle instructions");
   }
 
   @Test
-  void buildTaskPromptUsesSpecsDir() {
+  void buildTaskPromptContainsSpecIdAndDescription() {
     var spec = new Spec("auth", "Auth", "pending", null, List.of(), null);
 
     var prompt = DispatchCommand.buildTaskPrompt(spec, "Details", "my-specs");
 
-    assertTrue(prompt.contains("my-specs/index.yaml"));
+    assertTrue(prompt.contains("auth"));
+    assertTrue(prompt.contains("Details"));
   }
 
   @Test

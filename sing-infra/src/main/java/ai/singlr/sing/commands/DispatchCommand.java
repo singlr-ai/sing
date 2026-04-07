@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -141,6 +142,8 @@ public final class DispatchCommand implements Runnable {
       printNoSpecs();
       return;
     }
+
+    updateSpecStatus(shell, name, specsDir, specs, nextSpec.id(), "in_progress");
 
     var specBody = readSpecMd(shell, specsDir, nextSpec.id());
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
@@ -288,20 +291,7 @@ public final class DispatchCommand implements Runnable {
   }
 
   static String buildTaskPrompt(Spec spec, String description, String specsDir) {
-    return "Your current spec: \""
-        + spec.title()
-        + "\" (id: "
-        + spec.id()
-        + ").\n\n"
-        + description
-        + "\n\nBefore starting implementation, update "
-        + specsDir
-        + "/index.yaml and set this spec's status to \"in_progress\"."
-        + " Commit and push this change immediately."
-        + "\n\nWhen implementation is complete and the pull request is created, update "
-        + specsDir
-        + "/index.yaml and set this spec's status to \"review\"."
-        + " Then pick up the next pending spec and continue working.";
+    return "Your current spec: \"" + spec.title() + "\" (id: " + spec.id() + ").\n\n" + description;
   }
 
   private void printNoSpecs() {
@@ -379,6 +369,39 @@ public final class DispatchCommand implements Runnable {
       return Instant.now().isAfter(latestTime.plus(SNAPSHOT_INTERVAL));
     } catch (Exception ignored) {
       return true;
+    }
+  }
+
+  /**
+   * Updates a spec's status in the container's {@code index.yaml}. Rebuilds the index with the
+   * updated status and writes it back via {@code incus exec}.
+   */
+  private void updateSpecStatus(
+      ShellExecutor shell,
+      String containerName,
+      String specsDir,
+      List<Spec> specs,
+      String specId,
+      String newStatus)
+      throws IOException, InterruptedException, TimeoutException {
+    var updated =
+        specs.stream()
+            .map(
+                s ->
+                    s.id().equals(specId)
+                        ? new Spec(
+                            s.id(), s.title(), newStatus, s.assignee(), s.dependsOn(), s.branch())
+                        : s)
+            .toList();
+    var yaml = YamlUtil.dumpToString(SpecDirectory.generateIndex(updated));
+    var writeCmd =
+        ContainerExec.asDevUser(
+            containerName,
+            List.of(
+                "bash", "-c", "printf '%s' \"$1\" > " + specsDir + "/index.yaml", "bash", yaml));
+    var result = shell.exec(writeCmd);
+    if (!result.ok()) {
+      throw new IOException("Failed to update spec status in index.yaml: " + result.stderr());
     }
   }
 }

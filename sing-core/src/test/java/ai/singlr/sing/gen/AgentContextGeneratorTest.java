@@ -467,8 +467,7 @@ class AgentContextGeneratorTest {
     var md = AgentContextGenerator.generateClaudeMd(config);
 
     assertTrue(md.contains("## Autonomous Operation"));
-    assertTrue(md.contains("specs"));
-    assertTrue(md.contains("next pending spec"));
+    assertTrue(md.contains("handoff.md"));
   }
 
   @Test
@@ -682,10 +681,7 @@ class AgentContextGeneratorTest {
 
     var md = AgentContextGenerator.generateClaudeMd(config);
 
-    assertTrue(md.contains("6. Update the spec status"));
-    assertTrue(md.contains("7. Switch back"));
-    assertTrue(md.contains("8. Pick up the next"));
-    assertTrue(md.contains("9. If no more specs"));
+    assertTrue(md.contains("6. If no more work remains"));
   }
 
   @Test
