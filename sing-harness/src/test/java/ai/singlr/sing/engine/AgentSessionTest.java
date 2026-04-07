@@ -162,7 +162,7 @@ class AgentSessionTest {
     assertEquals("incus", cmd.getFirst());
     assertTrue(cmd.contains("acme"));
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("nohup"));
+    assertFalse(joined.contains("nohup"));
     assertTrue(joined.contains("claude --print"));
     assertTrue(joined.contains("agent.log"));
     assertTrue(joined.contains("agent.pid"));

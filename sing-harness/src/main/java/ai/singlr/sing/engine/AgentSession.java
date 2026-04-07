@@ -164,7 +164,7 @@ public final class AgentSession {
             + SING_DIR
             + " && cd "
             + workDir
-            + " && nohup bash -l -c '"
+            + " && bash -l -c '"
             + agentCmd
             + "' > "
             + LOG_FILE
