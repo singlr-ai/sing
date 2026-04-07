@@ -86,7 +86,7 @@ class CleanupScriptsTest {
   @Test
   void pathConstantsAreConsistent() {
     assertTrue(CleanupScripts.CONTAINER_CLEANUP_PATH.startsWith(CleanupScripts.SING_DIR));
-    assertTrue(CleanupScripts.AGENT_CLEANUP_PATH.startsWith(CleanupScripts.SING_DIR));
+    assertTrue(CleanupScripts.AGENT_CLEANUP_PATH.startsWith(CleanupScripts.WORKSPACE));
   }
 
   @Test

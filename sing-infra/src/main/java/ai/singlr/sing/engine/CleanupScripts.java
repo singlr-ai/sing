@@ -21,8 +21,9 @@ package ai.singlr.sing.engine;
 public final class CleanupScripts {
 
   static final String SING_DIR = "/home/dev/.sing";
+  static final String WORKSPACE = "/home/dev/workspace";
   static final String CONTAINER_CLEANUP_PATH = SING_DIR + "/cleanup-containers.sh";
-  static final String AGENT_CLEANUP_PATH = SING_DIR + "/cleanup-agents.sh";
+  static final String AGENT_CLEANUP_PATH = WORKSPACE + "/cleanup-agents.sh";
 
   private CleanupScripts() {}
 

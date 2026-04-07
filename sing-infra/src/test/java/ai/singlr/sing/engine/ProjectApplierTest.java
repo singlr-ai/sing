@@ -913,7 +913,7 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", cronWithScript)
-            .onOk("test -f /home/dev/.sing/cleanup-agents.sh");
+            .onOk("test -f /home/dev/workspace/cleanup-agents.sh");
     var applier = applier(shell);
 
     var result = applier.applyCleanupCron(CONTAINER, "dev");
