@@ -164,7 +164,8 @@ public final class DispatchCommand implements Runnable {
 
     var agentType = config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
-    var workDir = "/home/" + sshUser + "/workspace";
+    var workspaceBase = "/home/" + sshUser + "/workspace";
+    var workDir = resolveWorkDir(workspaceBase, config.repos());
     var fullPermissions =
         config.agent().config() != null
             && "full".equals(config.agent().config().get("permissions"));
@@ -333,5 +334,16 @@ public final class DispatchCommand implements Runnable {
                   + name,
               Ansi.AUTO));
     }
+  }
+
+  /**
+   * Resolves the git working directory for branch creation and agent launch. When repos are
+   * configured, uses the first repo's path. Falls back to the workspace root.
+   */
+  static String resolveWorkDir(String workspaceBase, List<SingYaml.Repo> repos) {
+    if (repos != null && !repos.isEmpty()) {
+      return workspaceBase + "/" + repos.getFirst().path();
+    }
+    return workspaceBase;
   }
 }

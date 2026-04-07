@@ -8,6 +8,7 @@ package ai.singlr.sing.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sing.Sing;
+import ai.singlr.sing.config.SingYaml;
 import ai.singlr.sing.config.Spec;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -146,6 +147,29 @@ class DispatchCommandTest {
     cmd.execute("--help");
 
     assertTrue(sw.toString().contains("dispatch"));
+  }
+
+  @Test
+  void resolveWorkDirUsesFirstRepoPath() {
+    var repos = List.of(new SingYaml.Repo("https://github.com/org/app.git", "my-app", null));
+
+    var workDir = DispatchCommand.resolveWorkDir("/home/dev/workspace", repos);
+
+    assertEquals("/home/dev/workspace/my-app", workDir);
+  }
+
+  @Test
+  void resolveWorkDirFallsBackToWorkspaceWhenNoRepos() {
+    var workDir = DispatchCommand.resolveWorkDir("/home/dev/workspace", null);
+
+    assertEquals("/home/dev/workspace", workDir);
+  }
+
+  @Test
+  void resolveWorkDirFallsBackToWorkspaceWhenReposEmpty() {
+    var workDir = DispatchCommand.resolveWorkDir("/home/dev/workspace", List.of());
+
+    assertEquals("/home/dev/workspace", workDir);
   }
 
   @Test
