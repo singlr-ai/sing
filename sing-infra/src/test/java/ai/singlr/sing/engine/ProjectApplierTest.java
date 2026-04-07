@@ -909,7 +909,10 @@ class ProjectApplierTest {
   @Test
   void applyCleanupCronSkipsWhenAlreadyUpgraded() throws Exception {
     var cronWithScript = "0 * * * * /home/dev/.sing/cleanup-containers.sh >/dev/null 2>&1\n";
-    var shell = new ScriptedShellExecutor().onOk("crontab -l", cronWithScript);
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", cronWithScript)
+            .onOk("test -f /home/dev/.sing/cleanup-agents.sh");
     var applier = applier(shell);
 
     var result = applier.applyCleanupCron(CONTAINER, "dev");

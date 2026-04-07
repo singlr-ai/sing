@@ -389,7 +389,14 @@ public final class ProjectApplier {
     var check = shell.exec(ContainerExec.asDevUser(name, List.of("crontab", "-l")));
     var existingCron = check.ok() ? check.stdout() : "";
 
-    if (existingCron.contains(CleanupScripts.CONTAINER_CLEANUP_PATH)) {
+    var scriptsExist =
+        shell
+            .exec(
+                ContainerExec.asDevUser(
+                    name, List.of("test", "-f", CleanupScripts.AGENT_CLEANUP_PATH)))
+            .ok();
+
+    if (existingCron.contains(CleanupScripts.CONTAINER_CLEANUP_PATH) && scriptsExist) {
       out.println("  [skip] Container cleanup cron already upgraded");
       return new ApplyResult(0, 0, 1, List.of());
     }
