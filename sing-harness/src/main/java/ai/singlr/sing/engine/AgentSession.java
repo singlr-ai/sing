@@ -166,11 +166,10 @@ public final class AgentSession {
             + workDir
             + " && nohup bash -l -c '"
             + agentCmd
-            + " > "
+            + "' > "
             + LOG_FILE
             + " 2>&1 & echo $! > "
-            + PID_FILE
-            + "'";
+            + PID_FILE;
     return ContainerExec.asDevUser(containerName, List.of("bash", "-c", script));
   }
 
