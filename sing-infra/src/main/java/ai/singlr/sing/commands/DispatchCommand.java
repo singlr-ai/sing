@@ -166,9 +166,7 @@ public final class DispatchCommand implements Runnable {
     var agentCli = AgentCli.fromYamlName(agentType);
     var workspaceBase = "/home/" + sshUser + "/workspace";
     var workDir = resolveWorkDir(workspaceBase, config.repos());
-    var fullPermissions =
-        config.agent().config() != null
-            && "full".equals(config.agent().config().get("permissions"));
+    var fullPermissions = true;
 
     var label = SnapshotManager.defaultLabel();
     String branchName = null;
