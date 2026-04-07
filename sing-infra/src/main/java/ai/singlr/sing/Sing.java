@@ -19,6 +19,7 @@ import ai.singlr.sing.commands.RunCommand;
 import ai.singlr.sing.commands.ShellCommand;
 import ai.singlr.sing.commands.SnapCommand;
 import ai.singlr.sing.commands.SnapsCommand;
+import ai.singlr.sing.commands.SnapsPruneCommand;
 import ai.singlr.sing.commands.SpecCommand;
 import ai.singlr.sing.commands.SwitchCommand;
 import ai.singlr.sing.commands.UpCommand;
@@ -43,6 +44,7 @@ import picocli.CommandLine.Help.Ansi;
       SnapCommand.class,
       RestoreCommand.class,
       SnapsCommand.class,
+      SnapsPruneCommand.class,
       RunCommand.class,
       AgentCommand.class,
       DispatchCommand.class,
