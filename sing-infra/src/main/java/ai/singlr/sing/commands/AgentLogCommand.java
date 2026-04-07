@@ -75,8 +75,8 @@ public final class AgentLogCommand implements Runnable {
     var logPath = AgentSession.logPath();
 
     if (follow) {
-      var sshCmd = List.of("ssh", "-t", "dev@" + name, "--", "tail -f " + logPath);
-      var pb = new ProcessBuilder(sshCmd);
+      var tailCmd = ContainerExec.asDevUser(name, List.of("tail", "-f", logPath));
+      var pb = new ProcessBuilder(tailCmd);
       pb.inheritIO();
       var process = pb.start();
       process.waitFor();
