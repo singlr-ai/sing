@@ -912,15 +912,10 @@ public final class ProjectProvisioner {
     execInContainer(name, List.of("chown", "-R", user + ":" + user, CleanupScripts.SING_DIR));
 
     var existingCron = check.ok() ? check.stdout() : "";
-    var cleaned =
-        existingCron
-            .lines()
-            .filter(l -> !l.contains(CleanupScripts.legacyCronPattern()))
-            .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
-    var newCron = (cleaned.isEmpty() ? "" : cleaned + "\n") + CleanupScripts.cronLine();
-    pushFileToContainer(name, "/tmp/sing-crontab.tmp", newCron);
-    var cronResult = execInContainer(name, List.of("crontab", "-u", user, "/tmp/sing-crontab.tmp"));
-    execInContainer(name, List.of("rm", "-f", "/tmp/sing-crontab.tmp"));
+    var newCron = CleanupScripts.buildUpgradedCrontab(existingCron);
+    var tmpPath = writeTempCrontab(name, newCron);
+    var cronResult = execInContainer(name, List.of("crontab", "-u", user, tmpPath));
+    execInContainer(name, List.of("rm", "-f", tmpPath));
     if (!cronResult.ok()) {
       throw new IOException(
           "Failed to install crontab for user '" + user + "': " + cronResult.stderr());
@@ -1334,6 +1329,21 @@ public final class ProjectProvisioner {
       return Path.of(System.getProperty("user.home"), path.substring(2));
     }
     return Path.of(path);
+  }
+
+  /**
+   * Writes crontab content to a unique temp file inside the container using {@code mktemp}. Returns
+   * the generated path. Avoids the TOCTOU race of a predictable {@code /tmp/sing-crontab.tmp}.
+   */
+  private String writeTempCrontab(String name, String content)
+      throws IOException, InterruptedException, TimeoutException {
+    var mktemp = execInContainer(name, List.of("mktemp", "/tmp/sing-crontab.XXXXXX"));
+    if (!mktemp.ok()) {
+      throw new IOException("Failed to create temp file for crontab: " + mktemp.stderr());
+    }
+    var tmpPath = mktemp.stdout().strip();
+    pushFileToContainer(name, tmpPath, content);
+    return tmpPath;
   }
 
   private ShellExec.Result execInContainer(String name, List<String> command)

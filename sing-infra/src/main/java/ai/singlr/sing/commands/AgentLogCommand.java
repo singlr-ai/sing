@@ -79,7 +79,11 @@ public final class AgentLogCommand implements Runnable {
       var pb = new ProcessBuilder(tailCmd);
       pb.inheritIO();
       var process = pb.start();
-      process.waitFor();
+      try {
+        process.waitFor();
+      } finally {
+        process.destroyForcibly();
+      }
     } else {
       var cmd = ContainerExec.asDevUser(name, List.of("tail", "-n", String.valueOf(tail), logPath));
       var result = shell.exec(cmd);

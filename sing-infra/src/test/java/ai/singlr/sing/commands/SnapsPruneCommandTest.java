@@ -11,6 +11,7 @@ import ai.singlr.sing.Sing;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
@@ -40,16 +41,17 @@ class SnapsPruneCommandTest {
   }
 
   @Test
-  void helpShowsOlderThanFlag() {
+  void helpShowsAllFlags() {
     var cmd = new CommandLine(new Sing());
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
     cmd.execute("snaps-prune", "--help");
 
-    assertTrue(sw.toString().contains("--older-than"));
-    assertTrue(sw.toString().contains("--dry-run"));
-    assertTrue(sw.toString().contains("--json"));
+    var help = sw.toString();
+    assertTrue(help.contains("--older-than"));
+    assertTrue(help.contains("--dry-run"));
+    assertTrue(help.contains("--json"));
   }
 
   @Test
@@ -65,23 +67,17 @@ class SnapsPruneCommandTest {
 
   @Test
   void parseAgeDays() {
-    var duration = SnapsPruneCommand.parseAge("7d");
-
-    assertEquals(Duration.ofDays(7), duration);
+    assertEquals(Duration.ofDays(7), SnapsPruneCommand.parseAge("7d"));
   }
 
   @Test
   void parseAgeHours() {
-    var duration = SnapsPruneCommand.parseAge("24h");
-
-    assertEquals(Duration.ofHours(24), duration);
+    assertEquals(Duration.ofHours(24), SnapsPruneCommand.parseAge("24h"));
   }
 
   @Test
   void parseAgeMinutes() {
-    var duration = SnapsPruneCommand.parseAge("30m");
-
-    assertEquals(Duration.ofMinutes(30), duration);
+    assertEquals(Duration.ofMinutes(30), SnapsPruneCommand.parseAge("30m"));
   }
 
   @Test
@@ -96,9 +92,7 @@ class SnapsPruneCommandTest {
 
   @Test
   void parseAgeTrimsWhitespace() {
-    var duration = SnapsPruneCommand.parseAge("  3d  ");
-
-    assertEquals(Duration.ofDays(3), duration);
+    assertEquals(Duration.ofDays(3), SnapsPruneCommand.parseAge("  3d  "));
   }
 
   @Test
@@ -110,5 +104,48 @@ class SnapsPruneCommandTest {
     cmd.execute("snaps-prune", "--help");
 
     assertTrue(sw.toString().contains("[<name>]") || sw.toString().contains("Project name"));
+  }
+
+  @Test
+  void parseSnapshotTimeHandlesIso8601() {
+    var instant = SnapsPruneCommand.parseSnapshotTime("2026-04-07T03:58:31.123456789Z");
+
+    assertNotNull(instant);
+    assertTrue(instant.isBefore(Instant.now()));
+  }
+
+  @Test
+  void parseSnapshotTimeHandlesOffsetDateTime() {
+    var instant = SnapsPruneCommand.parseSnapshotTime("2026-04-07T03:58:31+00:00");
+
+    assertNotNull(instant);
+  }
+
+  @Test
+  void parseSnapshotTimeReturnsNullForNull() {
+    assertNull(SnapsPruneCommand.parseSnapshotTime(null));
+  }
+
+  @Test
+  void parseSnapshotTimeReturnsNullForBlank() {
+    assertNull(SnapsPruneCommand.parseSnapshotTime(""));
+  }
+
+  @Test
+  void parseSnapshotTimeReturnsNullForGarbage() {
+    assertNull(SnapsPruneCommand.parseSnapshotTime("not-a-date"));
+  }
+
+  @Test
+  void parseAgeLargeValues() {
+    assertEquals(Duration.ofDays(365), SnapsPruneCommand.parseAge("365d"));
+  }
+
+  @Test
+  void parseAgeErrorMessageIsHelpful() {
+    var ex = assertThrows(IllegalArgumentException.class, () -> SnapsPruneCommand.parseAge("abc"));
+
+    assertTrue(ex.getMessage().contains("Invalid age format"));
+    assertTrue(ex.getMessage().contains("Examples"));
   }
 }

@@ -417,18 +417,17 @@ public final class ProjectApplier {
         sshUser,
         "0755");
 
-    var cleaned =
-        existingCron
-            .lines()
-            .filter(l -> !l.contains(CleanupScripts.legacyCronPattern()))
-            .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
-    var newCron = (cleaned.isEmpty() ? "" : cleaned + "\n") + CleanupScripts.cronLine();
-    pushFile(name, "/tmp/sing-crontab.tmp", newCron, sshUser);
+    var newCron = CleanupScripts.buildUpgradedCrontab(existingCron);
+    var mktemp =
+        shell.exec(List.of("incus", "exec", name, "--", "mktemp", "/tmp/sing-crontab.XXXXXX"));
+    if (!mktemp.ok()) {
+      throw new IOException("Failed to create temp file for crontab: " + mktemp.stderr());
+    }
+    var tmpPath = mktemp.stdout().strip();
+    pushFile(name, tmpPath, newCron, sshUser);
     var cronResult =
-        shell.exec(
-            List.of(
-                "incus", "exec", name, "--", "crontab", "-u", sshUser, "/tmp/sing-crontab.tmp"));
-    shell.exec(List.of("incus", "exec", name, "--", "rm", "-f", "/tmp/sing-crontab.tmp"));
+        shell.exec(List.of("incus", "exec", name, "--", "crontab", "-u", sshUser, tmpPath));
+    shell.exec(List.of("incus", "exec", name, "--", "rm", "-f", tmpPath));
     if (!cronResult.ok()) {
       throw new IOException(
           "Failed to install crontab for user '" + sshUser + "': " + cronResult.stderr());

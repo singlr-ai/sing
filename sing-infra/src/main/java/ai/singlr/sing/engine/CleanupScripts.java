@@ -131,6 +131,22 @@ public final class CleanupScripts {
   }
 
   /**
+   * Builds an upgraded crontab by removing legacy {@code podman system prune} lines and appending
+   * the new cleanup script invocation.
+   *
+   * @param existingCron the current crontab content (may be empty)
+   * @return the updated crontab content
+   */
+  public static String buildUpgradedCrontab(String existingCron) {
+    var cleaned =
+        existingCron
+            .lines()
+            .filter(l -> !l.contains(legacyCronPattern()))
+            .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
+    return (cleaned.isEmpty() ? "" : cleaned + "\n") + cronLine();
+  }
+
+  /**
    * Returns the legacy cron pattern used by older versions, for detection and replacement during
    * upgrades.
    */

@@ -28,6 +28,10 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+/**
+ * Lists specs from a project's {@code specs/index.yaml} as a kanban board grouped by status. Reads
+ * the index from inside the Incus container via {@code incus exec}.
+ */
 @Command(
     name = "list",
     description = "List specs as a kanban board.",

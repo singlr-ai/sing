@@ -88,4 +88,33 @@ class CleanupScriptsTest {
     assertTrue(CleanupScripts.CONTAINER_CLEANUP_PATH.startsWith(CleanupScripts.SING_DIR));
     assertTrue(CleanupScripts.AGENT_CLEANUP_PATH.startsWith(CleanupScripts.SING_DIR));
   }
+
+  @Test
+  void buildUpgradedCrontabRemovesLegacyLine() {
+    var oldCron = "0 * * * * podman system prune -f --filter \"until=1h\" >/dev/null 2>&1\n";
+
+    var result = CleanupScripts.buildUpgradedCrontab(oldCron);
+
+    assertFalse(result.contains("podman system prune"));
+    assertTrue(result.contains(CleanupScripts.CONTAINER_CLEANUP_PATH));
+  }
+
+  @Test
+  void buildUpgradedCrontabPreservesOtherEntries() {
+    var oldCron = "30 2 * * * /usr/local/bin/backup.sh\n0 * * * * podman system prune -f\n";
+
+    var result = CleanupScripts.buildUpgradedCrontab(oldCron);
+
+    assertTrue(result.contains("backup.sh"));
+    assertFalse(result.contains("podman system prune"));
+    assertTrue(result.contains(CleanupScripts.CONTAINER_CLEANUP_PATH));
+  }
+
+  @Test
+  void buildUpgradedCrontabFromEmpty() {
+    var result = CleanupScripts.buildUpgradedCrontab("");
+
+    assertTrue(result.contains(CleanupScripts.CONTAINER_CLEANUP_PATH));
+    assertTrue(result.startsWith("0 * * * *"));
+  }
 }

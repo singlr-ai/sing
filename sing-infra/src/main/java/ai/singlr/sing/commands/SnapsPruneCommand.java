@@ -13,6 +13,8 @@ import ai.singlr.sing.engine.SnapshotManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -69,7 +71,7 @@ public final class SnapsPruneCommand implements Runnable {
   private void execute() throws Exception {
     var maxAge = parseAge(olderThan);
     var cutoff = Instant.now().minus(maxAge);
-    var shell = new ShellExecutor(false);
+    var shell = new ShellExecutor(dryRun);
     var mgr = new ContainerManager(shell);
     var snapMgr = new SnapshotManager(shell);
     var ansi = Ansi.AUTO;
@@ -94,13 +96,23 @@ public final class SnapsPruneCommand implements Runnable {
 
     var totalDeleted = 0;
     var totalKept = 0;
-    var projectResults = new java.util.ArrayList<LinkedHashMap<String, Object>>();
+    var projectResults = new ArrayList<LinkedHashMap<String, Object>>();
 
     for (var project : targets) {
       List<SnapshotManager.SnapshotInfo> snapshots;
       try {
         snapshots = snapMgr.list(project);
       } catch (Exception e) {
+        if (!json) {
+          System.err.println(
+              Banner.errorLine(
+                  "Could not list snapshots for '"
+                      + project
+                      + "': "
+                      + e.getMessage()
+                      + ". Skipping.",
+                  ansi));
+        }
         continue;
       }
       if (snapshots.isEmpty()) {
@@ -178,16 +190,16 @@ public final class SnapsPruneCommand implements Runnable {
     };
   }
 
-  private static Instant parseSnapshotTime(String iso) {
+  static Instant parseSnapshotTime(String iso) {
     if (iso == null || iso.isBlank()) {
       return null;
     }
     try {
       return OffsetDateTime.parse(iso).toInstant();
-    } catch (Exception e) {
+    } catch (DateTimeParseException ignored) {
       try {
         return Instant.parse(iso);
-      } catch (Exception e2) {
+      } catch (DateTimeParseException ignored2) {
         return null;
       }
     }

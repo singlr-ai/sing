@@ -888,9 +888,10 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", "")
+            .onFail("test -f", "not found")
             .onOk("mkdir")
             .onOk("incus file push")
-            .onOk("chown")
+            .onOk("mktemp", "/tmp/sing-crontab.abc123\n")
             .onOk("crontab -u")
             .onOk("rm -f");
     var applier = applier(shell);
@@ -928,9 +929,10 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", legacyCron)
+            .onFail("test -f", "not found")
             .onOk("mkdir")
             .onOk("incus file push")
-            .onOk("chown")
+            .onOk("mktemp", "/tmp/sing-crontab.abc123\n")
             .onOk("crontab -u")
             .onOk("rm -f");
     var applier = applier(shell);
@@ -947,9 +949,10 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", existingCron)
+            .onFail("test -f", "not found")
             .onOk("mkdir")
             .onOk("incus file push")
-            .onOk("chown")
+            .onOk("mktemp", "/tmp/sing-crontab.abc123\n")
             .onOk("crontab -u")
             .onOk("rm -f");
     var applier = applier(shell);
@@ -961,6 +964,23 @@ class ProjectApplierTest {
             .filter(c -> c.contains("incus file push") && c.contains("sing-crontab"))
             .toList();
     assertFalse(pushCmds.isEmpty());
+  }
+
+  @Test
+  void applyCleanupCronThrowsOnCrontabInstallFailure() {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", "")
+            .onFail("test -f", "not found")
+            .onOk("mkdir")
+            .onOk("incus file push")
+            .onOk("mktemp", "/tmp/sing-crontab.abc123\n")
+            .onFail("crontab -u", "permission denied");
+    var applier = applier(shell);
+
+    var ex = assertThrows(Exception.class, () -> applier.applyCleanupCron(CONTAINER, "dev"));
+
+    assertTrue(ex.getMessage().contains("Failed to install crontab"));
   }
 
   private static ProjectApplier applier(ShellExec shell) {

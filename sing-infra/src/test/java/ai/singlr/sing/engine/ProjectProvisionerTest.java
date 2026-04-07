@@ -91,7 +91,8 @@ class ProjectProvisionerTest {
         .onOk("echo $VERSION_CODENAME", "noble")
         .onFail("node --version", "not found")
         .onFail("podman container inspect", "no such container")
-        .onFail("crontab -l", "no crontab for dev");
+        .onFail("crontab -l", "no crontab for dev")
+        .onOk("mktemp", "/tmp/sing-crontab.test123\n");
   }
 
   /** Shell for minimalConfig — no runtimes, no services, no SSH, no git/repos. */
@@ -102,7 +103,8 @@ class ProjectProvisionerTest {
         .onOk("ip -4 addr show")
         .onFail("which podman", "")
         .onFail("test -f /etc/profile.d/testcontainers.sh", "")
-        .onFail("crontab -l", "no crontab for dev");
+        .onFail("crontab -l", "no crontab for dev")
+        .onOk("mktemp", "/tmp/sing-crontab.test123\n");
   }
 
   private ProvisionTracker<ProjectPhase> tracker() {
@@ -1708,9 +1710,8 @@ class ProjectProvisionerTest {
         cmds.stream().anyMatch(c -> c.contains("crontab -u dev")),
         "Should install crontab for dev user");
     assertTrue(
-        cmds.stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("sing-crontab.tmp")),
-        "Should push crontab via file");
+        cmds.stream().anyMatch(c -> c.contains("incus file push") && c.contains("sing-crontab.")),
+        "Should push crontab via temp file");
   }
 
   @Test

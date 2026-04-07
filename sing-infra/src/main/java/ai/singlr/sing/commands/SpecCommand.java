@@ -7,6 +7,7 @@ package ai.singlr.sing.commands;
 
 import picocli.CommandLine.Command;
 
+/** Parent command for spec management subcommands (list, create, update, etc.). */
 @Command(
     name = "spec",
     description = "Manage project specs.",
