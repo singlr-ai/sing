@@ -570,9 +570,9 @@ public final class AgentContextGenerator {
 
     if (config.agent().specsDir() != null) {
       sb.append(step++)
-          .append(". Update the spec status to \"done\" in ")
+          .append(". Update the spec status to \"review\" in ")
           .append(config.agent().specsDir())
-          .append("/index.yaml\n");
+          .append("/index.yaml (not \"done\" — a human reviews the PR first)\n");
       sb.append(step++).append(". Switch back to the main branch and pull latest\n");
       sb.append(step++)
           .append(". Pick up the next pending spec — create a new branch and continue\n");

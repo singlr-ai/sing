@@ -21,6 +21,9 @@ import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.SnapshotManager;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -172,17 +175,23 @@ public final class DispatchCommand implements Runnable {
     }
     var fullPermissions = true;
 
-    var label = SnapshotManager.defaultLabel();
     String branchName = null;
 
     if (config.agent().autoSnapshot()) {
       var snapMgr = new SnapshotManager(shell);
-      if (!json) {
-        System.out.println(Ansi.AUTO.string("  @|bold Auto-snapshot:|@ " + label + "..."));
-      }
-      snapMgr.create(name, label);
-      if (!json) {
-        Banner.printSnapshotCreated(name, label, System.out, Ansi.AUTO);
+      if (shouldSnapshot(snapMgr, name)) {
+        var label = SnapshotManager.defaultLabel();
+        if (!json) {
+          System.out.println(Ansi.AUTO.string("  @|bold Auto-snapshot:|@ " + label + "..."));
+        }
+        snapMgr.create(name, label);
+        if (!json) {
+          Banner.printSnapshotCreated(name, label, System.out, Ansi.AUTO);
+          System.out.println();
+        }
+      } else if (!json) {
+        System.out.println(
+            Ansi.AUTO.string("  @|faint Snapshot skipped (recent snapshot exists)|@"));
         System.out.println();
       }
     }
@@ -285,9 +294,13 @@ public final class DispatchCommand implements Runnable {
         + spec.id()
         + ").\n\n"
         + description
-        + "\n\nWhen complete, update "
+        + "\n\nBefore starting implementation, update "
         + specsDir
-        + "/index.yaml and set this spec's status to \"done\"."
+        + "/index.yaml and set this spec's status to \"in_progress\"."
+        + " Commit and push this change immediately."
+        + "\n\nWhen implementation is complete and the pull request is created, update "
+        + specsDir
+        + "/index.yaml and set this spec's status to \"review\"."
         + " Then pick up the next pending spec and continue working.";
   }
 
@@ -347,5 +360,25 @@ public final class DispatchCommand implements Runnable {
       return workspaceBase + "/" + repos.getFirst().path();
     }
     return workspaceBase;
+  }
+
+  private static final Duration SNAPSHOT_INTERVAL = Duration.ofHours(24);
+
+  /**
+   * Returns true if a new snapshot should be created. Skips if a snapshot was created within the
+   * last 24 hours (dir backend snapshots are full copies and expensive).
+   */
+  static boolean shouldSnapshot(SnapshotManager snapMgr, String containerName) {
+    try {
+      var snapshots = snapMgr.list(containerName);
+      if (snapshots.isEmpty()) {
+        return true;
+      }
+      var latest = snapshots.getLast();
+      var latestTime = OffsetDateTime.parse(latest.createdAt()).toInstant();
+      return Instant.now().isAfter(latestTime.plus(SNAPSHOT_INTERVAL));
+    } catch (Exception ignored) {
+      return true;
+    }
   }
 }

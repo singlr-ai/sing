@@ -107,7 +107,8 @@ class DispatchCommandTest {
     assertTrue(prompt.contains("Implement OAuth"));
     assertTrue(prompt.contains("Build Google OAuth integration"));
     assertTrue(prompt.contains("specs/index.yaml"));
-    assertTrue(prompt.contains("\"done\""));
+    assertTrue(prompt.contains("\"in_progress\""));
+    assertTrue(prompt.contains("\"review\""));
     assertTrue(prompt.contains("next pending spec"));
   }
 

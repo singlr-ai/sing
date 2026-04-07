@@ -317,6 +317,10 @@ public final class SpecSkillGenerator {
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
+        - **pending**: ready to be picked up
+        - **in_progress**: agent is actively working on it (set immediately on start)
+        - **review**: PR created, waiting for human review
+        - **done**: PR merged, work complete (set by engineer)
 
         ### Fields
         - **id** (required): directory name, lowercase with hyphens
