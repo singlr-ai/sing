@@ -9,8 +9,8 @@ import ai.singlr.sing.config.HostYaml;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.ShellExecutor;
+import ai.singlr.sing.engine.SingPaths;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +49,7 @@ public final class HostUpdateCommand implements Runnable {
   }
 
   private void execute() throws Exception {
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
       throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
     }

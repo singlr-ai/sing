@@ -12,7 +12,7 @@ import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
-import java.nio.file.Path;
+import ai.singlr.sing.engine.SingPaths;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import picocli.CommandLine.Command;
@@ -60,7 +60,7 @@ public final class ConnectCommand implements Runnable {
     var shell = new ShellExecutor(false);
     var mgr = new ContainerManager(shell);
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigPath();
     var resolvedServerIp = serverIp;
     if (resolvedServerIp == null) {
       var hostMap = YamlUtil.parseFile(hostYamlPath);

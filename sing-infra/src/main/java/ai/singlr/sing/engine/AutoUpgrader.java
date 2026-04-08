@@ -105,11 +105,7 @@ public final class AutoUpgrader {
       return;
     }
 
-    if (binary.length < 4
-        || binary[0] != 0x7f
-        || binary[1] != 'E'
-        || binary[2] != 'L'
-        || binary[3] != 'F') {
+    if (!PlatformDetector.isValidBinary(binary)) {
       return;
     }
 

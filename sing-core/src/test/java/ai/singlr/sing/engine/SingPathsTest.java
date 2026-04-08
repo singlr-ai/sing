@@ -16,16 +16,29 @@ class SingPathsTest {
 
   @TempDir Path tempDir;
 
+  private static final Path HOME = Path.of(System.getProperty("user.home"));
+
   @Test
-  void projectDirReturnsExpectedPath() {
-    var path = SingPaths.projectDir("acme-health");
-    assertEquals(Path.of("/etc/sing/projects/acme-health"), path);
+  void singDirIsUnderHome() {
+    var path = SingPaths.singDir();
+
+    assertEquals(HOME.resolve(".sing"), path);
   }
 
   @Test
-  void provisionStateReturnsExpectedPath() {
-    var path = SingPaths.provisionState("acme-health");
-    assertEquals(Path.of("/etc/sing/projects/acme-health/provision-state.yaml"), path);
+  void projectDirIsUnderSingDir() {
+    var path = SingPaths.projectDir("acme-health");
+
+    assertEquals(HOME.resolve(".sing/projects/acme-health"), path);
+  }
+
+  @Test
+  void provisionStateIsInsideProjectDir() {
+    var projDir = SingPaths.projectDir("test");
+    var stateFile = SingPaths.provisionState("test");
+
+    assertTrue(stateFile.startsWith(projDir));
+    assertTrue(stateFile.toString().endsWith("provision-state.yaml"));
   }
 
   @Test
@@ -34,10 +47,31 @@ class SingPathsTest {
   }
 
   @Test
-  void provisionStateIsInsideProjectDir() {
-    var projDir = SingPaths.projectDir("test");
-    var stateFile = SingPaths.provisionState("test");
-    assertTrue(stateFile.startsWith(projDir));
+  void hostConfigPathReturnsNewLocationByDefault() {
+    var path = SingPaths.hostConfigWritePath();
+
+    assertEquals(HOME.resolve(".sing/host.yaml"), path);
+  }
+
+  @Test
+  void legacyHostConfigPathReturnsEtcSing() {
+    var path = SingPaths.legacyHostConfigPath();
+
+    assertEquals(Path.of("/etc/sing/host.yaml"), path);
+  }
+
+  @Test
+  void clientConfigPathIsUnderSingDir() {
+    var path = SingPaths.clientConfigPath();
+
+    assertEquals(HOME.resolve(".sing/config.yaml"), path);
+  }
+
+  @Test
+  void updateCheckFileIsUnderSingDir() {
+    var path = SingPaths.updateCheckFile();
+
+    assertEquals(HOME.resolve(".sing/update-check.yaml"), path);
   }
 
   @Test
@@ -76,5 +110,29 @@ class SingPathsTest {
     var result = SingPaths.resolveSingYaml(null, "sing.yaml");
 
     assertEquals(Path.of("sing.yaml"), result);
+  }
+
+  @Test
+  void expandHomeExpandsTilde() {
+    var result = SingPaths.expandHome("~/.ssh/id_ed25519");
+
+    assertTrue(result.startsWith("/"));
+    assertTrue(result.endsWith("/.ssh/id_ed25519"));
+    assertFalse(result.startsWith("~"));
+  }
+
+  @Test
+  void expandHomeReturnsAbsolutePathUnchanged() {
+    assertEquals("/home/user/.ssh/id_ed25519", SingPaths.expandHome("/home/user/.ssh/id_ed25519"));
+  }
+
+  @Test
+  void expandHomeReturnsNullForNull() {
+    assertNull(SingPaths.expandHome(null));
+  }
+
+  @Test
+  void expandHomeDoesNotExpandMidPath() {
+    assertEquals("/some/~/path", SingPaths.expandHome("/some/~/path"));
   }
 }

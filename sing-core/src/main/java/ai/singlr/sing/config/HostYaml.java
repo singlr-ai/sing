@@ -23,7 +23,11 @@ public record HostYaml(
     String incusVersion,
     String serverIp,
     String initializedAt) {
-  public static final String DEFAULT_PATH = "/etc/sing/host.yaml";
+  /**
+   * @deprecated Use {@link ai.singlr.sing.engine.SingPaths#hostConfigPath()} instead.
+   */
+  @Deprecated public static final String DEFAULT_PATH = "/etc/sing/host.yaml";
+
   public static final String DEFAULT_POOL = "devpool";
   public static final String DEFAULT_BRIDGE = "incusbr0";
   public static final String DEFAULT_PROFILE = "singlr-base";

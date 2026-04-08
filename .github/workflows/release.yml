@@ -10,7 +10,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary-name: sing-linux-amd64
+            checksum-cmd: sha256sum
+          - os: macos-latest
+            binary-name: sing-darwin-arm64
+            checksum-cmd: shasum -a 256
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,13 +38,32 @@ jobs:
       - name: Smoke test
         run: ./sing-infra/target/sing -V
 
+      - name: Rename binary
+        run: mv sing-infra/target/sing sing-infra/target/${{ matrix.binary-name }}
+
       - name: Generate checksum
-        run: sha256sum sing-infra/target/sing | awk '{print $1}' > sing-infra/target/sing.sha256
+        run: ${{ matrix.checksum-cmd }} sing-infra/target/${{ matrix.binary-name }} | awk '{print $1}' > sing-infra/target/${{ matrix.binary-name }}.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary-name }}
+          path: |
+            sing-infra/target/${{ matrix.binary-name }}
+            sing-infra/target/${{ matrix.binary-name }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            sing-infra/target/sing
-            sing-infra/target/sing.sha256
+            sing-linux-amd64/sing-linux-amd64
+            sing-linux-amd64/sing-linux-amd64.sha256
+            sing-darwin-arm64/sing-darwin-arm64
+            sing-darwin-arm64/sing-darwin-arm64.sha256
           generate_release_notes: true

@@ -16,8 +16,8 @@ import ai.singlr.sing.engine.PrerequisiteChecker;
 import ai.singlr.sing.engine.ProvisionListener;
 import ai.singlr.sing.engine.ShellExec;
 import ai.singlr.sing.engine.ShellExecutor;
+import ai.singlr.sing.engine.SingPaths;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
 import picocli.CommandLine.Command;
@@ -95,7 +95,7 @@ public final class HostInitCommand implements Runnable {
       throw new IllegalStateException("Root privileges required. Run with: sudo sing host init");
     }
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigWritePath();
 
     var shell = new ShellExecutor(dryRun);
 

@@ -73,7 +73,7 @@ public final class ProjectDemoCommand implements Runnable {
       throw new IllegalStateException("Root privileges required. Run with: sudo sing project demo");
     }
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigPath();
     if (!dryRun && !Files.exists(hostYamlPath)) {
       throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
     }

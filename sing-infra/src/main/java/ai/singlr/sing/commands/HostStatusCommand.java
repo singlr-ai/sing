@@ -13,9 +13,9 @@ import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.DirQuery;
 import ai.singlr.sing.engine.HostDetector;
 import ai.singlr.sing.engine.ShellExecutor;
+import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.ZfsQuery;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import picocli.CommandLine.Command;
@@ -51,7 +51,7 @@ public final class HostStatusCommand implements Runnable {
       throw new IllegalStateException("Root privileges required. Run with: sudo sing host status");
     }
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
       throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
     }

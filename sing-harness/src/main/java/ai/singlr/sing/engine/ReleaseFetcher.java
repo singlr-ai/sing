@@ -55,9 +55,10 @@ public final class ReleaseFetcher {
     return tagName.startsWith("v") ? tagName.substring(1) : tagName;
   }
 
-  /** Downloads the binary for the given version tag (e.g. {@code "v0.9.2"}). */
+  /** Downloads the platform-specific binary for the given version tag (e.g. {@code "v0.9.2"}). */
   public static byte[] downloadBinary(String versionTag) throws IOException, InterruptedException {
-    return fetchBytes(DOWNLOAD_BASE + "/" + versionTag + "/sing", BINARY_TIMEOUT);
+    var binaryName = "sing-" + PlatformDetector.platformSuffix();
+    return fetchBytes(DOWNLOAD_BASE + "/" + versionTag + "/" + binaryName, BINARY_TIMEOUT);
   }
 
   /** Downloads the latest binary. */
@@ -66,10 +67,11 @@ public final class ReleaseFetcher {
     return downloadBinary("v" + latest);
   }
 
-  /** Fetches the SHA-256 checksum for a versioned binary (hex string). */
+  /** Fetches the SHA-256 checksum for the platform-specific binary (hex string). */
   public static String fetchChecksum(String versionTag) throws IOException, InterruptedException {
+    var checksumName = "sing-" + PlatformDetector.platformSuffix() + ".sha256";
     var content =
-        fetchText(DOWNLOAD_BASE + "/" + versionTag + "/sing.sha256", META_TIMEOUT).strip();
+        fetchText(DOWNLOAD_BASE + "/" + versionTag + "/" + checksumName, META_TIMEOUT).strip();
     return content.split("\\s+")[0];
   }
 

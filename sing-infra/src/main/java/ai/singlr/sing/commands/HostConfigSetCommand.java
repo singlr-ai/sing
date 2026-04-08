@@ -9,8 +9,8 @@ import ai.singlr.sing.config.HostYaml;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.NetworkDetector;
+import ai.singlr.sing.engine.SingPaths;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Set;
@@ -70,7 +70,7 @@ public final class HostConfigSetCommand implements Runnable {
           "Invalid IPv4 address: '" + value + "'. Expected format: 192.168.1.100");
     }
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
       throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
     }

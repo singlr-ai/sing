@@ -111,7 +111,14 @@ public final class ProjectCreateCommand implements Runnable {
           "sing.yaml must have a 'resources' section with cpu, memory, and disk.");
     }
 
-    var hostYamlPath = Path.of(HostYaml.DEFAULT_PATH);
+    var projectDir = SingPaths.projectDir(config.name());
+    Files.createDirectories(projectDir);
+    var canonicalYaml = projectDir.resolve("sing.yaml");
+    if (!singYamlPath.toAbsolutePath().equals(canonicalYaml.toAbsolutePath())) {
+      Files.copy(singYamlPath, canonicalYaml, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
       throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
     }
