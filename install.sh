@@ -55,7 +55,7 @@ VERSION="${1:-latest}"
 if [ "$VERSION" = "latest" ]; then
   info "Fetching latest version..."
   VERSION=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null \
-    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\?\([^"]*\)".*/\1/')
+    | grep '"tag_name"' | head -1 | tr -d '", ' | sed 's/tag_name://' | sed 's/^v//')
   [ -n "$VERSION" ] || fail "Could not determine latest version from GitHub."
 fi
 
