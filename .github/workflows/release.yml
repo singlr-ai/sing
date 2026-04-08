@@ -59,10 +59,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
 
+      - name: Create legacy aliases for backward compatibility
+        run: |
+          cp sing-linux-amd64/sing-linux-amd64 sing-linux-amd64/sing
+          cp sing-linux-amd64/sing-linux-amd64.sha256 sing-linux-amd64/sing.sha256
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            sing-linux-amd64/sing
+            sing-linux-amd64/sing.sha256
             sing-linux-amd64/sing-linux-amd64
             sing-linux-amd64/sing-linux-amd64.sha256
             sing-darwin-arm64/sing-darwin-arm64
