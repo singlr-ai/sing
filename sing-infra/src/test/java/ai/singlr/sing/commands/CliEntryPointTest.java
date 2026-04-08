@@ -18,6 +18,8 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -142,6 +144,7 @@ class CliEntryPointTest {
   }
 
   @Test
+  @EnabledOnOs(OS.LINUX)
   void hostInitDryRunWithDiskAndYes() {
     var cmd = new CommandLine(new Sing());
     cmd.setErr(new PrintWriter(new StringWriter()));
@@ -158,6 +161,7 @@ class CliEntryPointTest {
   }
 
   @Test
+  @EnabledOnOs(OS.LINUX)
   void hostInitDryRunDirBackendSkipsDiskDetection() {
     var cmd = new CommandLine(new Sing());
 
@@ -171,6 +175,7 @@ class CliEntryPointTest {
   }
 
   @Test
+  @EnabledOnOs(OS.LINUX)
   void hostInitNonDryRunWithoutRootFails() {
     var cmd = new CommandLine(new Sing());
 
@@ -182,6 +187,7 @@ class CliEntryPointTest {
   }
 
   @Test
+  @EnabledOnOs(OS.LINUX)
   void hostInitDryRunZfsWithCustomPool() {
     var cmd = new CommandLine(new Sing());
 
