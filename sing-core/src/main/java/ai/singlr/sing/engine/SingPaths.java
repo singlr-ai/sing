@@ -11,15 +11,14 @@ import java.nio.file.Path;
 
 /**
  * Centralized path constants for all {@code sing} state files. All state lives under {@code
- * ~/.sing/} — project descriptors, provisioning state, host config, and client config. This makes
- * every command work from any directory by project name alone.
+ * ~/.sing/} — project descriptors, provisioning state, host config, and client config. Every
+ * command works from any directory by project name alone.
  */
 public final class SingPaths {
 
   private SingPaths() {}
 
   private static final Path SING_DIR = Path.of(System.getProperty("user.home"), ".sing");
-  private static final Path LEGACY_DIR = Path.of("/etc/sing");
   private static final Path PROJECTS_DIR = SING_DIR.resolve("projects");
 
   /** Returns the base sing directory: {@code ~/.sing}. */
@@ -47,36 +46,9 @@ public final class SingPaths {
     return SING_DIR.resolve("update-check.yaml");
   }
 
-  /**
-   * Returns the host config file path. Prefers {@code ~/.sing/host.yaml} (new location). Falls back
-   * to {@code /etc/sing/host.yaml} (legacy) if it exists and the new location does not.
-   */
+  /** Returns the host config file path: {@code ~/.sing/host.yaml}. */
   public static Path hostConfigPath() {
-    var newPath = SING_DIR.resolve("host.yaml");
-    if (Files.exists(newPath)) {
-      return newPath;
-    }
-    var legacyPath = LEGACY_DIR.resolve("host.yaml");
-    if (Files.exists(legacyPath)) {
-      return legacyPath;
-    }
-    return newPath;
-  }
-
-  /**
-   * Returns the preferred host config path for writing: {@code ~/.sing/host.yaml}. Always returns
-   * the new location — used by {@code host init} to write new config.
-   */
-  public static Path hostConfigWritePath() {
     return SING_DIR.resolve("host.yaml");
-  }
-
-  /**
-   * Returns the legacy host config path: {@code /etc/sing/host.yaml}. Used for backward
-   * compatibility detection.
-   */
-  public static Path legacyHostConfigPath() {
-    return LEGACY_DIR.resolve("host.yaml");
   }
 
   /** Returns the client config file path: {@code ~/.sing/config.yaml}. */
@@ -93,7 +65,7 @@ public final class SingPaths {
    *   <li>{@code <name>/sing.yaml} in the current directory
    * </ol>
    *
-   * Returns the first path that exists, or the explicit file path for the error message.
+   * Returns the first path that exists, or the canonical path for the error message.
    */
   public static Path resolveSingYaml(String name, String file) {
     if (name != null) {
@@ -111,6 +83,7 @@ public final class SingPaths {
       if (Files.exists(namedPath)) {
         return namedPath;
       }
+      return projectDir(name).resolve("sing.yaml");
     }
     return path;
   }

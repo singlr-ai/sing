@@ -74,7 +74,9 @@ public final class ProjectApplyCommand implements Runnable {
       throw new IllegalStateException(
           "Project descriptor not found: "
               + singYamlPath.toAbsolutePath()
-              + "\n  Create a sing.yaml in the current directory, or specify one with --file.");
+              + "\n  Ensure ~/.sing/projects/"
+              + name
+              + "/sing.yaml exists.");
     }
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 

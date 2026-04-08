@@ -23,24 +23,16 @@ public sealed interface RuntimeMode {
   record Client(ClientConfig config) implements RuntimeMode {}
 
   /**
-   * Detects the runtime mode from standard file locations. Checks host config first (both new
-   * {@code ~/.sing/host.yaml} and legacy {@code /etc/sing/host.yaml}) so a host that also has
-   * client config still runs in host mode.
+   * Detects the runtime mode. Host if {@code ~/.sing/host.yaml} exists, client if {@code
+   * ~/.sing/config.yaml} exists, host otherwise (backward-compatible default).
    */
   static RuntimeMode detect() {
-    return detect(
-        SingPaths.hostConfigPath(), SingPaths.legacyHostConfigPath(), SingPaths.clientConfigPath());
+    return detect(SingPaths.hostConfigPath(), SingPaths.clientConfigPath());
   }
 
-  /**
-   * Detects runtime mode from explicit paths. Package-private for testability.
-   *
-   * @param hostConfigPath path to the host config (e.g. ~/.sing/host.yaml)
-   * @param legacyHostConfigPath legacy host config (e.g. /etc/sing/host.yaml)
-   * @param clientConfigPath path to the client config (e.g. ~/.sing/config.yaml)
-   */
-  static RuntimeMode detect(Path hostConfigPath, Path legacyHostConfigPath, Path clientConfigPath) {
-    if (Files.exists(hostConfigPath) || Files.exists(legacyHostConfigPath)) {
+  /** Package-private overload for testability. */
+  static RuntimeMode detect(Path hostConfigPath, Path clientConfigPath) {
+    if (Files.exists(hostConfigPath)) {
       return new Host();
     }
     if (Files.exists(clientConfigPath)) {

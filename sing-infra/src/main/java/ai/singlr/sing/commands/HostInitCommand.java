@@ -95,7 +95,7 @@ public final class HostInitCommand implements Runnable {
       throw new IllegalStateException("Root privileges required. Run with: sudo sing host init");
     }
 
-    var hostYamlPath = SingPaths.hostConfigWritePath();
+    var hostYamlPath = SingPaths.hostConfigPath();
 
     var shell = new ShellExecutor(dryRun);
 

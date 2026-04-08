@@ -20,24 +20,19 @@ class SingPathsTest {
 
   @Test
   void singDirIsUnderHome() {
-    var path = SingPaths.singDir();
-
-    assertEquals(HOME.resolve(".sing"), path);
+    assertEquals(HOME.resolve(".sing"), SingPaths.singDir());
   }
 
   @Test
   void projectDirIsUnderSingDir() {
-    var path = SingPaths.projectDir("acme-health");
-
-    assertEquals(HOME.resolve(".sing/projects/acme-health"), path);
+    assertEquals(HOME.resolve(".sing/projects/acme-health"), SingPaths.projectDir("acme-health"));
   }
 
   @Test
   void provisionStateIsInsideProjectDir() {
-    var projDir = SingPaths.projectDir("test");
     var stateFile = SingPaths.provisionState("test");
 
-    assertTrue(stateFile.startsWith(projDir));
+    assertTrue(stateFile.startsWith(SingPaths.projectDir("test")));
     assertTrue(stateFile.toString().endsWith("provision-state.yaml"));
   }
 
@@ -47,45 +42,48 @@ class SingPathsTest {
   }
 
   @Test
-  void hostConfigPathReturnsNewLocationByDefault() {
-    var path = SingPaths.hostConfigWritePath();
-
-    assertEquals(HOME.resolve(".sing/host.yaml"), path);
-  }
-
-  @Test
-  void legacyHostConfigPathReturnsEtcSing() {
-    var path = SingPaths.legacyHostConfigPath();
-
-    assertEquals(Path.of("/etc/sing/host.yaml"), path);
+  void hostConfigPathIsUnderSingDir() {
+    assertEquals(HOME.resolve(".sing/host.yaml"), SingPaths.hostConfigPath());
   }
 
   @Test
   void clientConfigPathIsUnderSingDir() {
-    var path = SingPaths.clientConfigPath();
-
-    assertEquals(HOME.resolve(".sing/config.yaml"), path);
+    assertEquals(HOME.resolve(".sing/config.yaml"), SingPaths.clientConfigPath());
   }
 
   @Test
   void updateCheckFileIsUnderSingDir() {
-    var path = SingPaths.updateCheckFile();
-
-    assertEquals(HOME.resolve(".sing/update-check.yaml"), path);
+    assertEquals(HOME.resolve(".sing/update-check.yaml"), SingPaths.updateCheckFile());
   }
 
   @Test
-  void resolveSingYaml_existingFileReturnsIt() throws Exception {
+  void resolveSingYamlFindsCanonicalFirst() throws Exception {
+    var projectDir = HOME.resolve(".sing/projects/test-canonical");
+    Files.createDirectories(projectDir);
+    var canonical = projectDir.resolve("sing.yaml");
+    Files.writeString(canonical, "name: test");
+    try {
+      var result = SingPaths.resolveSingYaml("test-canonical", "nonexistent.yaml");
+
+      assertEquals(canonical, result);
+    } finally {
+      Files.deleteIfExists(canonical);
+      Files.deleteIfExists(projectDir);
+    }
+  }
+
+  @Test
+  void resolveSingYamlFallsBackToExplicitFile() throws Exception {
     var yamlFile = tempDir.resolve("sing.yaml");
     Files.writeString(yamlFile, "name: test");
 
-    var result = SingPaths.resolveSingYaml("test", yamlFile.toString());
+    var result = SingPaths.resolveSingYaml("nonexistent-project", yamlFile.toString());
 
     assertEquals(yamlFile, result);
   }
 
   @Test
-  void resolveSingYaml_fallsBackToNamedDir() throws Exception {
+  void resolveSingYamlFallsBackToNamedDir() throws Exception {
     var projectDir = tempDir.resolve("my-project");
     Files.createDirectories(projectDir);
     var namedYaml = projectDir.resolve("sing.yaml");
@@ -99,14 +97,14 @@ class SingPathsTest {
   }
 
   @Test
-  void resolveSingYaml_returnsOriginalWhenNothingExists() {
+  void resolveSingYamlReturnsCanonicalWhenNothingExists() {
     var result = SingPaths.resolveSingYaml("whatever", "/does/not/exist.yaml");
 
-    assertEquals(Path.of("/does/not/exist.yaml"), result);
+    assertEquals(SingPaths.projectDir("whatever").resolve("sing.yaml"), result);
   }
 
   @Test
-  void resolveSingYaml_nullNameReturnsFilePath() {
+  void resolveSingYamlNullNameReturnsFilePath() {
     var result = SingPaths.resolveSingYaml(null, "sing.yaml");
 
     assertEquals(Path.of("sing.yaml"), result);
