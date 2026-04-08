@@ -38,7 +38,6 @@ class RuntimeModeTest {
     assertInstanceOf(RuntimeMode.Client.class, mode);
     var client = (RuntimeMode.Client) mode;
     assertEquals("192.168.1.100", client.config().host());
-    assertEquals("root", client.config().user());
   }
 
   @Test
@@ -75,16 +74,15 @@ class RuntimeModeTest {
   }
 
   @Test
-  void clientConfigWithSshKey() throws Exception {
+  void clientConfigWithSshAlias() throws Exception {
     var hostPath = tempDir.resolve("host.yaml");
     var clientPath = tempDir.resolve("config.yaml");
-    Files.writeString(
-        clientPath, "host: 10.0.0.1\nuser: deploy\nkey: /home/deploy/.ssh/id_ed25519\n");
+    Files.writeString(clientPath, "host: kubera-server\n");
 
     var mode = RuntimeMode.detect(hostPath, clientPath);
 
     assertInstanceOf(RuntimeMode.Client.class, mode);
     var client = (RuntimeMode.Client) mode;
-    assertEquals("/home/deploy/.ssh/id_ed25519", client.config().sshKey());
+    assertEquals("kubera-server", client.config().host());
   }
 }
