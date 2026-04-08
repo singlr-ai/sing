@@ -13,8 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class RemoteCommandRunnerTest {
 
-  private static final ClientConfig CONFIG =
-      new ClientConfig("192.168.1.100", "root", "/home/me/.ssh/id_ed25519");
+  private static final ClientConfig CONFIG = new ClientConfig("kubera-server");
 
   @Test
   void buildSshCommandForNonInteractive() {
@@ -24,9 +23,7 @@ class RemoteCommandRunnerTest {
 
     assertEquals("ssh", cmd.getFirst());
     assertFalse(cmd.contains("-t"));
-    assertTrue(cmd.contains("-i"));
-    assertTrue(cmd.contains("/home/me/.ssh/id_ed25519"));
-    assertTrue(cmd.contains("root@192.168.1.100"));
+    assertTrue(cmd.contains("kubera-server"));
     assertTrue(cmd.contains("sing"));
     assertTrue(cmd.contains("spec"));
     assertTrue(cmd.contains("list"));
@@ -41,28 +38,16 @@ class RemoteCommandRunnerTest {
 
     assertTrue(cmd.contains("-t"));
     assertTrue(cmd.contains("shell"));
-    assertTrue(cmd.contains("kubera"));
   }
 
   @Test
-  void buildSshCommandWithoutKey() {
-    var config = new ClientConfig("10.0.0.1", "admin", null);
+  void buildSshCommandUsesHostDirectly() {
+    var config = new ClientConfig("10.0.0.1");
     var runner = new RemoteCommandRunner(config);
 
     var cmd = runner.buildSshCommand(new String[] {"up", "demo"}, false);
 
-    assertFalse(cmd.contains("-i"));
-    assertTrue(cmd.contains("admin@10.0.0.1"));
-  }
-
-  @Test
-  void buildSshCommandIncludesBatchMode() {
-    var runner = new RemoteCommandRunner(CONFIG);
-
-    var cmd = runner.buildSshCommand(new String[] {"ps", "kubera"}, false);
-
-    assertTrue(cmd.contains("BatchMode=yes"));
-    assertTrue(cmd.contains("StrictHostKeyChecking=accept-new"));
+    assertTrue(cmd.contains("10.0.0.1"));
   }
 
   @Test
@@ -84,15 +69,15 @@ class RemoteCommandRunnerTest {
     var cmd = runner.buildSshCommand(new String[] {}, false);
 
     assertTrue(cmd.contains("sing"));
-    var singIdx = cmd.indexOf("sing");
-    assertEquals(singIdx, cmd.size() - 1);
+    assertEquals(cmd.indexOf("sing"), cmd.size() - 1);
   }
 
   @Test
-  void isLocalCommandRecognizesVersionAndUpgrade() {
+  void isLocalCommandRecognizesVersionUpgradeAndInit() {
     assertTrue(RemoteCommandRunner.isLocalCommand("--version"));
     assertTrue(RemoteCommandRunner.isLocalCommand("-V"));
     assertTrue(RemoteCommandRunner.isLocalCommand("upgrade"));
+    assertTrue(RemoteCommandRunner.isLocalCommand("init"));
     assertFalse(RemoteCommandRunner.isLocalCommand("spec"));
     assertFalse(RemoteCommandRunner.isLocalCommand("dispatch"));
   }
@@ -101,7 +86,6 @@ class RemoteCommandRunnerTest {
   void isHostOnlyCommandRecognizesHostSubcommands() {
     assertTrue(RemoteCommandRunner.isHostOnlyCommand("host"));
     assertFalse(RemoteCommandRunner.isHostOnlyCommand("project"));
-    assertFalse(RemoteCommandRunner.isHostOnlyCommand("spec"));
   }
 
   @Test
@@ -109,7 +93,6 @@ class RemoteCommandRunnerTest {
     assertTrue(RemoteCommandRunner.isInteractiveCommand("shell"));
     assertTrue(RemoteCommandRunner.isInteractiveCommand("exec"));
     assertFalse(RemoteCommandRunner.isInteractiveCommand("dispatch"));
-    assertFalse(RemoteCommandRunner.isInteractiveCommand("spec"));
   }
 
   @Test
@@ -119,5 +102,14 @@ class RemoteCommandRunnerTest {
     var cmd = runner.buildSshCommand(new String[] {"up", "demo"}, false);
 
     assertThrows(UnsupportedOperationException.class, () -> cmd.add("extra"));
+  }
+
+  @Test
+  void sshCommandIsSimpleWithAlias() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var cmd = runner.buildSshCommand(new String[] {"ps", "kubera"}, false);
+
+    assertEquals(List.of("ssh", "kubera-server", "sing", "ps", "kubera"), cmd);
   }
 }

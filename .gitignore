@@ -40,3 +40,5 @@ nb-configuration.xml
 *.m4a
 .DS_Store
 *.tmp
+
+TONE.md

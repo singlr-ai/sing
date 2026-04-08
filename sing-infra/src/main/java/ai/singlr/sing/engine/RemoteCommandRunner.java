@@ -21,7 +21,7 @@ import picocli.CommandLine.Help.Ansi;
  */
 public final class RemoteCommandRunner {
 
-  private static final Set<String> LOCAL_COMMANDS = Set.of("--version", "-V", "upgrade");
+  private static final Set<String> LOCAL_COMMANDS = Set.of("--version", "-V", "upgrade", "init");
   private static final Set<String> INTERACTIVE_COMMANDS = Set.of("shell", "exec");
   private static final Set<String> HOST_ONLY_COMMANDS = Set.of("host");
   private static final int SSH_CONNECTION_FAILURE = 255;
@@ -121,15 +121,7 @@ public final class RemoteCommandRunner {
     if (interactive) {
       cmd.add("-t");
     }
-    if (config.sshKey() != null) {
-      cmd.add("-i");
-      cmd.add(config.sshKey());
-    }
-    cmd.add("-o");
-    cmd.add("BatchMode=yes");
-    cmd.add("-o");
-    cmd.add("StrictHostKeyChecking=accept-new");
-    cmd.add(config.user() + "@" + config.host());
+    cmd.add(config.host());
     cmd.add("sing");
     cmd.addAll(List.of(args));
     return List.copyOf(cmd);

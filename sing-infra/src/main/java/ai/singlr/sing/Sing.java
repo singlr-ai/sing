@@ -6,6 +6,7 @@
 package ai.singlr.sing;
 
 import ai.singlr.sing.commands.AgentCommand;
+import ai.singlr.sing.commands.ClientInitCommand;
 import ai.singlr.sing.commands.ConnectCommand;
 import ai.singlr.sing.commands.DispatchCommand;
 import ai.singlr.sing.commands.DownCommand;
@@ -34,6 +35,7 @@ import picocli.CommandLine.Help.Ansi;
     versionProvider = SingVersion.class,
     mixinStandardHelpOptions = true,
     subcommands = {
+      ClientInitCommand.class,
       HostCommand.class,
       ProjectCommand.class,
       UpCommand.class,
