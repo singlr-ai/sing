@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # sing CLI installer — downloads from GitHub Releases (no authentication required).
+# Supports Linux (amd64) and macOS (arm64).
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
-#   bash install.sh 0.9.3          # install specific version
-#   bash install.sh v0.9.3         # also works with v prefix
+#   bash install.sh 0.11.2          # install specific version
+#   bash install.sh v0.11.2         # also works with v prefix
 
 GITHUB_REPO="singlr-ai/sing"
 INSTALL_DIR="/usr/local/bin"
@@ -25,12 +26,28 @@ info()  { echo -e "${BOLD}$1${RESET}"; }
 ok()    { echo -e "${GREEN}$1${RESET}"; }
 fail()  { echo -e "${RED}$1${RESET}" >&2; exit 1; }
 
-# --- Platform check ---
+# --- Platform detection ---
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
-[ "$OS" = "Linux" ] || fail "sing only supports Linux. Detected: $OS"
-[ "$ARCH" = "x86_64" ] || fail "sing only supports x86_64 (amd64). Detected: $ARCH"
+case "$OS" in
+  Linux)
+    PLATFORM="linux-amd64"
+    [ "$ARCH" = "x86_64" ] || fail "sing only supports x86_64 on Linux. Detected: $ARCH"
+    CHECKSUM_CMD="sha256sum"
+    ELF_CHECK=true
+    ;;
+  Darwin)
+    PLATFORM="darwin-arm64"
+    CHECKSUM_CMD="shasum -a 256"
+    ELF_CHECK=false
+    ;;
+  *)
+    fail "Unsupported OS: $OS. sing supports Linux and macOS."
+    ;;
+esac
+
+BINARY_NAME="sing-${PLATFORM}"
 
 # --- Resolve version ---
 VERSION="${1:-latest}"
@@ -48,23 +65,23 @@ case "$VERSION" in
   *)  TAG="v$VERSION" ;;
 esac
 
-info "Installing sing $TAG..."
+info "Installing sing $TAG ($PLATFORM)..."
 
 # --- Download binary ---
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
-DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/sing"
+DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${BINARY_NAME}"
 info "Downloading from GitHub Releases..."
 HTTP_CODE=$(curl -fsSL -w '%{http_code}' "$DOWNLOAD_URL" -o "$TMPFILE" 2>/dev/null)
 [ "$HTTP_CODE" = "200" ] || fail "Download failed (HTTP $HTTP_CODE). Check the version exists: $DOWNLOAD_URL"
 
 # --- Verify checksum ---
 info "Verifying checksum..."
-CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/sing.sha256"
+CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${BINARY_NAME}.sha256"
 EXPECTED=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}')
 if [ -n "$EXPECTED" ]; then
-  ACTUAL=$(sha256sum "$TMPFILE" | awk '{print $1}')
+  ACTUAL=$($CHECKSUM_CMD "$TMPFILE" | awk '{print $1}')
   if [ "$EXPECTED" != "$ACTUAL" ]; then
     fail "Checksum mismatch!\n  Expected: $EXPECTED\n  Actual:   $ACTUAL"
   fi
@@ -73,13 +90,25 @@ else
   info "  Checksum not available — skipping verification."
 fi
 
-# --- Validate ELF binary (no 'file' command needed — check magic bytes directly) ---
-ELF_MAGIC=$(head -c 4 "$TMPFILE" | od -A n -t x1 | tr -d ' \n')
-if [ "$ELF_MAGIC" != "7f454c46" ]; then
-  fail "Downloaded file is not a valid Linux binary (expected ELF, got something else)."
+# --- Validate binary format ---
+if [ "$ELF_CHECK" = true ]; then
+  ELF_MAGIC=$(head -c 4 "$TMPFILE" | od -A n -t x1 | tr -d ' \n')
+  if [ "$ELF_MAGIC" != "7f454c46" ]; then
+    fail "Downloaded file is not a valid Linux binary (expected ELF)."
+  fi
+else
+  MACHO_MAGIC=$(head -c 4 "$TMPFILE" | od -A n -t x1 | tr -d ' \n')
+  if [ "$MACHO_MAGIC" != "cffa edfe" ] && [ "$MACHO_MAGIC" != "cffaedfe" ]; then
+    fail "Downloaded file is not a valid macOS binary (expected Mach-O)."
+  fi
 fi
 
 chmod +x "$TMPFILE"
+
+# --- Remove macOS quarantine if present ---
+if [ "$OS" = "Darwin" ]; then
+  xattr -d com.apple.quarantine "$TMPFILE" 2>/dev/null || true
+fi
 
 # --- Install ---
 if [ -w "$INSTALL_DIR" ]; then
@@ -92,6 +121,13 @@ fi
 # --- Verify ---
 ok "Installed sing $TAG to $INSTALL_DIR/$BINARY"
 echo
-info "Get started:"
-info "  sing host init      # provision your server"
-info "  sing upgrade        # update to the latest version"
+
+if [ "$OS" = "Darwin" ]; then
+  info "Get started:"
+  info "  sing init <server>  # connect to your host (IP or SSH alias)"
+  info "  sing spec list <project>"
+else
+  info "Get started:"
+  info "  sing host init      # provision your server"
+  info "  sing upgrade        # update to the latest version"
+fi
