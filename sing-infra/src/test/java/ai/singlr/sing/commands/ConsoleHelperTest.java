@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.commands;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+class ConsoleHelperTest {
+
+  @AfterEach
+  void restoreConsoleSupplier() {
+    ConsoleHelper.consoleSupplier = System::console;
+  }
+
+  @Test
+  void readPasswordThrowsWhenConsoleIsNull() {
+    ConsoleHelper.consoleSupplier = () -> null;
+
+    var ex =
+        assertThrows(
+            EchoDisabledUnavailableException.class, () -> ConsoleHelper.readPassword("Token: "));
+
+    assertTrue(ex.getMessage().contains("System.console() is unavailable"));
+  }
+
+  @Test
+  void readPasswordNeverFallsBackToEchoedInput() {
+    ConsoleHelper.consoleSupplier = () -> null;
+
+    assertThrows(
+        EchoDisabledUnavailableException.class, () -> ConsoleHelper.readPassword("Secret: "));
+  }
+}

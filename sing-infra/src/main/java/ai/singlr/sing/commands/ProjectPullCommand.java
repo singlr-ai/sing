@@ -280,12 +280,21 @@ public final class ProjectPullCommand implements Runnable {
     if (envToken != null && !envToken.isBlank()) {
       return envToken;
     }
-    var prompted =
-        ConsoleHelper.readPassword("  GitHub personal access token (needs 'repo' scope): ");
-    if (prompted == null || prompted.isBlank()) {
+    try {
+      var prompted =
+          ConsoleHelper.readPassword("  GitHub personal access token (needs 'repo' scope): ");
+      if (prompted == null || prompted.isBlank()) {
+        throw new IllegalArgumentException(
+            "GitHub token required. Pass --github-token, set GITHUB_TOKEN, or enter interactively.");
+      }
+      return prompted;
+    } catch (EchoDisabledUnavailableException e) {
       throw new IllegalArgumentException(
-          "GitHub token required. Pass --github-token, set GITHUB_TOKEN, or enter interactively.");
+          "Unable to read GitHub token interactively in this terminal.\n\n"
+              + "Provide the token via one of:\n"
+              + "  --github-token <token>\n"
+              + "  GITHUB_TOKEN environment variable\n\n"
+              + "Then re-run: sing project pull <name>");
     }
-    return prompted;
   }
 }

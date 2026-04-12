@@ -6,8 +6,10 @@
 package ai.singlr.sing.commands;
 
 import java.io.BufferedReader;
+import java.io.Console;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 /**
  * Shared utilities for interactive CLI commands — stdin reading, confirmation prompts, and
@@ -16,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 final class ConsoleHelper {
 
   private static BufferedReader stdinReader;
+
+  static Supplier<Console> consoleSupplier = System::console;
 
   private ConsoleHelper() {}
 
@@ -47,18 +51,19 @@ final class ConsoleHelper {
   }
 
   /**
-   * Reads a password from the console with echo disabled. Falls back to {@link #readLine()} if
-   * {@code System.console()} is null (e.g., piped input).
+   * Reads a password from the console with echo disabled. Throws {@link
+   * EchoDisabledUnavailableException} if {@code System.console()} is null — never falls back to
+   * echoed input.
    */
   static String readPassword(String prompt) {
+    var console = consoleSupplier.get();
+    if (console == null) {
+      throw new EchoDisabledUnavailableException();
+    }
     System.out.print(prompt);
     System.out.flush();
-    var console = System.console();
-    if (console != null) {
-      var chars = console.readPassword();
-      return chars != null ? new String(chars) : null;
-    }
-    return readLine();
+    var chars = console.readPassword();
+    return chars != null ? new String(chars) : null;
   }
 
   /**

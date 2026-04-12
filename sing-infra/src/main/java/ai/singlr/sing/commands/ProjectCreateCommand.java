@@ -242,10 +242,19 @@ public final class ProjectCreateCommand implements Runnable {
     }
 
     for (var host : missingHosts) {
-      var prompted =
-          ConsoleHelper.readPassword("  Git access token for " + host + " (blank to skip): ");
-      if (prompted != null && !prompted.isBlank()) {
-        tokens.put(host, prompted);
+      try {
+        var prompted =
+            ConsoleHelper.readPassword("  Git access token for " + host + " (blank to skip): ");
+        if (prompted != null && !prompted.isBlank()) {
+          tokens.put(host, prompted);
+        }
+      } catch (EchoDisabledUnavailableException e) {
+        throw new IllegalArgumentException(
+            "Unable to read git access token interactively in this terminal.\n\n"
+                + "Provide the token via one of:\n"
+                + "  --git-token <token>\n"
+                + "  GITHUB_TOKEN environment variable\n\n"
+                + "Then re-run: sing project create <name>");
       }
     }
 
