@@ -78,6 +78,15 @@ public enum AgentCli {
     return method == InstallMethod.NPM;
   }
 
+  /** Human-readable display name including the package identifier. */
+  public String displayName() {
+    return switch (this) {
+      case CLAUDE_CODE -> "Claude Code";
+      case CODEX -> "Codex CLI (@openai/codex)";
+      case GEMINI -> "Gemini CLI (@google/gemini-cli)";
+    };
+  }
+
   /**
    * Returns the shell command fragment for headless (non-interactive) task execution. The task is
    * read from the given file path inside the container via {@code $(cat ...)}.

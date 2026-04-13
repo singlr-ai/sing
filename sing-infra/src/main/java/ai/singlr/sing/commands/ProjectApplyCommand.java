@@ -12,6 +12,7 @@ import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ProjectApplier;
+import ai.singlr.sing.engine.ProjectDefaults;
 import ai.singlr.sing.engine.ProjectProvisioner;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
@@ -78,7 +79,7 @@ public final class ProjectApplyCommand implements Runnable {
               + name
               + "/sing.yaml exists.");
     }
-    var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
+    SingYaml config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
     var shell = new ShellExecutor(dryRun);
     var mgr = new ContainerManager(shell);
@@ -100,6 +101,10 @@ public final class ProjectApplyCommand implements Runnable {
           throw new IllegalStateException("Container error: " + e.message());
     }
 
+    var nodeResolution = resolveNodeDependency(config);
+    config = nodeResolution.config();
+    var installNodeVersion = nodeResolution.nodeVersionToInstall();
+
     var ansi = Ansi.AUTO;
     if (!json) {
       Banner.printBranding(System.out, ansi);
@@ -115,6 +120,12 @@ public final class ProjectApplyCommand implements Runnable {
     var totalAdded = 0;
     var totalRemoved = 0;
     var totalSkipped = 0;
+
+    if (installNodeVersion != null) {
+      var nodeResult = applier.applyNodeRuntime(name, installNodeVersion);
+      totalAdded += nodeResult.added();
+      totalSkipped += nodeResult.skipped();
+    }
 
     var warnings = applier.checkUnsupportedChanges(config);
 
@@ -186,5 +197,32 @@ public final class ProjectApplyCommand implements Runnable {
                 + " removed, "
                 + totalSkipped
                 + " skipped"));
+  }
+
+  private record ApplyNodeResolution(SingYaml config, String nodeVersionToInstall) {}
+
+  private ApplyNodeResolution resolveNodeDependency(SingYaml config) {
+    var nodeAgents = NodeDependencyCheck.findNodeDependentAgents(config);
+    if (nodeAgents.isEmpty() || NodeDependencyCheck.hasNodeRuntime(config)) {
+      return new ApplyNodeResolution(config, null);
+    }
+
+    if (json) {
+      NodeDependencyCheck.failNonInteractive(config);
+    }
+
+    var resolution = NodeDependencyCheck.resolve(config, false);
+    return switch (resolution) {
+      case NodeDependencyCheck.Resolution.Unchanged r -> new ApplyNodeResolution(r.config(), null);
+      case NodeDependencyCheck.Resolution.NodeAdded r ->
+          new ApplyNodeResolution(r.config(), ProjectDefaults.DEFAULT_NODE_VERSION);
+      case NodeDependencyCheck.Resolution.AgentsDropped r ->
+          new ApplyNodeResolution(r.config(), null);
+      case NodeDependencyCheck.Resolution.Aborted ignored -> {
+        System.out.println("  Aborted.");
+        throw new IllegalStateException(
+            "Aborted: Node-dependent agents require Node.js in the project runtimes.");
+      }
+    };
   }
 }

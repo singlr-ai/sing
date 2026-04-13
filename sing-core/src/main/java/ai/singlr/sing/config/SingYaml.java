@@ -399,6 +399,60 @@ public record SingYaml(
     }
   }
 
+  /** Returns a copy of this config with Node.js added to the runtimes. */
+  public SingYaml withNodeRuntime(String nodeVersion) {
+    var newRuntimes =
+        runtimes != null
+            ? new Runtimes(runtimes.jdk(), nodeVersion, runtimes.maven())
+            : new Runtimes(0, nodeVersion, null);
+    return new SingYaml(
+        name,
+        description,
+        resources,
+        image,
+        packages,
+        newRuntimes,
+        git,
+        repos,
+        services,
+        processes,
+        agent,
+        agentContext,
+        ssh);
+  }
+
+  /** Returns a copy of this config with the agent install list replaced. */
+  public SingYaml withAgentInstall(List<String> install) {
+    var newAgent =
+        new Agent(
+            agent.type(),
+            agent.autoBranch(),
+            agent.branchPrefix(),
+            agent.autoSnapshot(),
+            install,
+            agent.config(),
+            agent.guardrails(),
+            agent.specsDir(),
+            agent.securityAudit(),
+            agent.codeReview(),
+            agent.notifications(),
+            agent.methodology());
+    return new SingYaml(
+        name,
+        description,
+        resources,
+        image,
+        packages,
+        runtimes,
+        git,
+        repos,
+        services,
+        processes,
+        newAgent,
+        agentContext,
+        ssh);
+  }
+
   /** Returns the SSH username from config, defaulting to "dev". */
   public String sshUser() {
     return ssh != null && ssh.user() != null ? ssh.user() : "dev";
