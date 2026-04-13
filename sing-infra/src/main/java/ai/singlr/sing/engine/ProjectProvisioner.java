@@ -960,11 +960,11 @@ public final class ProjectProvisioner {
       if (tool.requiresNode()) {
         var nodeCheck = execInContainer(name, List.of("which", "node"));
         if (!nodeCheck.ok()) {
-          throw new IOException(
-              "Agent CLI '"
+          throw new IllegalStateException(
+              "Bug: agent '"
                   + tool.yamlName()
                   + "' requires Node.js, but Node is not installed."
-                  + "\n  Add a 'node' version under 'runtimes:' in sing.yaml.");
+                  + " The command layer should have resolved this before provisioning.");
         }
       }
 

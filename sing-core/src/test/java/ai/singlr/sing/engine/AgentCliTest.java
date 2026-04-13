@@ -172,4 +172,19 @@ class AgentCliTest {
   void interactiveCommandGeminiWithoutPermissions() {
     assertEquals("gemini", AgentCli.GEMINI.interactiveCommand(false));
   }
+
+  @Test
+  void displayNameClaudeCode() {
+    assertEquals("Claude Code", AgentCli.CLAUDE_CODE.displayName());
+  }
+
+  @Test
+  void displayNameCodex() {
+    assertEquals("Codex CLI (@openai/codex)", AgentCli.CODEX.displayName());
+  }
+
+  @Test
+  void displayNameGemini() {
+    assertEquals("Gemini CLI (@google/gemini-cli)", AgentCli.GEMINI.displayName());
+  }
 }

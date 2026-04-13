@@ -1926,11 +1926,10 @@ class ProjectProvisionerTest {
 
     var ex =
         assertThrows(
-            IOException.class,
+            IllegalStateException.class,
             () -> provisioner.provision(configWithCodex, hostYaml(), null, null));
     assertTrue(ex.getMessage().contains("requires Node.js"));
     assertTrue(ex.getMessage().contains("codex"));
-    assertEquals("AGENT_TOOLS_INSTALLED", tracker.currentState().error().failedPhase());
   }
 
   @Test

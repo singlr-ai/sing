@@ -682,4 +682,64 @@ class SingYamlTest {
     assertTrue(roundTripped.agent().securityAudit().enabled());
     assertEquals("codex", roundTripped.agent().securityAudit().auditor());
   }
+
+  @Test
+  void withNodeRuntimeAddsNodeToExistingRuntimes() throws Exception {
+    var yaml =
+        """
+        name: test
+        resources:
+          cpu: 2
+          memory: 4GB
+          disk: 20GB
+        runtimes:
+          jdk: 25
+          maven: "3.9.9"
+        agent:
+          type: codex
+        """;
+    var config = SingYaml.fromMap(YamlUtil.parseMap(yaml));
+
+    var updated = config.withNodeRuntime("24.14.1");
+
+    assertEquals(25, updated.runtimes().jdk());
+    assertEquals("24.14.1", updated.runtimes().node());
+    assertEquals("3.9.9", updated.runtimes().maven());
+    assertEquals("test", updated.name());
+    assertEquals("codex", updated.agent().type());
+  }
+
+  @Test
+  void withNodeRuntimeCreatesRuntimesWhenNull() {
+    var config = SingYaml.fromMap(YamlUtil.parseMap("name: test"));
+
+    var updated = config.withNodeRuntime("22.0.0");
+
+    assertNotNull(updated.runtimes());
+    assertEquals("22.0.0", updated.runtimes().node());
+    assertEquals(0, updated.runtimes().jdk());
+    assertNull(updated.runtimes().maven());
+  }
+
+  @Test
+  void withAgentInstallReplacesInstallList() throws Exception {
+    var yaml =
+        """
+        name: test
+        agent:
+          type: claude-code
+          auto_branch: true
+          install:
+            - claude-code
+            - codex
+            - gemini
+        """;
+    var config = SingYaml.fromMap(YamlUtil.parseMap(yaml));
+
+    var updated = config.withAgentInstall(java.util.List.of("claude-code"));
+
+    assertEquals(java.util.List.of("claude-code"), updated.agent().install());
+    assertEquals("claude-code", updated.agent().type());
+    assertTrue(updated.agent().autoBranch());
+  }
 }

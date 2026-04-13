@@ -100,7 +100,7 @@ public final class ProjectCreateCommand implements Runnable {
       throw new IllegalStateException(hint.toString());
     }
 
-    var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
+    SingYaml config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
     if (config.name() == null || config.name().isBlank()) {
       throw new IllegalStateException("sing.yaml must have a 'name' field.");
@@ -109,6 +109,12 @@ public final class ProjectCreateCommand implements Runnable {
     if (config.resources() == null) {
       throw new IllegalStateException(
           "sing.yaml must have a 'resources' section with cpu, memory, and disk.");
+    }
+
+    if (yes || json) {
+      config = resolveNodeDependencyAuto(config);
+    } else if (!dryRun) {
+      config = resolveNodeDependencyInteractive(config);
     }
 
     var projectDir = SingPaths.projectDir(config.name());
@@ -259,6 +265,28 @@ public final class ProjectCreateCommand implements Runnable {
     }
 
     return Map.copyOf(tokens);
+  }
+
+  private SingYaml resolveNodeDependencyAuto(SingYaml config) {
+    var resolution = NodeDependencyCheck.resolve(config, true);
+    return switch (resolution) {
+      case NodeDependencyCheck.Resolution.NodeAdded r -> r.config();
+      default -> config;
+    };
+  }
+
+  private SingYaml resolveNodeDependencyInteractive(SingYaml config) {
+    var resolution = NodeDependencyCheck.resolve(config, false);
+    return switch (resolution) {
+      case NodeDependencyCheck.Resolution.Unchanged r -> r.config();
+      case NodeDependencyCheck.Resolution.NodeAdded r -> r.config();
+      case NodeDependencyCheck.Resolution.AgentsDropped r -> r.config();
+      case NodeDependencyCheck.Resolution.Aborted ignored -> {
+        System.out.println("  Aborted.");
+        throw new IllegalStateException(
+            "Aborted: Node-dependent agents require Node.js in the project runtimes.");
+      }
+    };
   }
 
   /**
