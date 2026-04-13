@@ -277,4 +277,78 @@ class SpecDirectoryTest {
     assertEquals("alice-dep", SpecDirectory.nextReady(specs, "alice").id());
     assertEquals("bob-nodep", SpecDirectory.nextReady(specs, "bob").id());
   }
+
+  @Test
+  void findByIdReturnsMatchingSpec() {
+    var specs = List.of(new Spec("oauth-flow", "OAuth", "pending", null, List.of(), null));
+
+    var spec = SpecDirectory.findById(specs, "oauth-flow");
+
+    assertNotNull(spec);
+    assertEquals("OAuth", spec.title());
+  }
+
+  @Test
+  void updateStatusReplacesOnlyMatchingSpec() {
+    var specs =
+        List.of(
+            new Spec("auth", "Auth", "pending", null, List.of(), null),
+            new Spec("search", "Search", "pending", null, List.of(), null));
+
+    var updated = SpecDirectory.updateStatus(specs, "search", "review");
+
+    assertEquals("pending", updated.getFirst().status());
+    assertEquals("review", updated.get(1).status());
+  }
+
+  @Test
+  void updateStatusRejectsUnknownStatus() {
+    var specs = List.of(new Spec("auth", "Auth", "pending", null, List.of(), null));
+
+    var error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> SpecDirectory.updateStatus(specs, "auth", "blocked"));
+
+    assertTrue(error.getMessage().contains("Invalid spec status"));
+  }
+
+  @Test
+  void isReadyReturnsTrueForPendingSpecWithSatisfiedDependencies() {
+    var specs =
+        List.of(
+            new Spec("setup", "Setup", "done", null, List.of(), null),
+            new Spec("oauth", "OAuth", "pending", null, List.of("setup"), null));
+
+    assertTrue(SpecDirectory.isReady(specs, specs.get(1)));
+    assertFalse(SpecDirectory.isBlocked(specs, specs.get(1)));
+  }
+
+  @Test
+  void isBlockedReturnsTrueForPendingSpecWithUnmetDependencies() {
+    var specs =
+        List.of(
+            new Spec("setup", "Setup", "in_progress", null, List.of(), null),
+            new Spec("oauth", "OAuth", "pending", null, List.of("setup"), null));
+
+    assertTrue(SpecDirectory.isBlocked(specs, specs.get(1)));
+    assertEquals(List.of("setup"), SpecDirectory.unmetDependencies(specs, specs.get(1)));
+  }
+
+  @Test
+  void summarizeReportsReadyAndBlockedCounts() {
+    var specs =
+        List.of(
+            new Spec("setup", "Setup", "done", null, List.of(), null),
+            new Spec("ready", "Ready", "pending", null, List.of("setup"), null),
+            new Spec("blocked", "Blocked", "pending", null, List.of("missing"), null),
+            new Spec("review", "Review", "review", null, List.of(), null));
+
+    var summary = SpecDirectory.summarize(specs);
+
+    assertEquals(1, summary.readyCount());
+    assertEquals(1, summary.blockedCount());
+    assertEquals("ready", summary.nextReadyId());
+    assertEquals(2, summary.counts().get("pending"));
+  }
 }

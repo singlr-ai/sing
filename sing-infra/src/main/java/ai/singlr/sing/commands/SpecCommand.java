@@ -14,6 +14,9 @@ import picocli.CommandLine.Command;
     mixinStandardHelpOptions = true,
     subcommands = {
       SpecListCommand.class,
+      SpecShowCommand.class,
+      SpecCreateCommand.class,
+      SpecStatusCommand.class,
     })
 public final class SpecCommand implements Runnable {
 

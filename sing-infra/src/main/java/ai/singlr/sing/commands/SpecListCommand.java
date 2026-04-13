@@ -10,15 +10,16 @@ import ai.singlr.sing.config.Spec;
 import ai.singlr.sing.config.SpecDirectory;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.Banner;
-import ai.singlr.sing.engine.ContainerExec;
 import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
+import ai.singlr.sing.engine.SpecWorkspace;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -96,26 +97,30 @@ public final class SpecListCommand implements Runnable {
 
     var sshUser = config.sshUser();
     var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
-
-    var catCmd = ContainerExec.asDevUser(name, List.of("cat", specsDir + "/index.yaml"));
-    var result = shell.exec(catCmd);
-    if (!result.ok() || result.stdout().isBlank()) {
+    var workspace = new SpecWorkspace(shell, name, specsDir);
+    var specs = workspace.readIndex();
+    if (specs.isEmpty()) {
       if (json) {
-        System.out.println("{\"name\":\"" + name + "\",\"specs\":[]}");
+        var map = new LinkedHashMap<String, Object>();
+        map.put("name", name);
+        map.put("specs", List.of());
+        map.put("counts", SpecDirectory.statusCounts(List.of()));
+        map.put("summary", SpecDirectory.summarize(List.of()).toMap());
+        System.out.println(YamlUtil.dumpJson(map));
       } else {
         Banner.printBranding(System.out, Ansi.AUTO);
         System.out.println(Ansi.AUTO.string("  @|faint No specs found for " + name + ".|@"));
       }
       return;
     }
-
-    var specs = SpecDirectory.parseIndex(YamlUtil.parseMap(result.stdout()));
+    var summary = SpecDirectory.summarize(specs);
 
     if (json) {
       var map = new LinkedHashMap<String, Object>();
       map.put("name", name);
-      map.put("specs", specs.stream().map(Spec::toMap).toList());
-      map.put("counts", SpecDirectory.statusCounts(specs));
+      map.put("specs", specs.stream().map(spec -> toJsonSpec(specs, spec)).toList());
+      map.put("counts", summary.counts());
+      map.put("summary", summary.toMap());
       System.out.println(YamlUtil.dumpJson(map));
       return;
     }
@@ -194,5 +199,17 @@ public final class SpecListCommand implements Runnable {
       case "done" -> "green";
       default -> "white";
     };
+  }
+
+  private static Map<String, Object> toJsonSpec(List<Spec> specs, Spec spec) {
+    var map = new LinkedHashMap<String, Object>(spec.toMap());
+    var ready = SpecDirectory.isReady(specs, spec);
+    var blocked = SpecDirectory.isBlocked(specs, spec);
+    map.put("ready", ready);
+    map.put("blocked", blocked);
+    if (blocked) {
+      map.put("unmet_dependencies", SpecDirectory.unmetDependencies(specs, spec));
+    }
+    return map;
   }
 }

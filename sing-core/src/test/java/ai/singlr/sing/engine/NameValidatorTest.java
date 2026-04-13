@@ -46,6 +46,26 @@ class NameValidatorTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"oauth-flow", "search-api", "v2-upgrade", "a", "0"})
+  void validSpecIds(String specId) {
+    assertDoesNotThrow(() -> NameValidator.requireValidSpecId(specId));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Bad", "has space", "deep/path", "../escape", "", "-bad"})
+  void invalidSpecIds(String specId) {
+    var ex =
+        assertThrows(
+            IllegalArgumentException.class, () -> NameValidator.requireValidSpecId(specId));
+    assertTrue(ex.getMessage().contains("Invalid spec id"));
+  }
+
+  @Test
+  void nullSpecIdIsInvalid() {
+    assertThrows(IllegalArgumentException.class, () -> NameValidator.requireValidSpecId(null));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"snap-20260220-123456", "v1.0", "before-refactor", "A_B.c-d"})
   void validSnapshotLabels(String label) {
     assertDoesNotThrow(() -> NameValidator.requireValidSnapshotLabel(label));

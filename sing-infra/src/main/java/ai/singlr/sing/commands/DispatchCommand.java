@@ -19,6 +19,7 @@ import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.SnapshotManager;
+import ai.singlr.sing.engine.SpecWorkspace;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
@@ -27,7 +28,6 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeoutException;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -118,8 +118,9 @@ public final class DispatchCommand implements Runnable {
 
     var sshUser = config.sshUser();
     var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
+    var specWorkspace = new SpecWorkspace(shell, name, specsDir);
 
-    var specs = readSpecIndex(shell, specsDir);
+    var specs = specWorkspace.readIndex();
     if (specs.isEmpty()) {
       printNoSpecs();
       return;
@@ -143,9 +144,9 @@ public final class DispatchCommand implements Runnable {
       return;
     }
 
-    updateSpecStatus(shell, name, specsDir, specs, nextSpec.id(), "in_progress");
+    specWorkspace.updateStatus(nextSpec.id(), "in_progress");
 
-    var specBody = readSpecMd(shell, specsDir, nextSpec.id());
+    var specBody = Objects.requireNonNullElse(specWorkspace.readSpecBody(nextSpec.id()), "");
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
     var task = buildTaskPrompt(nextSpec, description, config.agent().specsDir());
 
@@ -274,22 +275,6 @@ public final class DispatchCommand implements Runnable {
     }
   }
 
-  private List<Spec> readSpecIndex(ShellExecutor shell, String specsDir) throws Exception {
-    var catCmd = ContainerExec.asDevUser(name, List.of("cat", specsDir + "/index.yaml"));
-    var result = shell.exec(catCmd);
-    if (!result.ok() || result.stdout().isBlank()) {
-      return List.of();
-    }
-    return SpecDirectory.parseIndex(YamlUtil.parseMap(result.stdout()));
-  }
-
-  private String readSpecMd(ShellExecutor shell, String specsDir, String specId) throws Exception {
-    var catCmd =
-        ContainerExec.asDevUser(name, List.of("cat", specsDir + "/" + specId + "/spec.md"));
-    var result = shell.exec(catCmd);
-    return result.ok() ? result.stdout().strip() : "";
-  }
-
   private Spec resolveSpec(List<Spec> specs) {
     if (specId != null) {
       return specs.stream()
@@ -369,39 +354,6 @@ public final class DispatchCommand implements Runnable {
       return Instant.now().isAfter(latestTime.plus(SNAPSHOT_INTERVAL));
     } catch (Exception ignored) {
       return true;
-    }
-  }
-
-  /**
-   * Updates a spec's status in the container's {@code index.yaml}. Rebuilds the index with the
-   * updated status and writes it back via {@code incus exec}.
-   */
-  private void updateSpecStatus(
-      ShellExecutor shell,
-      String containerName,
-      String specsDir,
-      List<Spec> specs,
-      String specId,
-      String newStatus)
-      throws IOException, InterruptedException, TimeoutException {
-    var updated =
-        specs.stream()
-            .map(
-                s ->
-                    s.id().equals(specId)
-                        ? new Spec(
-                            s.id(), s.title(), newStatus, s.assignee(), s.dependsOn(), s.branch())
-                        : s)
-            .toList();
-    var yaml = YamlUtil.dumpToString(SpecDirectory.generateIndex(updated));
-    var writeCmd =
-        ContainerExec.asDevUser(
-            containerName,
-            List.of(
-                "bash", "-c", "printf '%s' \"$1\" > " + specsDir + "/index.yaml", "bash", yaml));
-    var result = shell.exec(writeCmd);
-    if (!result.ok()) {
-      throw new IOException("Failed to update spec status in index.yaml: " + result.stderr());
     }
   }
 }

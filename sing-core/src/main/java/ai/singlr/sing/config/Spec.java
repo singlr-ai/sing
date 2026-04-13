@@ -5,6 +5,7 @@
 
 package ai.singlr.sing.config;
 
+import ai.singlr.sing.engine.NameValidator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ public record Spec(
     if (id == null || id.isBlank()) {
       throw new IllegalArgumentException("spec.id is required");
     }
+    NameValidator.requireValidSpecId(id);
     var title = Objects.requireNonNullElse((String) map.get("title"), "");
     var status = Objects.requireNonNullElse((String) map.get("status"), "pending");
     var assignee = (String) map.get("assignee");
