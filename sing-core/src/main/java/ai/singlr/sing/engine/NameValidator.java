@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
 public final class NameValidator {
 
   private static final int MAX_LENGTH = 63;
+  private static final int MAX_SPEC_ID_LENGTH = 80;
   private static final Pattern PROJECT_NAME = Pattern.compile("^[a-z0-9][a-z0-9-]*$");
+  private static final Pattern SPEC_ID = Pattern.compile("^[a-z0-9][a-z0-9-]*$");
   private static final Pattern SNAPSHOT_LABEL = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9._-]*$");
   private static final Pattern SERVICE_NAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9._-]*$");
   private static final Pattern POSIX_USERNAME = Pattern.compile("^[a-z_][a-z0-9_-]*$");
@@ -34,6 +36,20 @@ public final class NameValidator {
               + name
               + "'. Must match [a-z0-9][a-z0-9-]*, max "
               + MAX_LENGTH
+              + " characters.");
+    }
+  }
+
+  /** Validates a spec id. Throws if invalid. */
+  public static void requireValidSpecId(String specId) {
+    if (specId == null
+        || specId.length() > MAX_SPEC_ID_LENGTH
+        || !SPEC_ID.matcher(specId).matches()) {
+      throw new IllegalArgumentException(
+          "Invalid spec id: '"
+              + specId
+              + "'. Must match [a-z0-9][a-z0-9-]*, max "
+              + MAX_SPEC_ID_LENGTH
               + " characters.");
     }
   }

@@ -6,15 +6,20 @@
 package ai.singlr.sing.commands;
 
 import ai.singlr.sing.config.SingYaml;
+import ai.singlr.sing.config.SpecDirectory;
 import ai.singlr.sing.config.YamlUtil;
+import ai.singlr.sing.engine.AgentSession;
 import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.ContainerManager;
+import ai.singlr.sing.engine.ContainerManager.ContainerInfo;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
+import ai.singlr.sing.engine.SpecWorkspace;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
@@ -68,19 +73,24 @@ public final class ProjectConfigCommand implements Runnable {
 
     var shell = new ShellExecutor(false);
     var mgr = new ContainerManager(shell);
-    var state = mgr.queryState(name);
+    var info = mgr.queryInfo(name);
+    var agentSession = loadAgentSession(shell, name, info.state());
+    var specSummary = loadSpecSummary(shell, config, info.state());
 
     if (json) {
-      printJson(config, state);
+      printJson(config, info, agentSession, specSummary);
       return;
     }
 
     Banner.printBranding(System.out, Ansi.AUTO);
-    Banner.printProjectConfig(config, state, System.out, Ansi.AUTO);
+    Banner.printProjectConfig(config, info.state(), System.out, Ansi.AUTO);
   }
 
-  @SuppressWarnings("unchecked")
-  private static void printJson(SingYaml config, ContainerState state) {
+  private static void printJson(
+      SingYaml config,
+      ContainerInfo info,
+      AgentSession.SessionInfo agentSession,
+      SpecSnapshot specSummary) {
     var map = new LinkedHashMap<String, Object>();
     map.put("name", config.name());
     map.put("description", config.description());
@@ -95,21 +105,34 @@ public final class ProjectConfigCommand implements Runnable {
     }
 
     var statusStr =
-        switch (state) {
+        switch (info.state()) {
           case ContainerState.Running ignored -> "running";
           case ContainerState.Stopped ignored -> "stopped";
           case ContainerState.NotCreated ignored -> "not_created";
           case ContainerState.Error ignored -> "error";
         };
     map.put("container_status", statusStr);
-    if (state instanceof ContainerState.Running r && r.ipv4() != null) {
+    if (info.state() instanceof ContainerState.Running r && r.ipv4() != null) {
       map.put("container_ip", r.ipv4());
+    }
+    if (info.limits() != null) {
+      var limits = new LinkedHashMap<String, Object>();
+      if (info.limits().cpu() != null) {
+        limits.put("cpu", info.limits().cpu());
+      }
+      if (info.limits().memory() != null) {
+        limits.put("memory", info.limits().memory());
+      }
+      if (!limits.isEmpty()) {
+        map.put("container_limits", limits);
+      }
     }
 
     if (config.runtimes() != null) {
       var rt = new LinkedHashMap<String, Object>();
       if (config.runtimes().jdk() > 0) rt.put("jdk", config.runtimes().jdk());
       if (config.runtimes().node() != null) rt.put("node", config.runtimes().node());
+      if (config.runtimes().maven() != null) rt.put("maven", config.runtimes().maven());
       if (!rt.isEmpty()) map.put("runtimes", rt);
     }
 
@@ -129,14 +152,86 @@ public final class ProjectConfigCommand implements Runnable {
       agent.put("type", config.agent().type());
       agent.put("auto_snapshot", config.agent().autoSnapshot());
       agent.put("auto_branch", config.agent().autoBranch());
+      if (config.agent().specsDir() != null) agent.put("specs_dir", config.agent().specsDir());
       if (config.agent().install() != null) agent.put("install", config.agent().install());
       map.put("agent", agent);
     }
+    map.put("agent_session", toAgentSessionMap(agentSession, info.state()));
+    map.put("specs", specSummary.toMap());
 
     if (config.ssh() != null) {
       map.put("ssh_user", config.ssh().user());
     }
 
     System.out.println(YamlUtil.dumpJson(map));
+  }
+
+  private static AgentSession.SessionInfo loadAgentSession(
+      ShellExecutor shell, String containerName, ContainerState state) throws Exception {
+    if (!(state instanceof ContainerState.Running)) {
+      return null;
+    }
+    return new AgentSession(shell).queryStatus(containerName);
+  }
+
+  private SpecSnapshot loadSpecSummary(ShellExecutor shell, SingYaml config, ContainerState state)
+      throws Exception {
+    if (!(state instanceof ContainerState.Running)) {
+      return SpecSnapshot.unavailable("project_stopped");
+    }
+    if (config.agent() == null || config.agent().specsDir() == null) {
+      return SpecSnapshot.unavailable("specs_not_configured");
+    }
+    var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
+    try {
+      var summary = SpecDirectory.summarize(new SpecWorkspace(shell, name, specsDir).readIndex());
+      return SpecSnapshot.available(summary);
+    } catch (Exception e) {
+      return SpecSnapshot.unavailable("specs_unavailable");
+    }
+  }
+
+  private static Map<String, Object> toAgentSessionMap(
+      AgentSession.SessionInfo session, ContainerState state) {
+    var map = new LinkedHashMap<String, Object>();
+    var available = state instanceof ContainerState.Running;
+    map.put("available", available);
+    map.put("running", session != null && session.running());
+    if (!available) {
+      map.put("reason", "project_stopped");
+      return map;
+    }
+    if (session == null) {
+      return map;
+    }
+    map.put("pid", session.pid());
+    map.put("task", session.task());
+    map.put("started_at", session.startedAt());
+    map.put("branch", session.branch());
+    map.put("log_path", session.logPath());
+    return map;
+  }
+
+  private record SpecSnapshot(boolean available, String reason, SpecDirectory.Summary summary) {
+
+    private static SpecSnapshot available(SpecDirectory.Summary summary) {
+      return new SpecSnapshot(true, null, summary);
+    }
+
+    private static SpecSnapshot unavailable(String reason) {
+      return new SpecSnapshot(false, reason, null);
+    }
+
+    private Map<String, Object> toMap() {
+      var map = new LinkedHashMap<String, Object>();
+      map.put("available", available);
+      if (reason != null) {
+        map.put("reason", reason);
+      }
+      if (summary != null) {
+        map.putAll(summary.toMap());
+      }
+      return map;
+    }
   }
 }
