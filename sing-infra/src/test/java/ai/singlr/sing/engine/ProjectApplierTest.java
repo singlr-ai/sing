@@ -547,15 +547,16 @@ class ProjectApplierTest {
   }
 
   @Test
-  void checkUnsupportedChangesWarnsAboutResources() {
+  void checkUnsupportedChangesWarnsWhenLiveLimitsDiffer() {
     var shell = new ScriptedShellExecutor();
     var applier = applier(shell);
     var config = minimalConfig("claude-code");
 
-    var warnings = applier.checkUnsupportedChanges(config);
+    var warnings =
+        applier.checkUnsupportedChanges(config, new ContainerManager.ResourceLimits("4", "12GB"));
 
     assertFalse(warnings.isEmpty());
-    assertTrue(warnings.getFirst().contains("Resource changes"));
+    assertTrue(warnings.getFirst().contains("project resources set"));
   }
 
   @Test
@@ -569,7 +570,7 @@ class ProjectApplierTest {
         new SingYaml(
             "test", null, null, null, null, null, null, null, null, null, agent, null, null);
 
-    var warnings = applier.checkUnsupportedChanges(config);
+    var warnings = applier.checkUnsupportedChanges(config, null);
 
     assertTrue(warnings.isEmpty());
   }

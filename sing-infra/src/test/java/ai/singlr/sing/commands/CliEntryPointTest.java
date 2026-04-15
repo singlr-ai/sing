@@ -223,6 +223,7 @@ class CliEntryPointTest {
     var output = capturedOut.toString(StandardCharsets.UTF_8);
     assertTrue(output.contains("project"), "Project usage should be printed");
     assertTrue(output.contains("create"), "Should list 'create' subcommand");
+    assertTrue(output.contains("resources"), "Should list 'resources' subcommand");
   }
 
   @Test
@@ -280,6 +281,37 @@ class CliEntryPointTest {
     assertEquals(0, exitCode);
     var output = sw.toString();
     assertTrue(output.contains("zero configuration"));
+    assertTrue(output.contains("--dry-run"));
+    assertTrue(output.contains("--json"));
+  }
+
+  @Test
+  void projectResourcesHelpShowsDescription() {
+    var cmd = new CommandLine(new Sing());
+    var sw = new StringWriter();
+    cmd.setOut(new PrintWriter(sw));
+
+    var exitCode = cmd.execute("project", "resources", "--help");
+
+    assertEquals(0, exitCode);
+    var output = sw.toString();
+    assertTrue(output.contains("Manage project resource allocations"));
+    assertTrue(output.contains("set"));
+  }
+
+  @Test
+  void projectResourcesSetHelpShowsOptions() {
+    var cmd = new CommandLine(new Sing());
+    var sw = new StringWriter();
+    cmd.setOut(new PrintWriter(sw));
+
+    var exitCode = cmd.execute("project", "resources", "set", "--help");
+
+    assertEquals(0, exitCode);
+    var output = sw.toString();
+    assertTrue(output.contains("--cpu"));
+    assertTrue(output.contains("--memory"));
+    assertTrue(output.contains("--disk"));
     assertTrue(output.contains("--dry-run"));
     assertTrue(output.contains("--json"));
   }

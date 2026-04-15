@@ -410,4 +410,44 @@ class ContainerManagerTest {
     assertInstanceOf(ContainerState.NotCreated.class, info.state());
     assertNull(info.limits());
   }
+
+  @Test
+  void setResourceLimitsAppliesCpuAndMemoryTogether() throws Exception {
+    var shell = new ScriptedShellExecutor().onOk("incus config set");
+    var mgr = new ContainerManager(shell);
+
+    mgr.setResourceLimits("acme-health", new ContainerManager.ResourceLimits("6", "24GB"));
+
+    var cmds = shell.invocations();
+    assertEquals(1, cmds.size());
+    assertTrue(cmds.getFirst().contains("limits.cpu=6"));
+    assertTrue(cmds.getFirst().contains("limits.memory=24GB"));
+  }
+
+  @Test
+  void setDiskQuotaFallsBackToDeviceSetWhenOverrideExists() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail("incus config device override", "device already exists")
+            .onOk("incus config device set");
+    var mgr = new ContainerManager(shell);
+
+    mgr.setDiskQuota("acme-health", "200GB");
+
+    var cmds = shell.invocations();
+    assertEquals(2, cmds.size());
+    assertTrue(cmds.getFirst().contains("device override"));
+    assertTrue(cmds.get(1).contains("device set"));
+  }
+
+  @Test
+  void restartThrowsOnFailure() {
+    var shell = new ScriptedShellExecutor().onFail("incus restart", "permission denied");
+    var mgr = new ContainerManager(shell);
+
+    var ex = assertThrows(IOException.class, () -> mgr.restart("acme-health"));
+
+    assertTrue(ex.getMessage().contains("Failed to restart"));
+    assertTrue(ex.getMessage().contains("permission denied"));
+  }
 }
