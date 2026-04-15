@@ -7,6 +7,7 @@ package ai.singlr.sing.engine;
 
 import ai.singlr.sing.config.SingYaml;
 import ai.singlr.sing.config.YamlUtil;
+import ai.singlr.sing.engine.ContainerManager.ResourceLimits;
 import ai.singlr.sing.gen.AgentContextGenerator;
 import ai.singlr.sing.gen.CodeReviewGenerator;
 import ai.singlr.sing.gen.GeneratedFile;
@@ -19,6 +20,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -496,13 +498,24 @@ public final class ProjectApplier {
   }
 
   /** Checks for config sections that cannot be changed post-creation and returns warnings. */
-  public List<String> checkUnsupportedChanges(SingYaml config) {
+  public List<String> checkUnsupportedChanges(SingYaml config, ResourceLimits liveLimits) {
     var warnings = new ArrayList<String>();
-    if (config.resources() != null) {
+    if (config.resources() != null
+        && liveLimits != null
+        && (!String.valueOf(config.resources().cpu()).equals(liveLimits.cpu())
+            || !normalizedSize(config.resources().memory())
+                .equals(normalizedSize(liveLimits.memory())))) {
       warnings.add(
-          "Resource changes (CPU/memory/disk) require 'sing down' + 'sing up' to take effect.");
+          "CPU and memory changes are not applied by 'sing project apply'."
+              + " Use 'sing project resources set "
+              + config.name()
+              + " ...' instead.");
     }
     return warnings;
+  }
+
+  private static String normalizedSize(String value) {
+    return value == null ? "" : value.strip().replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
   }
 
   /**

@@ -329,6 +329,7 @@ sing restore acme-health snap-01  # rollback to snapshot
 # Modify running projects
 sing project add service acme-health
 sing project add repo acme-health
+sudo sing project resources set acme-health --memory 16GB
 sing project destroy acme-health  # delete container and state
 ```
 

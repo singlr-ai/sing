@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.commands;
+
+import picocli.CommandLine.Command;
+
+@Command(
+    name = "resources",
+    description = "Manage project resource allocations.",
+    mixinStandardHelpOptions = true,
+    subcommands = {
+      ProjectResourcesSetCommand.class,
+    })
+public final class ProjectResourcesCommand implements Runnable {
+
+  @Override
+  public void run() {
+    new picocli.CommandLine(this).usage(System.out);
+  }
+}

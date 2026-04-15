@@ -17,6 +17,7 @@ import picocli.CommandLine.Command;
       ProjectApplyCommand.class,
       ProjectAddCommand.class,
       ProjectRemoveCommand.class,
+      ProjectResourcesCommand.class,
       ProjectPullCommand.class,
       ProjectPushCommand.class,
       ProjectListCommand.class,

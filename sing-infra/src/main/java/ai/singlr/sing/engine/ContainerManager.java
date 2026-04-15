@@ -71,12 +71,59 @@ public final class ContainerManager {
     }
   }
 
+  /** Restarts a container. Throws on failure. */
+  public void restart(String name) throws IOException, InterruptedException, TimeoutException {
+    var result = shell.exec(List.of("incus", "restart", name));
+    if (!result.ok()) {
+      throw new IOException("Failed to restart container '" + name + "': " + result.stderr());
+    }
+  }
+
   /** Stops a container. Throws on failure. */
   public void stop(String name) throws IOException, InterruptedException, TimeoutException {
     var result = shell.exec(List.of("incus", "stop", name));
     if (!result.ok()) {
       throw new IOException("Failed to stop container '" + name + "': " + result.stderr());
     }
+  }
+
+  /** Applies CPU and memory limits to a container. Throws on failure. */
+  public void setResourceLimits(String name, ResourceLimits limits)
+      throws IOException, InterruptedException, TimeoutException {
+    var result =
+        shell.exec(
+            List.of(
+                "incus",
+                "config",
+                "set",
+                name,
+                "limits.cpu=" + limits.cpu(),
+                "limits.memory=" + limits.memory()));
+    if (!result.ok()) {
+      throw new IOException(
+          "Failed to set resource limits for container '" + name + "': " + result.stderr());
+    }
+  }
+
+  /** Applies the root disk quota to a container. Throws on failure. */
+  public void setDiskQuota(String name, String disk)
+      throws IOException, InterruptedException, TimeoutException {
+    var result =
+        shell.exec(List.of("incus", "config", "device", "override", name, "root", "size=" + disk));
+    if (result.ok()) {
+      return;
+    }
+    if (result.stderr().contains("already exists")) {
+      var setResult =
+          shell.exec(List.of("incus", "config", "device", "set", name, "root", "size=" + disk));
+      if (!setResult.ok()) {
+        throw new IOException(
+            "Failed to set disk quota for container '" + name + "': " + setResult.stderr());
+      }
+      return;
+    }
+    throw new IOException(
+        "Failed to set disk quota for container '" + name + "': " + result.stderr());
   }
 
   /** Force-deletes a container (stops it first if running). Throws on failure. */

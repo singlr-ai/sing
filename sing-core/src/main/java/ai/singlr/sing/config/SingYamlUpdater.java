@@ -85,6 +85,44 @@ public final class SingYamlUpdater {
     return updated;
   }
 
+  /**
+   * Updates the resources block in the sing.yaml at the given path. Any null argument preserves the
+   * existing value.
+   */
+  public static SingYaml updateResources(Path singYamlPath, Integer cpu, String memory, String disk)
+      throws IOException {
+    var config = readConfig(singYamlPath);
+    var updated = withResources(config, mergeResources(config.resources(), cpu, memory, disk));
+    writeConfig(singYamlPath, updated);
+    return updated;
+  }
+
+  /**
+   * Returns the merged resources block for a partial resource update. Any null argument preserves
+   * the existing value.
+   */
+  public static SingYaml.Resources mergeResources(
+      SingYaml.Resources current, Integer cpu, String memory, String disk) {
+    if (current == null) {
+      throw new IllegalStateException("sing.yaml must have a resources section");
+    }
+    if (cpu != null && cpu < 1) {
+      throw new IllegalArgumentException("resources.cpu must be >= 1");
+    }
+    if (memory != null && memory.isBlank()) {
+      throw new IllegalArgumentException("resources.memory must not be blank");
+    }
+    if (disk != null && disk.isBlank()) {
+      throw new IllegalArgumentException("resources.disk must not be blank");
+    }
+    var merged =
+        Map.<String, Object>of(
+            "cpu", cpu != null ? cpu : current.cpu(),
+            "memory", memory != null ? memory : current.memory(),
+            "disk", disk != null ? disk : current.disk());
+    return SingYaml.Resources.fromMap(merged);
+  }
+
   private static SingYaml readConfig(Path path) throws IOException {
     if (!Files.exists(path)) {
       throw new IllegalStateException("sing.yaml not found: " + path.toAbsolutePath());
@@ -124,6 +162,23 @@ public final class SingYamlUpdater {
         c.runtimes(),
         c.git(),
         repos,
+        c.services(),
+        c.processes(),
+        c.agent(),
+        c.agentContext(),
+        c.ssh());
+  }
+
+  private static SingYaml withResources(SingYaml c, SingYaml.Resources resources) {
+    return new SingYaml(
+        c.name(),
+        c.description(),
+        resources,
+        c.image(),
+        c.packages(),
+        c.runtimes(),
+        c.git(),
+        c.repos(),
         c.services(),
         c.processes(),
         c.agent(),

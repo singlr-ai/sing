@@ -260,6 +260,58 @@ class SingYamlUpdaterTest {
     assertTrue(ex.getMessage().contains("not found"));
   }
 
+  @Test
+  void updateResourcesChangesRequestedFieldsAndPreservesOtherSections() throws Exception {
+    var path = writeTempYaml(BASE_YAML);
+
+    var updated = SingYamlUpdater.updateResources(path, 4, "16GB", null);
+
+    assertEquals(4, updated.resources().cpu());
+    assertEquals("16GB", updated.resources().memory());
+    assertEquals("50GB", updated.resources().disk());
+    assertEquals("my-project", updated.name());
+    assertEquals("dev", updated.ssh().user());
+    assertEquals(1, updated.services().size());
+
+    var reloaded = SingYaml.fromMap(YamlUtil.parseFile(path));
+    assertEquals(4, reloaded.resources().cpu());
+    assertEquals("16GB", reloaded.resources().memory());
+    assertEquals("50GB", reloaded.resources().disk());
+  }
+
+  @Test
+  void updateResourcesNormalizesBareSizes() throws Exception {
+    var path = writeTempYaml(BASE_YAML);
+
+    var updated = SingYamlUpdater.updateResources(path, null, "32", "120");
+
+    assertEquals("32GB", updated.resources().memory());
+    assertEquals("120GB", updated.resources().disk());
+  }
+
+  @Test
+  void mergeResourcesRejectsInvalidValues() {
+    var current = new SingYaml.Resources(2, "8GB", "50GB");
+
+    var cpuEx =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> SingYamlUpdater.mergeResources(current, 0, null, null));
+    assertTrue(cpuEx.getMessage().contains("cpu"));
+
+    var memoryEx =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> SingYamlUpdater.mergeResources(current, null, "   ", null));
+    assertTrue(memoryEx.getMessage().contains("memory"));
+
+    var diskEx =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> SingYamlUpdater.mergeResources(current, null, null, " "));
+    assertTrue(diskEx.getMessage().contains("disk"));
+  }
+
   private java.nio.file.Path writeTempYaml(String content) throws Exception {
     var path = tempDir.resolve("sing.yaml");
     Files.writeString(path, content);

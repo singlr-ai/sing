@@ -84,6 +84,7 @@ public final class ProjectApplyCommand implements Runnable {
     var shell = new ShellExecutor(dryRun);
     var mgr = new ContainerManager(shell);
     var state = mgr.queryState(name);
+    var info = mgr.queryInfo(name);
 
     switch (state) {
       case ContainerState.Running ignored -> {}
@@ -127,7 +128,7 @@ public final class ProjectApplyCommand implements Runnable {
       totalSkipped += nodeResult.skipped();
     }
 
-    var warnings = applier.checkUnsupportedChanges(config);
+    var warnings = applier.checkUnsupportedChanges(config, info.limits());
 
     var svcResult = applier.applyServices(name, config.services());
     totalAdded += svcResult.added();
