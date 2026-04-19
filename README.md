@@ -34,6 +34,8 @@ sing project init
 sing project create acme-health
 ```
 
+`project pull` stores the project bundle under `~/.sing/projects/<name>/` by default.
+
 `project create` provisions an Incus container with everything declared in `sing.yaml` — installs runtimes, starts Podman services, clones repos, configures git identity, generates agent context files, and sets up the harness.
 
 ```bash

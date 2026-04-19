@@ -1313,6 +1313,37 @@ class ProjectProvisionerTest {
   }
 
   @Test
+  void mavenFallsBackToApacheArchiveWhenCdnMisses() throws Exception {
+    var shell =
+        shellThroughStep10()
+            .onFail("/opt/maven/bin/mvn --version", "No such file")
+            .onceOnFail("dlcdn.apache.org/maven/maven-3/3.9.12", "curl: (22) 404 Not Found")
+            .onOk("archive.apache.org/dist/maven/maven-3/3.9.12");
+    var provisioner = new ProjectProvisioner(shell, tracker(), null);
+
+    provisioner.provision(configWithMaven("3.9.12"), hostYaml(), null, null);
+
+    var cmds = shell.invocations();
+    assertTrue(
+        cmds.stream()
+            .anyMatch(
+                c ->
+                    c.contains(
+                        "dlcdn.apache.org/maven/maven-3/3.9.12/binaries/apache-maven-3.9.12")),
+        "Should try the Apache CDN first");
+    assertTrue(
+        cmds.stream()
+            .anyMatch(
+                c ->
+                    c.contains(
+                        "archive.apache.org/dist/maven/maven-3/3.9.12/binaries/apache-maven-3.9.12")),
+        "Should fall back to the Apache archive");
+    assertTrue(
+        cmds.stream().anyMatch(c -> c.contains("ln -sfn /opt/apache-maven-3.9.12 /opt/maven")),
+        "Should create symlink after archive fallback succeeds");
+  }
+
+  @Test
   void mavenSkippedWhenNotRequested() throws Exception {
     var shell = minimalSuccessShell();
     var steps = new ArrayList<String>();
@@ -1348,7 +1379,8 @@ class ProjectProvisionerTest {
     var shell =
         shellThroughStep10()
             .onFail("/opt/maven/bin/mvn --version", "No such file")
-            .onFail("curl -fsSL", "curl: (22) 404 Not Found");
+            .onFail("dlcdn.apache.org/maven/maven-3/99.0.0", "curl: (22) 404 Not Found")
+            .onFail("archive.apache.org/dist/maven/maven-3/99.0.0", "curl: (22) 404 Not Found");
     var tracker = tracker();
     var provisioner = new ProjectProvisioner(shell, tracker, null);
 
@@ -1357,6 +1389,8 @@ class ProjectProvisionerTest {
             IOException.class,
             () -> provisioner.provision(configWithMaven("99.0.0"), hostYaml(), null, null));
     assertTrue(ex.getMessage().contains("Failed to install Maven"));
+    assertTrue(ex.getMessage().contains("dlcdn.apache.org"));
+    assertTrue(ex.getMessage().contains("archive.apache.org"));
     assertEquals("MAVEN_INSTALLED", tracker.currentState().error().failedPhase());
   }
 

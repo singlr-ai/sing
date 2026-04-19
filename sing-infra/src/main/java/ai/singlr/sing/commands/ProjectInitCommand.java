@@ -9,6 +9,7 @@ import ai.singlr.sing.config.SingYaml;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.NameValidator;
+import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.gen.ServicePresets;
 import ai.singlr.sing.gen.SingYamlGenerator;
 import java.nio.file.Files;
@@ -34,7 +35,7 @@ public final class ProjectInitCommand implements Runnable {
 
   @Option(
       names = {"-o", "--output"},
-      description = "Output file path (default: <name>/sing.yaml).")
+      description = "Output file path (default: ~/.sing/projects/<name>/sing.yaml).")
   private String output;
 
   @Spec private CommandSpec spec;
@@ -69,7 +70,7 @@ public final class ProjectInitCommand implements Runnable {
       return;
     }
 
-    var outputPath = output != null ? Path.of(output) : Path.of(config.name(), "sing.yaml");
+    var outputPath = output != null ? Path.of(output) : defaultOutputPath(config.name());
     if (outputPath.getParent() != null) {
       Files.createDirectories(outputPath.getParent());
     }
@@ -88,10 +89,23 @@ public final class ProjectInitCommand implements Runnable {
     out.println(ansi.string("  @|bold,green \u2713 Created|@ " + outputPath));
     out.println(
         ansi.string(
-            "    @|faint Next:|@ review the file, then run"
-                + " @|bold sing project create "
-                + config.name()
+            "    @|faint Next:|@ review the file, then run @|bold "
+                + nextCreateCommand(config.name(), outputPath)
                 + "|@"));
+  }
+
+  static Path defaultOutputPath(String name) {
+    return SingPaths.projectDir(name).resolve("sing.yaml");
+  }
+
+  static String nextCreateCommand(String name, Path outputPath) {
+    if (outputPath
+        .toAbsolutePath()
+        .normalize()
+        .equals(defaultOutputPath(name).toAbsolutePath().normalize())) {
+      return "sing project create " + name;
+    }
+    return "sing project create " + name + " -f " + outputPath;
   }
 
   private SingYaml collectInputs(java.io.PrintStream out, Ansi ansi) {
