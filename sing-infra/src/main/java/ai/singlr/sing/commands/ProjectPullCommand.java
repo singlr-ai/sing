@@ -59,7 +59,8 @@ public final class ProjectPullCommand implements Runnable {
 
   @Option(
       names = {"-o", "--output"},
-      description = "Output path for the resolved sing.yaml (default: <name>/sing.yaml).")
+      description =
+          "Output path for the resolved sing.yaml (default: ~/.sing/projects/<name>/sing.yaml).")
   private String output;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -142,9 +143,10 @@ public final class ProjectPullCommand implements Runnable {
 
     var config = SingYaml.fromMap(mergedMap);
     var yamlContent = SingYamlGenerator.generate(config);
+    var canonicalOutputPath = defaultOutputPath(name);
 
     if (dryRun) {
-      var dryRunPath = output != null ? output : name + "/sing.yaml";
+      var dryRunPath = output != null ? output : canonicalOutputPath.toAbsolutePath().toString();
       if (json) {
         var map = new LinkedHashMap<String, Object>();
         map.put("name", name);
@@ -166,7 +168,7 @@ public final class ProjectPullCommand implements Runnable {
       System.out.println();
     }
 
-    var outputPath = output != null ? Path.of(output) : Path.of(name, "sing.yaml");
+    var outputPath = output != null ? Path.of(output) : canonicalOutputPath;
     var resolvedYaml = resolveWithExistingValues(yamlContent, outputPath);
     if (outputPath.getParent() != null) {
       Files.createDirectories(outputPath.getParent());
@@ -199,11 +201,21 @@ public final class ProjectPullCommand implements Runnable {
     }
     System.out.println();
     var stateDir = SingPaths.projectDir(name);
-    if (Files.exists(stateDir)) {
+    if (Files.exists(stateDir) && isCanonicalOutputPath(outputPath)) {
+      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project apply " + name));
+    } else if (Files.exists(stateDir)) {
       System.out.println(
-          Ansi.AUTO.string("  @|bold Next:|@ sing project apply " + name + " -f " + outputPath));
-    } else {
+          Ansi.AUTO.string(
+              "  @|bold Next:|@ re-run without @|bold --output|@ to update "
+                  + canonicalOutputPath.toAbsolutePath()
+                  + ", then run @|bold sing project apply "
+                  + name
+                  + "|@"));
+    } else if (isCanonicalOutputPath(outputPath)) {
       System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name));
+    } else {
+      System.out.println(
+          Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name + " -f " + outputPath));
     }
   }
 
@@ -237,6 +249,17 @@ public final class ProjectPullCommand implements Runnable {
       }
     }
     return entries.size();
+  }
+
+  static Path defaultOutputPath(String name) {
+    return SingPaths.projectDir(name).resolve("sing.yaml");
+  }
+
+  private boolean isCanonicalOutputPath(Path outputPath) {
+    return outputPath
+        .toAbsolutePath()
+        .normalize()
+        .equals(defaultOutputPath(name).toAbsolutePath().normalize());
   }
 
   private String resolveWithExistingValues(String yamlContent, Path outputPath) throws IOException {

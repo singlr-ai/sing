@@ -40,7 +40,7 @@ public final class ProjectCreateCommand implements Runnable {
   @Parameters(
       index = "0",
       arity = "0..1",
-      description = "Project name (resolves to <name>/sing.yaml if -f not given).")
+      description = "Project name (uses ~/.sing/projects/<name>/sing.yaml if -f not given).")
   private String name;
 
   @Option(names = "--dry-run", description = "Print commands instead of executing them.")
@@ -91,8 +91,8 @@ public final class ProjectCreateCommand implements Runnable {
       hint.append("Project descriptor not found: ").append(singYamlPath.toAbsolutePath());
       if (name != null) {
         hint.append("\n  Run 'sing project init' to create ")
-            .append(name)
-            .append("/sing.yaml, or specify one with --file.");
+            .append(defaultDescriptorPath(name))
+            .append(", or specify one with --file.");
       } else {
         hint.append(
             "\n  Run 'sing project init' to generate a sing.yaml, or specify one with --file.");
@@ -120,9 +120,7 @@ public final class ProjectCreateCommand implements Runnable {
     var projectDir = SingPaths.projectDir(config.name());
     Files.createDirectories(projectDir);
     var canonicalYaml = projectDir.resolve("sing.yaml");
-    if (!singYamlPath.toAbsolutePath().equals(canonicalYaml.toAbsolutePath())) {
-      Files.copy(singYamlPath, canonicalYaml, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-    }
+    syncProjectBundle(singYamlPath, canonicalYaml);
 
     var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
@@ -289,15 +287,23 @@ public final class ProjectCreateCommand implements Runnable {
     };
   }
 
-  /**
-   * Resolves the sing.yaml path: {@code -f} wins, then {@code <name>/sing.yaml}, then {@code
-   * ./sing.yaml}.
-   */
   private Path resolveSingYamlPath() {
+    return resolveSingYamlPath(name, file);
+  }
+
+  static Path defaultDescriptorPath(String name) {
+    return SingPaths.projectDir(name).resolve("sing.yaml");
+  }
+
+  static Path resolveSingYamlPath(String name, String file) {
     if (file != null) {
       return Path.of(file);
     }
     if (name != null) {
+      var canonicalPath = defaultDescriptorPath(name);
+      if (Files.exists(canonicalPath)) {
+        return canonicalPath;
+      }
       var namedPath = Path.of(name, "sing.yaml");
       if (Files.exists(namedPath)) {
         return namedPath;
@@ -308,8 +314,67 @@ public final class ProjectCreateCommand implements Runnable {
       return cwdPath;
     }
     if (name != null) {
-      return Path.of(name, "sing.yaml");
+      return defaultDescriptorPath(name);
     }
     return cwdPath;
+  }
+
+  static void syncProjectBundle(Path sourceSingYamlPath, Path canonicalYamlPath) throws Exception {
+    var sourceYaml = sourceSingYamlPath.toAbsolutePath().normalize();
+    var targetYaml = canonicalYamlPath.toAbsolutePath().normalize();
+    if (targetYaml.getParent() != null) {
+      Files.createDirectories(targetYaml.getParent());
+    }
+    if (!sourceYaml.equals(targetYaml)) {
+      Files.copy(
+          sourceYaml,
+          targetYaml,
+          java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+          java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+    }
+    syncFilesDirectory(
+        sourceYaml.getParent().resolve("files"), targetYaml.getParent().resolve("files"));
+  }
+
+  private static void syncFilesDirectory(Path sourceDir, Path targetDir) throws Exception {
+    var source = sourceDir.toAbsolutePath().normalize();
+    var target = targetDir.toAbsolutePath().normalize();
+    if (source.equals(target)) {
+      return;
+    }
+    if (!Files.isDirectory(source)) {
+      deleteDirectory(target);
+      return;
+    }
+    deleteDirectory(target);
+    try (var walk = Files.walk(source)) {
+      for (var path : walk.toList()) {
+        var relative = source.relativize(path);
+        var destination = target.resolve(relative);
+        if (Files.isDirectory(path)) {
+          Files.createDirectories(destination);
+        } else {
+          if (destination.getParent() != null) {
+            Files.createDirectories(destination.getParent());
+          }
+          Files.copy(
+              path,
+              destination,
+              java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+              java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+        }
+      }
+    }
+  }
+
+  private static void deleteDirectory(Path dir) throws Exception {
+    if (!Files.exists(dir)) {
+      return;
+    }
+    try (var walk = Files.walk(dir)) {
+      for (var path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+        Files.deleteIfExists(path);
+      }
+    }
   }
 }
