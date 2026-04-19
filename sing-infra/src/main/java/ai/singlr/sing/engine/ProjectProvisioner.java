@@ -41,6 +41,9 @@ public final class ProjectProvisioner {
   private static final Duration INSTALL_TIMEOUT = Duration.ofMinutes(10);
 
   private static final Pattern VERSION_PATTERN = Pattern.compile("[0-9][0-9.]*");
+  private static final String MAVEN_PRIMARY_BASE_URL = "https://dlcdn.apache.org/maven/maven-3/";
+  private static final String MAVEN_ARCHIVE_BASE_URL =
+      "https://archive.apache.org/dist/maven/maven-3/";
 
   private static final List<String> BASELINE_PACKAGES =
       List.of("curl", "wget", "git", "sudo", "openssh-server");
@@ -682,26 +685,33 @@ public final class ProjectProvisioner {
       return;
     }
 
-    var url =
-        "https://dlcdn.apache.org/maven/maven-3/"
-            + version
-            + "/binaries/apache-maven-"
-            + version
-            + "-bin.tar.gz";
-    var result =
-        execInContainer(
-            name,
-            List.of("bash", "-c", "curl -fsSL " + url + " | tar xz -C /opt"),
-            INSTALL_TIMEOUT);
+    var urls =
+        List.of(
+            mavenBinaryUrl(version, MAVEN_PRIMARY_BASE_URL),
+            mavenBinaryUrl(version, MAVEN_ARCHIVE_BASE_URL));
+    ShellExec.Result result = null;
+    for (var url : urls) {
+      result =
+          execInContainer(
+              name,
+              List.of("bash", "-c", "curl -fsSL '" + url + "' | tar xz -C /opt"),
+              INSTALL_TIMEOUT);
+      if (result.ok()) {
+        break;
+      }
+    }
     if (!result.ok()) {
       throw new IOException(
           "Failed to install Maven "
               + version
               + ": "
               + result.stderr()
-              + "\n  Check that version "
-              + version
-              + " exists at dlcdn.apache.org.");
+              + "\n  Checked:"
+              + "\n  - "
+              + urls.getFirst()
+              + "\n  - "
+              + urls.get(1)
+              + "\n  If this is unexpected, re-run with --dry-run to see what would execute.");
     }
 
     var linkResult =
@@ -719,6 +729,10 @@ public final class ProjectProvisioner {
 
     tracker.advance(currentPhase);
     stepDone(12, "Maven " + version);
+  }
+
+  private static String mavenBinaryUrl(String version, String baseUrl) {
+    return baseUrl + version + "/binaries/apache-maven-" + version + "-bin.tar.gz";
   }
 
   private void cloneRepos(SingYaml config, Map<String, String> gitTokens) throws Exception {
