@@ -48,4 +48,25 @@ class ApiTokenStoreTest {
 
     assertTrue(error.getMessage().contains("empty"));
   }
+
+  @Test
+  void defaultStoreUsesSingDirectory() {
+    assertTrue(ApiTokenStore.defaultStore().path().toString().endsWith("api-token"));
+  }
+
+  @Test
+  void unsupportedPermissionsAreIgnored() throws Exception {
+    var path = tempDir.resolve("api-token");
+    var store =
+        new ApiTokenStore(
+            path,
+            new SecureRandom(new byte[] {1}),
+            ignored -> {
+              throw new UnsupportedOperationException("not posix");
+            });
+
+    var token = store.readOrCreate();
+
+    assertFalse(token.isBlank());
+  }
 }

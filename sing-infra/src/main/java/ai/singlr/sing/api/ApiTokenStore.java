@@ -18,10 +18,16 @@ public final class ApiTokenStore {
 
   private final Path path;
   private final SecureRandom random;
+  private final OwnerPermissionSetter permissionSetter;
 
   public ApiTokenStore(Path path, SecureRandom random) {
+    this(path, random, ApiTokenStore::setOwnerReadOnly);
+  }
+
+  ApiTokenStore(Path path, SecureRandom random, OwnerPermissionSetter permissionSetter) {
     this.path = path;
     this.random = random;
+    this.permissionSetter = permissionSetter;
   }
 
   public static ApiTokenStore defaultStore() {
@@ -45,14 +51,23 @@ public final class ApiTokenStore {
     random.nextBytes(bytes);
     var token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     Files.writeString(path, token + System.lineSeparator());
-    restrictOwner(path);
+    restrictOwner();
     return token;
   }
 
-  private static void restrictOwner(Path path) throws IOException {
+  private void restrictOwner() throws IOException {
     try {
-      Files.setPosixFilePermissions(path, Set.of(PosixFilePermission.OWNER_READ));
+      permissionSetter.restrict(path);
     } catch (UnsupportedOperationException ignored) {
     }
+  }
+
+  private static void setOwnerReadOnly(Path path) throws IOException {
+    Files.setPosixFilePermissions(path, Set.of(PosixFilePermission.OWNER_READ));
+  }
+
+  @FunctionalInterface
+  interface OwnerPermissionSetter {
+    void restrict(Path path) throws IOException;
   }
 }

@@ -40,6 +40,22 @@ class ApiRouterTest {
   }
 
   @Test
+  void malformedBearerHeaderIsRejected() throws Exception {
+    try (var server = server()) {
+      var request =
+          HttpRequest.newBuilder(uri(server, "/v1/projects/acme/agent"))
+              .header("Authorization", "Token token")
+              .GET()
+              .build();
+
+      var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(401, response.statusCode());
+      assertTrue(response.body().contains("missing_bearer_token"));
+    }
+  }
+
+  @Test
   void protectedRoutesRejectWrongBearerToken() throws Exception {
     try (var server = server()) {
       var response = get(server, "/v1/projects/acme/agent", "wrong");
@@ -111,6 +127,16 @@ class ApiRouterTest {
   }
 
   @Test
+  void emptyJsonBodyDefaultsToEmptyRequest() throws Exception {
+    try (var server = server()) {
+      var response = post(server, "/v1/projects/acme/dispatch", "token", "");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("schema_version"));
+    }
+  }
+
+  @Test
   void unsupportedContentTypeReturnsUnsupportedMediaType() throws Exception {
     try (var server = server()) {
       var request =
@@ -149,6 +175,53 @@ class ApiRouterTest {
   }
 
   @Test
+  void validTailIsPassedToOperations() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/log?tail=42", "token");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"tail\": 42"));
+    }
+  }
+
+  @Test
+  void invalidTailTextReturnsUnprocessableEntity() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/log?tail=abc", "token");
+
+      assertEquals(422, response.statusCode());
+      assertTrue(response.body().contains("invalid_tail"));
+    }
+  }
+
+  @Test
+  void missingTailQueryValueUsesDefault() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/log?foo=bar", "token");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"tail\": 200"));
+    }
+  }
+
+  @Test
+  void shortUnknownRoutesReturnNotFound() throws Exception {
+    try (var server = server()) {
+      assertEquals(404, get(server, "/v1", "token").statusCode());
+      assertEquals(404, get(server, "/bad/projects/acme", "token").statusCode());
+      assertEquals(404, get(server, "/v1/project/acme", "token").statusCode());
+    }
+  }
+
+  @Test
+  void unknownKnownFamiliesReturnMethodNotAllowed() throws Exception {
+    try (var server = server()) {
+      assertEquals(405, get(server, "/v1/projects/acme/specs/auth/extra", "token").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/agent/report", "token").statusCode());
+    }
+  }
+
+  @Test
   void routesAgentAndSpecEndpoints() throws Exception {
     try (var server = server()) {
       assertEquals(200, get(server, "/v1/projects/acme", "token").statusCode());
@@ -171,6 +244,27 @@ class ApiRouterTest {
       assertEquals(409, response.statusCode());
       assertTrue(response.body().contains("agent_busy"));
     }
+  }
+
+  @Test
+  void unexpectedOperationExceptionsBecomeInternalErrors() throws Exception {
+    try (var server = new SingApiServer("127.0.0.1", 0, new ExplodingOperations(), "token")) {
+      server.start();
+
+      var response = get(server, "/v1/projects/acme/agent", "token");
+
+      assertEquals(500, response.statusCode());
+      assertTrue(response.body().contains("internal_error"));
+    }
+  }
+
+  @Test
+  void responseHelpersAddSchema() {
+    assertEquals(201, ApiResponse.created(Map.of("created", true)).status());
+    assertFalse(new ApiError("code", "message", "").toMap().containsKey("action"));
+    assertTrue(new ApiError("code", "message", "fix").toMap().containsKey("action"));
+    assertThrows(IllegalArgumentException.class, () -> new BearerAuth(null));
+    assertThrows(IllegalArgumentException.class, () -> new BearerAuth(""));
   }
 
   private static SingApiServer server() throws IOException {
@@ -258,6 +352,13 @@ class ApiRouterTest {
     @Override
     public Map<String, Object> agentStatus(String project) {
       throw new ApiException(409, "agent_busy", "Agent is busy.", "Wait.");
+    }
+  }
+
+  private static final class ExplodingOperations extends FakeOperations {
+    @Override
+    public Map<String, Object> agentStatus(String project) {
+      throw new IllegalStateException("boom");
     }
   }
 }

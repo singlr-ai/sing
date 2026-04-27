@@ -22,6 +22,7 @@ import ai.singlr.sing.engine.SnapshotManager;
 import ai.singlr.sing.engine.SpecWorkspace;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -37,14 +38,20 @@ public final class SingApiOperations implements ApiOperations {
 
   private final ShellExec shell;
   private final String file;
+  private final WatcherLauncher watcherLauncher;
 
   public SingApiOperations() {
     this(new ShellExecutor(false), "sing.yaml");
   }
 
   public SingApiOperations(ShellExec shell, String file) {
+    this(shell, file, SingApiOperations::launchWatcherProcess);
+  }
+
+  SingApiOperations(ShellExec shell, String file, WatcherLauncher watcherLauncher) {
     this.shell = shell;
     this.file = file;
+    this.watcherLauncher = watcherLauncher;
   }
 
   @Override
@@ -294,8 +301,6 @@ public final class SingApiOperations implements ApiOperations {
       var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
       var state = new ContainerManager(shell).queryState(project);
       return new LoadedProject(config, state);
-    } catch (ApiException e) {
-      throw e;
     } catch (Exception e) {
       throw new ApiException(500, "project_load_failed", "Failed to load project.", null);
     }
@@ -460,8 +465,12 @@ public final class SingApiOperations implements ApiOperations {
             SingPaths.resolveSingYaml(project, file).toAbsolutePath().toString());
     var watchLog = SingPaths.projectDir(project).resolve("watch.log");
     Files.createDirectories(watchLog.getParent());
-    new ProcessBuilder(cmd)
-        .redirectOutput(ProcessBuilder.Redirect.to(watchLog.toFile()))
+    watcherLauncher.launch(cmd, watchLog);
+  }
+
+  static void launchWatcherProcess(List<String> command, Path logPath) throws IOException {
+    new ProcessBuilder(command)
+        .redirectOutput(ProcessBuilder.Redirect.to(logPath.toFile()))
         .redirectErrorStream(true)
         .start();
   }
@@ -523,4 +532,9 @@ public final class SingApiOperations implements ApiOperations {
   }
 
   private record LoadedProject(SingYaml config, ContainerState state) {}
+
+  @FunctionalInterface
+  interface WatcherLauncher {
+    void launch(List<String> command, Path logPath) throws IOException;
+  }
 }
