@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2026 Singular
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sing.api;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.SecureRandom;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class ApiTokenStoreTest {
+
+  @TempDir Path tempDir;
+
+  @Test
+  void createsTokenWhenMissing() throws Exception {
+    var path = tempDir.resolve("api-token");
+    var store = new ApiTokenStore(path, new SecureRandom(new byte[] {1, 2, 3}));
+
+    var token = store.readOrCreate();
+
+    assertFalse(token.isBlank());
+    assertEquals(token, Files.readString(path).strip());
+    assertEquals(path, store.path());
+  }
+
+  @Test
+  void reusesExistingToken() throws Exception {
+    var path = tempDir.resolve("api-token");
+    Files.writeString(path, "known-token\n");
+    var store = new ApiTokenStore(path, new SecureRandom());
+
+    assertEquals("known-token", store.readOrCreate());
+  }
+
+  @Test
+  void rejectsBlankExistingToken() throws Exception {
+    var path = tempDir.resolve("api-token");
+    Files.writeString(path, "\n");
+    var store = new ApiTokenStore(path, new SecureRandom());
+
+    var error = assertThrows(java.io.IOException.class, store::readOrCreate);
+
+    assertTrue(error.getMessage().contains("empty"));
+  }
+}

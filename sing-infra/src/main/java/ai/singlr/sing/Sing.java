@@ -6,6 +6,7 @@
 package ai.singlr.sing;
 
 import ai.singlr.sing.commands.AgentCommand;
+import ai.singlr.sing.commands.ApiCommand;
 import ai.singlr.sing.commands.ClientInitCommand;
 import ai.singlr.sing.commands.ConnectCommand;
 import ai.singlr.sing.commands.DispatchCommand;
@@ -49,6 +50,7 @@ import picocli.CommandLine.Help.Ansi;
       SnapsPruneCommand.class,
       RunCommand.class,
       AgentCommand.class,
+      ApiCommand.class,
       DispatchCommand.class,
       SpecCommand.class,
       ExecCommand.class,
