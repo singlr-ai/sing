@@ -5,24 +5,22 @@
 
 package ai.singlr.sing.api;
 
-import java.util.Map;
-
 public interface ApiOperations {
-  Map<String, Object> health();
+  Result<HealthResponse> health();
 
-  Map<String, Object> project(String project);
+  Result<ProjectResponse> project(String project);
 
-  Map<String, Object> specs(String project);
+  Result<SpecsResponse> specs(String project);
 
-  Map<String, Object> spec(String project, String specId);
+  Result<SpecResponse> spec(String project, String specId);
 
-  Map<String, Object> dispatch(String project, Map<String, Object> request);
+  Result<DispatchResponse> dispatch(String project, DispatchRequest request);
 
-  Map<String, Object> agentStatus(String project);
+  Result<AgentStatusResponse> agentStatus(String project);
 
-  Map<String, Object> agentLog(String project, int tail);
+  Result<AgentLogResponse> agentLog(String project, int tail);
 
-  Map<String, Object> stopAgent(String project);
+  Result<StopAgentResponse> stopAgent(String project);
 
-  Map<String, Object> agentReport(String project);
+  Result<AgentReportResponse> agentReport(String project);
 }

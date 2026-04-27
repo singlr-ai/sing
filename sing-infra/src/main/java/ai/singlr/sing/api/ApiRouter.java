@@ -30,16 +30,22 @@ public final class ApiRouter implements HttpHandler {
       var response = route(exchange);
       write(exchange, response);
     } catch (ApiException e) {
-      write(exchange, ApiResponse.error(e.status(), e.error()));
+      write(exchange, ApiResponse.error(e.failure()));
     } catch (IllegalArgumentException e) {
       write(
-          exchange, ApiResponse.error(422, new ApiError("invalid_request", e.getMessage(), null)));
+          exchange,
+          ApiResponse.error(
+              new Result.Failure<>(ErrorCode.INVALID_REQUEST, e.getMessage(), null, null, e)));
     } catch (Exception e) {
       write(
           exchange,
           ApiResponse.error(
-              500,
-              new ApiError("internal_error", "sing API request failed.", "Check sing API logs.")));
+              new Result.Failure<>(
+                  ErrorCode.INTERNAL,
+                  "sing API request failed.",
+                  "Check sing API logs.",
+                  null,
+                  e)));
     } finally {
       exchange.close();
     }
@@ -49,7 +55,7 @@ public final class ApiRouter implements HttpHandler {
     var method = exchange.getRequestMethod();
     var path = cleanPath(exchange.getRequestURI());
     if (method.equals("GET") && path.equals("/v1/health")) {
-      return ApiResponse.ok(operations.health());
+      return ApiResponse.from(operations.health());
     }
     auth.require(exchange);
     var segments = path.substring(1).split("/");
@@ -59,42 +65,42 @@ public final class ApiRouter implements HttpHandler {
     var project = segments[2];
     NameValidator.requireValidProjectName(project);
     if (segments.length == 3 && method.equals("GET")) {
-      return ApiResponse.ok(operations.project(project));
+      return ApiResponse.from(operations.project(project));
     }
     if (segments.length == 4 && segments[3].equals("specs") && method.equals("GET")) {
-      return ApiResponse.ok(operations.specs(project));
+      return ApiResponse.from(operations.specs(project));
     }
     if (segments.length == 5 && segments[3].equals("specs") && method.equals("GET")) {
       NameValidator.requireValidSpecId(segments[4]);
-      return ApiResponse.ok(operations.spec(project, segments[4]));
+      return ApiResponse.from(operations.spec(project, segments[4]));
     }
     if (segments.length == 4 && segments[3].equals("dispatch") && method.equals("POST")) {
-      return ApiResponse.ok(operations.dispatch(project, JsonBody.read(exchange)));
+      return ApiResponse.from(operations.dispatch(project, JsonBody.readDispatchRequest(exchange)));
     }
     if (segments.length == 4 && segments[3].equals("agent") && method.equals("GET")) {
-      return ApiResponse.ok(operations.agentStatus(project));
+      return ApiResponse.from(operations.agentStatus(project));
     }
     if (segments.length == 5
         && segments[3].equals("agent")
         && segments[4].equals("log")
         && method.equals("GET")) {
-      return ApiResponse.ok(operations.agentLog(project, tail(exchange.getRequestURI())));
+      return ApiResponse.from(operations.agentLog(project, tail(exchange.getRequestURI())));
     }
     if (segments.length == 5
         && segments[3].equals("agent")
         && segments[4].equals("stop")
         && method.equals("POST")) {
-      return ApiResponse.ok(operations.stopAgent(project));
+      return ApiResponse.from(operations.stopAgent(project));
     }
     if (segments.length == 5
         && segments[3].equals("agent")
         && segments[4].equals("report")
         && method.equals("POST")) {
-      return ApiResponse.ok(operations.agentReport(project));
+      return ApiResponse.from(operations.agentReport(project));
     }
     if (knownPath(segments)) {
       throw new ApiException(
-          405, "method_not_allowed", "HTTP method is not allowed for this endpoint.", null);
+          ErrorCode.METHOD_NOT_ALLOWED, "HTTP method is not allowed for this endpoint.");
     }
     throw notFound();
   }
@@ -123,7 +129,7 @@ public final class ApiRouter implements HttpHandler {
           }
         } catch (NumberFormatException ignored) {
         }
-        throw new ApiException(422, "invalid_tail", "tail must be between 1 and 5000.", null);
+        throw new ApiException(ErrorCode.INVALID_TAIL, "tail must be between 1 and 5000.");
       }
     }
     return 200;
@@ -135,7 +141,7 @@ public final class ApiRouter implements HttpHandler {
   }
 
   private static ApiException notFound() {
-    return new ApiException(404, "not_found", "API endpoint was not found.", null);
+    return new ApiException(ErrorCode.NOT_FOUND, "API endpoint was not found.");
   }
 
   private static void write(HttpExchange exchange, ApiResponse response) throws IOException {

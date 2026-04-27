@@ -24,14 +24,13 @@ public final class BearerAuth {
     var header = exchange.getRequestHeaders().getFirst("Authorization");
     if (header == null || !header.startsWith("Bearer ")) {
       throw new ApiException(
-          401,
-          "missing_bearer_token",
+          ErrorCode.MISSING_BEARER_TOKEN,
           "Missing bearer token.",
           "Send Authorization: Bearer <token>.");
     }
     var actual = header.substring("Bearer ".length()).getBytes(StandardCharsets.UTF_8);
     if (!MessageDigest.isEqual(expected, actual)) {
-      throw new ApiException(403, "invalid_bearer_token", "Bearer token is invalid.", null);
+      throw new ApiException(ErrorCode.INVALID_BEARER_TOKEN, "Bearer token is invalid.");
     }
   }
 }

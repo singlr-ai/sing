@@ -12,7 +12,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -71,8 +70,8 @@ class ApiRouterTest {
       var response = post(server, "/v1/projects/acme/dispatch", "token", "{\"spec_id\": \"auth\"}");
 
       assertEquals(200, response.statusCode());
-      assertTrue(response.body().contains("\"spec_id\": \"auth\""));
-      assertTrue(response.body().contains("\"project\": \"acme\""));
+      assertTrue(response.body().contains("\"id\": \"auth\""));
+      assertTrue(response.body().contains("\"name\": \"acme\""));
     }
   }
 
@@ -180,7 +179,7 @@ class ApiRouterTest {
       var response = get(server, "/v1/projects/acme/agent/log?tail=42", "token");
 
       assertEquals(200, response.statusCode());
-      assertTrue(response.body().contains("\"tail\": 42"));
+      assertTrue(response.body().contains("42"));
     }
   }
 
@@ -200,7 +199,7 @@ class ApiRouterTest {
       var response = get(server, "/v1/projects/acme/agent/log?foo=bar", "token");
 
       assertEquals(200, response.statusCode());
-      assertTrue(response.body().contains("\"tail\": 200"));
+      assertTrue(response.body().contains("200"));
     }
   }
 
@@ -242,7 +241,7 @@ class ApiRouterTest {
       var response = get(server, "/v1/projects/acme/agent", "token");
 
       assertEquals(409, response.statusCode());
-      assertTrue(response.body().contains("agent_busy"));
+      assertTrue(response.body().contains("conflict"));
     }
   }
 
@@ -254,15 +253,17 @@ class ApiRouterTest {
       var response = get(server, "/v1/projects/acme/agent", "token");
 
       assertEquals(500, response.statusCode());
-      assertTrue(response.body().contains("internal_error"));
+      assertTrue(response.body().contains("internal"));
     }
   }
 
   @Test
   void responseHelpersAddSchema() {
     assertEquals(201, ApiResponse.created(Map.of("created", true)).status());
-    assertFalse(new ApiError("code", "message", "").toMap().containsKey("action"));
-    assertTrue(new ApiError("code", "message", "fix").toMap().containsKey("action"));
+    assertFalse(
+        ApiJson.withSchema(new ApiError("code", "message", "")).toString().contains("action"));
+    assertTrue(
+        ApiJson.withSchema(new ApiError("code", "message", "fix")).toString().contains("action"));
     assertThrows(IllegalArgumentException.class, () -> new BearerAuth(null));
     assertThrows(IllegalArgumentException.class, () -> new BearerAuth(""));
   }
@@ -300,64 +301,105 @@ class ApiRouterTest {
 
   private static class FakeOperations implements ApiOperations {
     @Override
-    public Map<String, Object> health() {
-      return Map.of("status", "ok");
+    public Result<HealthResponse> health() {
+      return Result.success(new HealthResponse("ok"));
     }
 
     @Override
-    public Map<String, Object> project(String project) {
-      return Map.of("project", project, "container_status", "running");
+    public Result<ProjectResponse> project(String project) {
+      return Result.success(new ProjectResponse(project, "running", null));
     }
 
     @Override
-    public Map<String, Object> specs(String project) {
-      return Map.of("project", project, "specs", java.util.List.of());
+    public Result<SpecsResponse> specs(String project) {
+      return Result.success(
+          new SpecsResponse(
+              project,
+              java.util.List.of(),
+              new SpecSummaryView(0, 0, 0, 0),
+              new BoardSummaryView(new SpecSummaryView(0, 0, 0, 0), 0, 0, null)));
     }
 
     @Override
-    public Map<String, Object> spec(String project, String specId) {
-      return Map.of("project", project, "spec_id", specId);
+    public Result<SpecResponse> spec(String project, String specId) {
+      return Result.success(
+          new SpecResponse(
+              project,
+              new SpecView(
+                  specId,
+                  "Spec",
+                  "pending",
+                  null,
+                  java.util.List.of(),
+                  null,
+                  true,
+                  false,
+                  java.util.List.of()),
+              "specs/" + specId + "/spec.md",
+              true,
+              "content"));
     }
 
     @Override
-    public Map<String, Object> dispatch(String project, Map<String, Object> request) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("project", project);
-      map.put("spec_id", request.get("spec_id"));
-      return map;
+    public Result<DispatchResponse> dispatch(String project, DispatchRequest request) {
+      return Result.success(
+          new DispatchResponse(
+              project,
+              true,
+              null,
+              new DispatchedSpecView(request.specId(), "Spec", "in_progress", null),
+              null,
+              "",
+              false));
     }
 
     @Override
-    public Map<String, Object> agentStatus(String project) {
-      return Map.of("project", project, "agent_running", false);
+    public Result<AgentStatusResponse> agentStatus(String project) {
+      return Result.success(new AgentStatusResponse(project, false, null, null, null, null, null));
     }
 
     @Override
-    public Map<String, Object> agentLog(String project, int tail) {
-      return Map.of("project", project, "tail", tail);
+    public Result<AgentLogResponse> agentLog(String project, int tail) {
+      return Result.success(
+          new AgentLogResponse(project, java.util.List.of(String.valueOf(tail)), null));
     }
 
     @Override
-    public Map<String, Object> stopAgent(String project) {
-      return Map.of("project", project, "stopped", false);
+    public Result<StopAgentResponse> stopAgent(String project) {
+      return Result.success(new StopAgentResponse(project, false, null, null));
     }
 
     @Override
-    public Map<String, Object> agentReport(String project) {
-      return Map.of("project", project, "session_status", "No session");
+    public Result<AgentReportResponse> agentReport(String project) {
+      return Result.success(
+          new AgentReportResponse(
+              project,
+              "No session",
+              null,
+              null,
+              null,
+              null,
+              java.util.List.of(),
+              0,
+              null,
+              false,
+              null,
+              null,
+              false,
+              null));
     }
   }
 
   private static final class FailingOperations extends FakeOperations {
     @Override
-    public Map<String, Object> agentStatus(String project) {
-      throw new ApiException(409, "agent_busy", "Agent is busy.", "Wait.");
+    public Result<AgentStatusResponse> agentStatus(String project) {
+      return Result.failure(ErrorCode.CONFLICT, "Agent is busy.", "Wait.");
     }
   }
 
   private static final class ExplodingOperations extends FakeOperations {
     @Override
-    public Map<String, Object> agentStatus(String project) {
+    public Result<AgentStatusResponse> agentStatus(String project) {
       throw new IllegalStateException("boom");
     }
   }

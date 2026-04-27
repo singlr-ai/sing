@@ -78,12 +78,12 @@ class SingApiOperationsTest {
   void healthReturnsOk() {
     var operations = new SingApiOperations(new FakeShell(), "sing.yaml");
 
-    assertEquals("ok", operations.health().get("status"));
+    assertEquals("ok", get(operations.health(), "status"));
   }
 
   @Test
   void defaultConstructorSupportsHealthChecks() {
-    assertEquals("ok", new SingApiOperations().health().get("status"));
+    assertEquals("ok", get(new SingApiOperations().health(), "status"));
   }
 
   @Test
@@ -92,28 +92,29 @@ class SingApiOperationsTest {
 
     var result = operations.project("acme");
 
-    assertEquals("acme", result.get("name"));
-    assertEquals("running", result.get("container_status"));
-    assertTrue(result.get("agent").toString().contains("claude-code"));
+    assertEquals("acme", get(result, "name"));
+    assertEquals("running", get(result, "container_status"));
+    assertTrue(get(result, "agent").toString().contains("claude-code"));
   }
 
   @Test
   void projectMapsStoppedMissingAndErrorStates() throws Exception {
     assertEquals(
         "stopped",
-        operations(shell().on("incus list ^acme$", STOPPED_JSON))
-            .project("acme")
-            .get("container_status"));
+        get(
+            operations(shell().on("incus list ^acme$", STOPPED_JSON)).project("acme"),
+            "container_status"));
     assertEquals(
         "not_created",
-        operations(shell().on("incus list ^acme$", EMPTY_JSON))
-            .project("acme")
-            .get("container_status"));
+        get(
+            operations(shell().on("incus list ^acme$", EMPTY_JSON)).project("acme"),
+            "container_status"));
     assertEquals(
         "error",
-        operations(shell().on("incus list ^acme$", new ShellExec.Result(1, "", "boom")))
-            .project("acme")
-            .get("container_status"));
+        get(
+            operations(shell().on("incus list ^acme$", new ShellExec.Result(1, "", "boom")))
+                .project("acme"),
+            "container_status"));
   }
 
   @Test
@@ -122,7 +123,7 @@ class SingApiOperationsTest {
 
     var result = operations.project("acme");
 
-    assertFalse(result.containsKey("agent"));
+    assertFalse(containsKey(result, "agent"));
   }
 
   @Test
@@ -135,9 +136,9 @@ class SingApiOperationsTest {
 
     var result = operations.specs("acme");
 
-    assertEquals("acme", result.get("name"));
-    assertTrue(result.get("specs") instanceof List<?>);
-    assertTrue(result.toString().contains("next_ready_id=auth"));
+    assertEquals("acme", get(result, "name"));
+    assertTrue(get(result, "specs") instanceof List<?>);
+    assertTrue(ApiJson.withSchema(result.orThrow()).toString().contains("next_ready_id=auth"));
   }
 
   @Test
@@ -151,8 +152,8 @@ class SingApiOperationsTest {
 
     var result = operations.spec("acme", "auth");
 
-    assertEquals(true, result.get("content_available"));
-    assertEquals("# Auth", result.get("content"));
+    assertEquals(true, get(result, "content_available"));
+    assertEquals("# Auth", get(result, "content"));
   }
 
   @Test
@@ -163,10 +164,9 @@ class SingApiOperationsTest {
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
 
-    var error = assertThrows(ApiException.class, () -> operations.spec("acme", "missing"));
+    var error = operations.spec("acme", "missing");
 
-    assertEquals(404, error.status());
-    assertEquals("spec_not_found", error.error().code());
+    assertError(ErrorCode.SPEC_NOT_FOUND, error);
   }
 
   @Test
@@ -182,8 +182,8 @@ class SingApiOperationsTest {
 
     var result = operations.spec("acme", "auth");
 
-    assertEquals(false, result.get("content_available"));
-    assertFalse(result.containsKey("content"));
+    assertEquals(false, get(result, "content_available"));
+    assertFalse(containsKey(result, "content"));
   }
 
   @Test
@@ -195,10 +195,10 @@ class SingApiOperationsTest {
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/workspace/specs/index.yaml", index));
 
-    var result = operations.dispatch("acme", Map.of());
+    var result = operations.dispatch("acme", request());
 
-    assertEquals(false, result.get("dispatched"));
-    assertEquals("no_pending_specs", result.get("reason"));
+    assertEquals(false, get(result, "dispatched"));
+    assertEquals("no_pending_specs", get(result, "reason"));
   }
 
   @Test
@@ -213,11 +213,11 @@ class SingApiOperationsTest {
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals(true, result.get("dispatched"));
-    assertTrue(result.get("spec").toString().contains("status=in_progress"));
-    assertTrue(result.get("agent").toString().contains("running=false"));
+    assertEquals(true, get(result, "dispatched"));
+    assertTrue(get(result, "spec").toString().contains("status=in_progress"));
+    assertTrue(get(result, "agent").toString().contains("running=false"));
   }
 
   @Test
@@ -229,24 +229,18 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
                 .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("spec_id", "billing")));
+    var error = operations.dispatch("acme", request("billing"));
 
-    assertEquals(409, error.status());
-    assertEquals("spec_not_ready", error.error().code());
+    assertError(ErrorCode.SPEC_NOT_READY, error);
   }
 
   @Test
   void dispatchRejectsInvalidMode() throws Exception {
     var operations = operations(shell().on("incus list ^acme$", RUNNING_JSON));
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("mode", "sideways")));
+    var error = operations.dispatch("acme", request(null, "sideways", false));
 
-    assertEquals(422, error.status());
-    assertEquals("invalid_mode", error.error().code());
+    assertError(ErrorCode.INVALID_MODE, error);
   }
 
   @Test
@@ -258,11 +252,9 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
                 .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("spec_id", "missing")));
+    var error = operations.dispatch("acme", request("missing"));
 
-    assertEquals("spec_not_found", error.error().code());
+    assertError(ErrorCode.SPEC_NOT_FOUND, error);
   }
 
   @Test
@@ -275,30 +267,27 @@ class SingApiOperationsTest {
                 .on("kill -0 123", "")
                 .on("cat /home/dev/.sing/agent-session.json", "{\"task\": \"work\"}"));
 
-    var error = assertThrows(ApiException.class, () -> operations.dispatch("acme", Map.of()));
+    var error = operations.dispatch("acme", request());
 
-    assertEquals(409, error.status());
-    assertEquals("agent_already_running", error.error().code());
+    assertError(ErrorCode.AGENT_ALREADY_RUNNING, error);
   }
 
   @Test
   void projectStoppedMapsToConflict() throws Exception {
     var operations = operations(shell().on("incus list ^acme$", STOPPED_JSON));
 
-    var error = assertThrows(ApiException.class, () -> operations.specs("acme"));
+    var error = operations.specs("acme");
 
-    assertEquals(409, error.status());
-    assertEquals("project_stopped", error.error().code());
+    assertError(ErrorCode.PROJECT_STOPPED, error);
   }
 
   @Test
   void projectMissingMapsToNotFound() throws Exception {
     var operations = operations(shell().on("incus list ^acme$", EMPTY_JSON));
 
-    var error = assertThrows(ApiException.class, () -> operations.specs("acme"));
+    var error = operations.specs("acme");
 
-    assertEquals(404, error.status());
-    assertEquals("project_not_created", error.error().code());
+    assertError(ErrorCode.PROJECT_NOT_CREATED, error);
   }
 
   @Test
@@ -306,18 +295,18 @@ class SingApiOperationsTest {
     var operations =
         operations(shell().on("incus list ^acme$", new ShellExec.Result(1, "", "incus down")));
 
-    var error = assertThrows(ApiException.class, () -> operations.specs("acme"));
+    var error = operations.specs("acme");
 
-    assertEquals("container_error", error.error().code());
+    assertError(ErrorCode.CONTAINER_ERROR, error);
   }
 
   @Test
   void agentEndpointRejectsMissingProject() throws Exception {
     var operations = operations(shell().on("incus list ^acme$", EMPTY_JSON));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentStatus("acme"));
+    var error = operations.agentStatus("acme");
 
-    assertEquals("project_not_created", error.error().code());
+    assertError(ErrorCode.PROJECT_NOT_CREATED, error);
   }
 
   @Test
@@ -325,18 +314,18 @@ class SingApiOperationsTest {
     var operations =
         operations(shell().on("incus list ^acme$", new ShellExec.Result(1, "", "incus down")));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentStatus("acme"));
+    var error = operations.agentStatus("acme");
 
-    assertEquals("container_error", error.error().code());
+    assertError(ErrorCode.CONTAINER_ERROR, error);
   }
 
   @Test
   void specsRequireConfiguredAgentDirectory() throws Exception {
     var operations = operations(noAgentYaml(), shell().on("incus list ^acme$", RUNNING_JSON));
 
-    var error = assertThrows(ApiException.class, () -> operations.specs("acme"));
+    var error = operations.specs("acme");
 
-    assertEquals("specs_not_configured", error.error().code());
+    assertError(ErrorCode.SPECS_NOT_CONFIGURED, error);
   }
 
   @Test
@@ -349,7 +338,7 @@ class SingApiOperationsTest {
 
     var result = operations.agentStatus("acme");
 
-    assertEquals(false, result.get("agent_running"));
+    assertEquals(false, get(result, "agent_running"));
   }
 
   @Test
@@ -366,9 +355,9 @@ class SingApiOperationsTest {
 
     var result = operations.agentStatus("acme");
 
-    assertEquals(true, result.get("agent_running"));
-    assertEquals(123, result.get("pid"));
-    assertEquals("work", result.get("task"));
+    assertEquals(true, get(result, "agent_running"));
+    assertEquals(123, get(result, "pid"));
+    assertEquals("work", get(result, "task"));
   }
 
   @Test
@@ -379,9 +368,9 @@ class SingApiOperationsTest {
                 .on("incus list ^acme$", RUNNING_JSON)
                 .throwOn("cat /home/dev/.sing/agent.pid", new IOException("denied")));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentStatus("acme"));
+    var error = operations.agentStatus("acme");
 
-    assertEquals("agent_status_failed", error.error().code());
+    assertError(ErrorCode.AGENT_STATUS_FAILED, error);
   }
 
   @Test
@@ -396,7 +385,7 @@ class SingApiOperationsTest {
 
     var result = operations.agentLog("acme", 200);
 
-    assertEquals("No agent log found", result.get("error"));
+    assertEquals("No agent log found", get(result, "error"));
   }
 
   @Test
@@ -409,7 +398,7 @@ class SingApiOperationsTest {
 
     var result = operations.agentLog("acme", 2);
 
-    assertEquals(List.of("one", "two"), result.get("lines"));
+    assertEquals(List.of("one", "two"), get(result, "lines"));
   }
 
   @Test
@@ -420,9 +409,9 @@ class SingApiOperationsTest {
                 .on("incus list ^acme$", RUNNING_JSON)
                 .throwOn("tail -n 200 /home/dev/.sing/agent.log", new IOException("no shell")));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentLog("acme", 200));
+    var error = operations.agentLog("acme", 200);
 
-    assertEquals("command_failed", error.error().code());
+    assertError(ErrorCode.COMMAND_FAILED, error);
   }
 
   @Test
@@ -435,7 +424,7 @@ class SingApiOperationsTest {
 
     var result = operations.stopAgent("acme");
 
-    assertEquals(false, result.get("stopped"));
+    assertEquals(false, get(result, "stopped"));
   }
 
   @Test
@@ -453,10 +442,10 @@ class SingApiOperationsTest {
                 .on("mkdir -p /home/dev/.sing", "")
                 .on("claude", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth"));
+    var result = operations.dispatch("acme", request("auth"));
 
-    assertEquals(true, result.get("dispatched"));
-    assertTrue(result.get("agent").toString().contains("mode=background"));
+    assertEquals(true, get(result, "dispatched"));
+    assertTrue(get(result, "agent").toString().contains("mode=background"));
   }
 
   @Test
@@ -476,10 +465,19 @@ class SingApiOperationsTest {
                 .on("mkdir -p /home/dev/.sing", "")
                 .on("bash -l -c", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "mode", "foreground"));
+    var result = operations.dispatch("acme", request("auth", "foreground", false));
 
-    assertTrue(result.get("agent").toString().contains("mode=foreground"));
-    assertTrue(result.get("agent").toString().contains("pid=123"));
+    assertTrue(get(result, "agent").toString().contains("mode=foreground"));
+    assertTrue(get(result, "agent").toString().contains("pid=123"));
+  }
+
+  @Test
+  void dispatchMapsUnexpectedFailures() throws Exception {
+    var operations = operations(baseYaml(), shell().on("incus list ^acme$", RUNNING_JSON));
+
+    var error = operations.dispatch("acme", null);
+
+    assertError(ErrorCode.INTERNAL, error);
   }
 
   @Test
@@ -497,11 +495,9 @@ class SingApiOperationsTest {
                 .on("-- mkdir -p /home/dev/.sing", "")
                 .on("claude", new ShellExec.Result(1, "", "missing cli")));
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("spec_id", "auth")));
+    var error = operations.dispatch("acme", request("auth"));
 
-    assertEquals("agent_launch_failed", error.error().code());
+    assertError(ErrorCode.AGENT_LAUNCH_FAILED, error);
   }
 
   @Test
@@ -524,7 +520,7 @@ class SingApiOperationsTest {
               launched.put("log_path", logPath.toString());
             });
 
-    operations.dispatch("acme", Map.of("spec_id", "auth"));
+    operations.dispatch("acme", request("auth"));
 
     assertTrue(launched.get("command").toString().contains("agent, watch, acme"));
     assertTrue(launched.get("log_path").toString().endsWith("watch.log"));
@@ -548,11 +544,9 @@ class SingApiOperationsTest {
               throw new IOException("watch failed");
             });
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("spec_id", "auth")));
+    var error = operations.dispatch("acme", request("auth"));
 
-    assertEquals("agent_launch_failed", error.error().code());
+    assertError(ErrorCode.AGENT_LAUNCH_FAILED, error);
   }
 
   @Test
@@ -579,10 +573,10 @@ class SingApiOperationsTest {
                 .on("test -d /home/dev/workspace/app/.git", "")
                 .on("git -C /home/dev/workspace/app checkout -b sing/auth", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals(true, result.get("branch_created"));
-    assertTrue(result.get("spec").toString().contains("sing/auth"));
+    assertEquals(true, get(result, "branch_created"));
+    assertTrue(get(result, "spec").toString().contains("sing/auth"));
   }
 
   @Test
@@ -600,9 +594,9 @@ class SingApiOperationsTest {
                 .on("test -d /home/dev/workspace/app/.git", "")
                 .on("git -C /home/dev/workspace/app checkout -b feat/custom", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertTrue(result.get("spec").toString().contains("feat/custom"));
+    assertTrue(get(result, "spec").toString().contains("feat/custom"));
   }
 
   @Test
@@ -621,9 +615,9 @@ class SingApiOperationsTest {
                     "test -d /home/dev/workspace/app/.git",
                     new ShellExec.Result(1, "", "missing")));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals(false, result.get("branch_created"));
+    assertEquals(false, get(result, "branch_created"));
   }
 
   @Test
@@ -643,12 +637,9 @@ class SingApiOperationsTest {
                     "git -C /home/dev/workspace/app checkout -b sing/auth",
                     new ShellExec.Result(1, "", "exists")));
 
-    var error =
-        assertThrows(
-            ApiException.class,
-            () -> operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true)));
+    var error = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals("branch_create_failed", error.error().code());
+    assertError(ErrorCode.BRANCH_CREATE_FAILED, error);
   }
 
   @Test
@@ -666,9 +657,9 @@ class SingApiOperationsTest {
                 .on("incus snapshot list acme --format json", "[]")
                 .on("incus snapshot create acme", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertFalse(result.get("snapshot").toString().isBlank());
+    assertFalse(get(result, "snapshot").toString().isBlank());
   }
 
   @Test
@@ -686,9 +677,9 @@ class SingApiOperationsTest {
                 .on("printf '%s'", "")
                 .on("incus snapshot list acme --format json", snapshots));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals("", result.get("snapshot"));
+    assertEquals("", get(result, "snapshot"));
   }
 
   @Test
@@ -708,9 +699,9 @@ class SingApiOperationsTest {
                     "[{\"name\": \"snap\", \"created_at\": \"bad\"}]")
                 .on("incus snapshot create acme", ""));
 
-    var result = operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true));
+    var result = operations.dispatch("acme", request("auth", "background", true));
 
-    assertFalse(result.get("snapshot").toString().isBlank());
+    assertFalse(get(result, "snapshot").toString().isBlank());
   }
 
   @Test
@@ -728,12 +719,9 @@ class SingApiOperationsTest {
                 .on("incus snapshot list acme --format json", "[]")
                 .on("incus snapshot create acme", new ShellExec.Result(1, "", "no space")));
 
-    var error =
-        assertThrows(
-            ApiException.class,
-            () -> operations.dispatch("acme", Map.of("spec_id", "auth", "dry_run", true)));
+    var error = operations.dispatch("acme", request("auth", "background", true));
 
-    assertEquals("snapshot_failed", error.error().code());
+    assertError(ErrorCode.SNAPSHOT_FAILED, error);
   }
 
   @Test
@@ -752,8 +740,8 @@ class SingApiOperationsTest {
 
     var result = operations.stopAgent("acme");
 
-    assertEquals(true, result.get("stopped"));
-    assertEquals(123, result.get("pid"));
+    assertEquals(true, get(result, "stopped"));
+    assertEquals(123, get(result, "pid"));
   }
 
   @Test
@@ -767,9 +755,9 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/.sing/agent-session.json", "{\"task\": \"work\"}")
                 .throwOn("kill 123", new IOException("permission denied")));
 
-    var error = assertThrows(ApiException.class, () -> operations.stopAgent("acme"));
+    var error = operations.stopAgent("acme");
 
-    assertEquals("agent_stop_failed", error.error().code());
+    assertError(ErrorCode.AGENT_STOP_FAILED, error);
   }
 
   @Test
@@ -783,8 +771,8 @@ class SingApiOperationsTest {
 
     var result = operations.agentReport("acme");
 
-    assertEquals("acme", result.get("name"));
-    assertEquals("No session", result.get("session_status"));
+    assertEquals("acme", get(result, "name"));
+    assertEquals("No session", get(result, "session_status"));
   }
 
   @Test
@@ -795,9 +783,9 @@ class SingApiOperationsTest {
                 .on("incus list ^acme$", RUNNING_JSON)
                 .throwOn("cat /home/dev/.sing/agent.pid", new IOException("boom")));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentReport("acme"));
+    var error = operations.agentReport("acme");
 
-    assertEquals("agent_report_failed", error.error().code());
+    assertError(ErrorCode.AGENT_REPORT_FAILED, error);
   }
 
   @Test
@@ -810,27 +798,27 @@ class SingApiOperationsTest {
                     "tail -n 200 /home/dev/.sing/agent.log",
                     new ShellExec.Result(1, "", "permission denied")));
 
-    var error = assertThrows(ApiException.class, () -> operations.agentLog("acme", 200));
+    var error = operations.agentLog("acme", 200);
 
-    assertEquals("agent_log_failed", error.error().code());
+    assertError(ErrorCode.AGENT_LOG_FAILED, error);
   }
 
   @Test
   void missingDescriptorMapsToNotFound() {
     var operations = new SingApiOperations(shell(), tempDir.resolve("missing.yaml").toString());
 
-    var error = assertThrows(ApiException.class, () -> operations.project("acme"));
+    var error = operations.project("acme");
 
-    assertEquals("project_descriptor_not_found", error.error().code());
+    assertError(ErrorCode.PROJECT_DESCRIPTOR_NOT_FOUND, error);
   }
 
   @Test
   void malformedDescriptorMapsToProjectLoadFailure() throws Exception {
     var operations = operations("name: [", shell().on("incus list ^acme$", RUNNING_JSON));
 
-    var error = assertThrows(ApiException.class, () -> operations.project("acme"));
+    var error = operations.project("acme");
 
-    assertEquals("project_load_failed", error.error().code());
+    assertError(ErrorCode.PROJECT_LOAD_FAILED, error);
   }
 
   @Test
@@ -843,9 +831,9 @@ class SingApiOperationsTest {
                     "cat /home/dev/workspace/specs/index.yaml",
                     new ShellExec.Result(1, "", "denied")));
 
-    var error = assertThrows(ApiException.class, () -> operations.specs("acme"));
+    var error = operations.specs("acme");
 
-    assertEquals("specs_read_failed", error.error().code());
+    assertError(ErrorCode.SPECS_READ_FAILED, error);
   }
 
   @Test
@@ -857,9 +845,9 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
                 .throwOn("cat /home/dev/workspace/specs/auth/spec.md", new IOException("denied")));
 
-    var error = assertThrows(ApiException.class, () -> operations.spec("acme", "auth"));
+    var error = operations.spec("acme", "auth");
 
-    assertEquals("spec_read_failed", error.error().code());
+    assertError(ErrorCode.SPEC_READ_FAILED, error);
   }
 
   @Test
@@ -872,11 +860,34 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
                 .throwOn("mkdir -p /home/dev/workspace/specs", new IOException("denied")));
 
-    var error =
-        assertThrows(
-            ApiException.class, () -> operations.dispatch("acme", Map.of("spec_id", "auth")));
+    var error = operations.dispatch("acme", request("auth"));
 
-    assertEquals("spec_status_update_failed", error.error().code());
+    assertError(ErrorCode.SPEC_STATUS_UPDATE_FAILED, error);
+  }
+
+  private static Object get(Result<?> result, String key) {
+    return ApiJson.withSchema(result.orThrow()).get(key);
+  }
+
+  private static boolean containsKey(Result<?> result, String key) {
+    return ApiJson.withSchema(result.orThrow()).containsKey(key);
+  }
+
+  private static void assertError(ErrorCode errorCode, Result<?> result) {
+    assertTrue(result.isFailure());
+    assertEquals(errorCode, result.errorCode());
+  }
+
+  private static DispatchRequest request() {
+    return request(null, "background", false);
+  }
+
+  private static DispatchRequest request(String specId) {
+    return request(specId, "background", false);
+  }
+
+  private static DispatchRequest request(String specId, String mode, boolean dryRun) {
+    return new DispatchRequest(specId, mode, dryRun);
   }
 
   private SingApiOperations operations(String yamlContent, FakeShell shell) throws Exception {

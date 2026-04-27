@@ -5,30 +5,29 @@
 
 package ai.singlr.sing.api;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 public record ApiResponse(int status, Map<String, Object> body) {
 
-  public static ApiResponse ok(Map<String, Object> body) {
-    return new ApiResponse(200, withSchema(body));
+  public static ApiResponse from(Result<?> result) {
+    return switch (result) {
+      case Result.Success<?> success ->
+          new ApiResponse(success.code(), ApiJson.withSchema(success.value()));
+      case Result.Failure<?> failure -> error(failure);
+    };
   }
 
-  public static ApiResponse created(Map<String, Object> body) {
-    return new ApiResponse(201, withSchema(body));
+  public static ApiResponse ok(Object body) {
+    return new ApiResponse(200, ApiJson.withSchema(body));
   }
 
-  public static ApiResponse error(int status, ApiError error) {
-    var body = new LinkedHashMap<String, Object>();
-    body.put("schema_version", 1);
-    body.put("error", error.toMap());
-    return new ApiResponse(status, body);
+  public static ApiResponse created(Object body) {
+    return new ApiResponse(201, ApiJson.withSchema(body));
   }
 
-  private static Map<String, Object> withSchema(Map<String, Object> source) {
-    var body = new LinkedHashMap<String, Object>();
-    body.put("schema_version", 1);
-    body.putAll(source);
-    return body;
+  public static ApiResponse error(Result.Failure<?> failure) {
+    return new ApiResponse(
+        failure.errorCode().httpCode(),
+        ApiJson.withSchema(new ErrorResponse(ApiError.from(failure))));
   }
 }

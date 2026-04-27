@@ -7,20 +7,34 @@ package ai.singlr.sing.api;
 
 public final class ApiException extends RuntimeException {
 
-  private final int status;
-  private final ApiError error;
+  private final Result.Failure<?> failure;
 
-  public ApiException(int status, String code, String message, String action) {
-    super(message);
-    this.status = status;
-    this.error = new ApiError(code, message, action);
+  public ApiException(ErrorCode errorCode, String message) {
+    this(errorCode, message, null, null);
+  }
+
+  public ApiException(ErrorCode errorCode, String message, String action) {
+    this(errorCode, message, action, null);
+  }
+
+  public ApiException(ErrorCode errorCode, String message, Throwable cause) {
+    this(errorCode, message, null, cause);
+  }
+
+  private ApiException(ErrorCode errorCode, String message, String action, Throwable cause) {
+    super(message, cause);
+    failure = new Result.Failure<>(errorCode, message, action, null, cause);
   }
 
   public int status() {
-    return status;
+    return failure.errorCode().httpCode();
   }
 
   public ApiError error() {
-    return error;
+    return ApiError.from(failure);
+  }
+
+  public Result.Failure<?> failure() {
+    return failure;
   }
 }

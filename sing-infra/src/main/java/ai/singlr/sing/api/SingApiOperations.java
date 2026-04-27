@@ -27,10 +27,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public final class SingApiOperations implements ApiOperations {
 
@@ -55,93 +54,105 @@ public final class SingApiOperations implements ApiOperations {
   }
 
   @Override
-  public Map<String, Object> health() {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("status", "ok");
-    return map;
+  public Result<HealthResponse> health() {
+    return Result.success(new HealthResponse("ok"));
   }
 
   @Override
-  public Map<String, Object> project(String project) {
+  public Result<ProjectResponse> project(String project) {
+    return safe(() -> projectValue(project));
+  }
+
+  @Override
+  public Result<SpecsResponse> specs(String project) {
+    return safe(() -> specsValue(project));
+  }
+
+  @Override
+  public Result<SpecResponse> spec(String project, String specId) {
+    return safe(() -> specValue(project, specId));
+  }
+
+  @Override
+  public Result<DispatchResponse> dispatch(String project, DispatchRequest request) {
+    return safe(() -> dispatchValue(project, request));
+  }
+
+  @Override
+  public Result<AgentStatusResponse> agentStatus(String project) {
+    return safe(() -> agentStatusValue(project));
+  }
+
+  @Override
+  public Result<AgentLogResponse> agentLog(String project, int tail) {
+    return safe(() -> agentLogValue(project, tail));
+  }
+
+  @Override
+  public Result<StopAgentResponse> stopAgent(String project) {
+    return safe(() -> stopAgentValue(project));
+  }
+
+  @Override
+  public Result<AgentReportResponse> agentReport(String project) {
+    return safe(() -> agentReportValue(project));
+  }
+
+  private ProjectResponse projectValue(String project) {
     var loaded = loadProject(project);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
-    map.put("container_status", statusName(loaded.state()));
-    if (loaded.config().agent() != null) {
-      var agent = new LinkedHashMap<String, Object>();
-      agent.put("type", loaded.config().agent().type());
-      agent.put("auto_snapshot", loaded.config().agent().autoSnapshot());
-      agent.put("auto_branch", loaded.config().agent().autoBranch());
-      agent.put("specs_dir", loaded.config().agent().specsDir());
-      map.put("agent", agent);
-    }
-    return map;
+    var agent = loaded.config().agent() != null ? agentConfigView(loaded.config()) : null;
+    return new ProjectResponse(project, statusName(loaded.state()), agent);
   }
 
-  @Override
-  public Map<String, Object> specs(String project) {
+  private SpecsResponse specsValue(String project) {
     var loaded = loadRunningProject(project);
     var specs = readIndex(workspace(loaded));
     var summary = SpecDirectory.summarize(specs);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
-    map.put("specs", specs.stream().map(spec -> specMap(specs, spec)).toList());
-    map.put("counts", summary.counts());
-    map.put("summary", summary.toMap());
-    return map;
+    return new SpecsResponse(
+        project,
+        specs.stream().map(spec -> specView(specs, spec)).toList(),
+        summaryView(summary.counts()),
+        boardSummaryView(summary));
   }
 
-  @Override
-  public Map<String, Object> spec(String project, String specId) {
+  private SpecResponse specValue(String project, String specId) {
     var loaded = loadRunningProject(project);
     var workspace = workspace(loaded);
     var specs = readIndex(workspace);
     var spec = SpecDirectory.findById(specs, specId);
     if (spec == null) {
-      throw new ApiException(404, "spec_not_found", "Spec '" + specId + "' was not found.", null);
+      throw new ApiException(ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found.");
     }
     var content = readSpecBody(workspace, specId);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
-    map.put("spec", specMap(specs, spec));
-    map.put("spec_path", workspace.specMarkdownPath(specId));
-    map.put("content_available", content != null);
-    if (content != null) {
-      map.put("content", content);
-    }
-    return map;
+    return new SpecResponse(
+        project,
+        specView(specs, spec),
+        workspace.specMarkdownPath(specId),
+        content != null,
+        content);
   }
 
-  @Override
-  public Map<String, Object> dispatch(String project, Map<String, Object> request) {
+  private DispatchResponse dispatchValue(String project, DispatchRequest request) {
     var loaded = loadRunningProject(project);
-    var specId = optionalString(request, "spec_id");
-    var mode = Objects.toString(request.getOrDefault("mode", "background"));
-    var dryRun = Boolean.TRUE.equals(request.get("dry_run"));
-    if (!mode.equals("background") && !mode.equals("foreground")) {
+    if (!request.mode().equals("background") && !request.mode().equals("foreground")) {
       throw new ApiException(
-          422, "invalid_mode", "Dispatch mode must be background or foreground.", null);
+          ErrorCode.INVALID_MODE, "Dispatch mode must be background or foreground.");
     }
 
     var agentSession = new AgentSession(shell);
     var existing = querySession(agentSession, project);
     if (existing != null && existing.running()) {
       throw new ApiException(
-          409,
-          "agent_already_running",
+          ErrorCode.AGENT_ALREADY_RUNNING,
           "Agent is already running for project '" + project + "'.",
           "Stop the active agent before dispatching another spec.");
     }
 
     var workspace = workspace(loaded);
     var specs = readIndex(workspace);
-    var nextSpec = resolveSpec(specs, specId);
+    var nextSpec = resolveSpec(specs, request.specId());
     if (nextSpec == null) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("name", project);
-      map.put("dispatched", false);
-      map.put("reason", "no_pending_specs");
-      return map;
+      return new DispatchResponse(project, false, "no_pending_specs", null, null, "", false);
     }
 
     updateStatus(workspace, nextSpec.id(), "in_progress");
@@ -151,86 +162,71 @@ public final class SingApiOperations implements ApiOperations {
     var snapshot = createSnapshotIfNeeded(project, loaded.config());
     var branchCreated = createBranchIfNeeded(project, loaded.config(), branch);
 
-    if (!dryRun) {
-      launchAgent(project, loaded.config(), task, branch, mode);
+    if (!request.dryRun()) {
+      launchAgent(project, loaded.config(), task, branch, request.mode());
     }
 
-    var status = dryRun ? null : querySession(agentSession, project);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
-    map.put("dispatched", true);
-    map.put("spec", dispatchedSpecMap(nextSpec, branch));
-    map.put("agent", agentMap(loaded.config(), mode, status));
-    map.put("snapshot", snapshot);
-    map.put("branch_created", branchCreated);
-    return map;
+    var status = request.dryRun() ? null : querySession(agentSession, project);
+    return new DispatchResponse(
+        project,
+        true,
+        null,
+        dispatchedSpecView(nextSpec, branch),
+        agentStatusView(loaded.config(), request.mode(), status),
+        snapshot,
+        branchCreated);
   }
 
-  @Override
-  public Map<String, Object> agentStatus(String project) {
+  private AgentStatusResponse agentStatusValue(String project) {
     requireProjectExists(project);
     var info = querySession(new AgentSession(shell), project);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
-    map.put("agent_running", info != null && info.running());
-    if (info != null) {
-      map.putAll(sessionMap(info));
-    }
-    return map;
+    return new AgentStatusResponse(
+        project,
+        info != null && info.running(),
+        info != null ? info.pid() : null,
+        info != null ? info.task() : null,
+        info != null ? info.startedAt() : null,
+        info != null ? info.branch() : null,
+        info != null ? info.logPath() : null);
   }
 
-  @Override
-  public Map<String, Object> agentLog(String project, int tail) {
+  private AgentLogResponse agentLogValue(String project, int tail) {
     requireProjectExists(project);
     var cmd =
         ContainerExec.asDevUser(
             project, List.of("tail", "-n", String.valueOf(tail), AgentSession.logPath()));
     var result = exec(cmd);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
     if (!result.ok()) {
       if (result.stderr().contains("No such file")) {
-        map.put("lines", List.of());
-        map.put("error", "No agent log found");
-        return map;
+        return new AgentLogResponse(project, List.of(), "No agent log found");
       }
-      throw new ApiException(500, "agent_log_failed", "Failed to read agent log.", null);
+      throw new ApiException(ErrorCode.AGENT_LOG_FAILED, "Failed to read agent log.");
     }
-    map.put(
-        "lines",
-        Arrays.stream(result.stdout().split("\n")).filter(line -> !line.isEmpty()).toList());
-    return map;
+    var lines = Arrays.stream(result.stdout().split("\n")).filter(line -> !line.isEmpty()).toList();
+    return new AgentLogResponse(project, lines, null);
   }
 
-  @Override
-  public Map<String, Object> stopAgent(String project) {
+  private StopAgentResponse stopAgentValue(String project) {
     requireProjectExists(project);
     var agentSession = new AgentSession(shell);
     var info = querySession(agentSession, project);
-    var map = new LinkedHashMap<String, Object>();
-    map.put("name", project);
     if (info == null || !info.running()) {
-      map.put("stopped", false);
-      map.put("reason", "no_agent_running");
-      return map;
+      return new StopAgentResponse(project, false, "no_agent_running", null);
     }
     try {
       agentSession.killAgent(project);
     } catch (Exception e) {
-      throw new ApiException(500, "agent_stop_failed", "Failed to stop agent.", null);
+      throw new ApiException(ErrorCode.AGENT_STOP_FAILED, "Failed to stop agent.", e);
     }
-    map.put("stopped", true);
-    map.put("pid", info.pid());
-    return map;
+    return new StopAgentResponse(project, true, null, info.pid());
   }
 
-  @Override
-  public Map<String, Object> agentReport(String project) {
+  private AgentReportResponse agentReportValue(String project) {
     var loaded = loadProject(project);
     try {
-      return new AgentReporter(shell).generate(project, loaded.config()).toMap();
+      return agentReportView(new AgentReporter(shell).generate(project, loaded.config()));
     } catch (Exception e) {
-      throw new ApiException(500, "agent_report_failed", "Failed to generate agent report.", null);
+      throw new ApiException(ErrorCode.AGENT_REPORT_FAILED, "Failed to generate agent report.", e);
     }
   }
 
@@ -238,7 +234,7 @@ public final class SingApiOperations implements ApiOperations {
     try {
       return workspace.readIndex();
     } catch (Exception e) {
-      throw new ApiException(500, "specs_read_failed", "Failed to read specs index.", null);
+      throw new ApiException(ErrorCode.SPECS_READ_FAILED, "Failed to read specs index.", e);
     }
   }
 
@@ -246,7 +242,7 @@ public final class SingApiOperations implements ApiOperations {
     try {
       return workspace.readSpecBody(specId);
     } catch (Exception e) {
-      throw new ApiException(500, "spec_read_failed", "Failed to read spec content.", null);
+      throw new ApiException(ErrorCode.SPEC_READ_FAILED, "Failed to read spec content.", e);
     }
   }
 
@@ -255,7 +251,7 @@ public final class SingApiOperations implements ApiOperations {
       workspace.updateStatus(specId, status);
     } catch (Exception e) {
       throw new ApiException(
-          500, "spec_status_update_failed", "Failed to update spec status.", null);
+          ErrorCode.SPEC_STATUS_UPDATE_FAILED, "Failed to update spec status.", e);
     }
   }
 
@@ -276,15 +272,14 @@ public final class SingApiOperations implements ApiOperations {
       }
       case ContainerState.Stopped ignored ->
           throw new ApiException(
-              409,
-              "project_stopped",
+              ErrorCode.PROJECT_STOPPED,
               "Project '" + project + "' is stopped.",
               "Start it with sing up " + project + ".");
       case ContainerState.NotCreated ignored ->
           throw new ApiException(
-              404, "project_not_created", "Project '" + project + "' does not exist.", null);
-      case ContainerState.Error e ->
-          throw new ApiException(500, "container_error", e.message(), null);
+              ErrorCode.PROJECT_NOT_CREATED, "Project '" + project + "' does not exist.");
+      case ContainerState.Error error ->
+          throw new ApiException(ErrorCode.CONTAINER_ERROR, error.message());
     }
   }
 
@@ -292,17 +287,15 @@ public final class SingApiOperations implements ApiOperations {
     var singYamlPath = SingPaths.resolveSingYaml(project, file);
     if (!Files.exists(singYamlPath)) {
       throw new ApiException(
-          404,
-          "project_descriptor_not_found",
-          "Project descriptor was not found: " + singYamlPath.toAbsolutePath(),
-          null);
+          ErrorCode.PROJECT_DESCRIPTOR_NOT_FOUND,
+          "Project descriptor was not found: " + singYamlPath.toAbsolutePath());
     }
     try {
       var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
       var state = new ContainerManager(shell).queryState(project);
       return new LoadedProject(config, state);
     } catch (Exception e) {
-      throw new ApiException(500, "project_load_failed", "Failed to load project.", null);
+      throw new ApiException(ErrorCode.PROJECT_LOAD_FAILED, "Failed to load project.", e);
     }
   }
 
@@ -310,18 +303,17 @@ public final class SingApiOperations implements ApiOperations {
     var state = loadProject(project).state();
     if (state instanceof ContainerState.NotCreated) {
       throw new ApiException(
-          404, "project_not_created", "Project '" + project + "' does not exist.", null);
+          ErrorCode.PROJECT_NOT_CREATED, "Project '" + project + "' does not exist.");
     }
-    if (state instanceof ContainerState.Error e) {
-      throw new ApiException(500, "container_error", e.message(), null);
+    if (state instanceof ContainerState.Error error) {
+      throw new ApiException(ErrorCode.CONTAINER_ERROR, error.message());
     }
   }
 
   private SpecWorkspace workspace(LoadedProject loaded) {
     if (loaded.config().agent() == null || loaded.config().agent().specsDir() == null) {
       throw new ApiException(
-          422,
-          "specs_not_configured",
+          ErrorCode.SPECS_NOT_CONFIGURED,
           "No specs_dir configured in the project agent block.",
           "Add specs_dir to sing.yaml.");
     }
@@ -336,38 +328,36 @@ public final class SingApiOperations implements ApiOperations {
     }
     var spec = SpecDirectory.findById(specs, specId);
     if (spec == null) {
-      throw new ApiException(404, "spec_not_found", "Spec '" + specId + "' was not found.", null);
+      throw new ApiException(ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found.");
     }
     if (!SpecDirectory.isReady(specs, spec)) {
       throw new ApiException(
-          409,
-          "spec_not_ready",
+          ErrorCode.SPEC_NOT_READY,
           "Spec '" + specId + "' is not ready for dispatch.",
           "Resolve dependencies or choose a ready spec.");
     }
     return spec;
   }
 
-  private static Map<String, Object> specMap(List<Spec> specs, Spec spec) {
-    var map = new LinkedHashMap<String, Object>(spec.toMap());
-    map.put("ready", SpecDirectory.isReady(specs, spec));
-    map.put("blocked", SpecDirectory.isBlocked(specs, spec));
-    var unmet = SpecDirectory.unmetDependencies(specs, spec);
-    if (!unmet.isEmpty()) {
-      map.put("unmet_dependencies", unmet);
-    }
-    return map;
+  private static SpecView specView(List<Spec> specs, Spec spec) {
+    return new SpecView(
+        spec.id(),
+        spec.title(),
+        spec.status(),
+        spec.assignee(),
+        spec.dependsOn(),
+        spec.branch(),
+        SpecDirectory.isReady(specs, spec),
+        SpecDirectory.isBlocked(specs, spec),
+        SpecDirectory.unmetDependencies(specs, spec));
   }
 
-  private static Map<String, Object> dispatchedSpecMap(Spec spec, String branch) {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("id", spec.id());
-    map.put("title", spec.title());
-    map.put("status", "in_progress");
-    if (branch != null && !branch.isBlank()) {
-      map.put("branch", branch);
-    }
-    return map;
+  private static DispatchedSpecView dispatchedSpecView(Spec spec, String branch) {
+    return new DispatchedSpecView(
+        spec.id(),
+        spec.title(),
+        "in_progress",
+        branch != null && !branch.isBlank() ? branch : null);
   }
 
   private static String buildTaskPrompt(Spec spec, String description) {
@@ -395,7 +385,7 @@ public final class SingApiOperations implements ApiOperations {
       snapMgr.create(project, label);
       return label;
     } catch (Exception e) {
-      throw new ApiException(500, "snapshot_failed", "Failed to create dispatch snapshot.", null);
+      throw new ApiException(ErrorCode.SNAPSHOT_FAILED, "Failed to create dispatch snapshot.", e);
     }
   }
 
@@ -418,7 +408,7 @@ public final class SingApiOperations implements ApiOperations {
                 project, List.of("git", "-C", repoDir, "checkout", "-b", branch)));
     if (!result.ok()) {
       throw new ApiException(
-          500, "branch_create_failed", "Failed to create branch '" + branch + "'.", null);
+          ErrorCode.BRANCH_CREATE_FAILED, "Failed to create branch '" + branch + "'.");
     }
     return true;
   }
@@ -440,13 +430,11 @@ public final class SingApiOperations implements ApiOperations {
                   project, config.sshUser(), workDir, true, agentCli);
       var result = exec(command);
       if (!result.ok()) {
-        throw new ApiException(500, "agent_launch_failed", "Failed to launch agent.", null);
+        throw new ApiException(ErrorCode.AGENT_LAUNCH_FAILED, "Failed to launch agent.");
       }
       launchWatcherIfGuardrails(project, config);
-    } catch (ApiException e) {
-      throw e;
     } catch (Exception e) {
-      throw new ApiException(500, "agent_launch_failed", "Failed to launch agent.", null);
+      throw new ApiException(ErrorCode.AGENT_LAUNCH_FAILED, "Failed to launch agent.", e);
     }
   }
 
@@ -492,43 +480,79 @@ public final class SingApiOperations implements ApiOperations {
     try {
       return session.queryStatus(project);
     } catch (Exception e) {
-      throw new ApiException(500, "agent_status_failed", "Failed to query agent status.", null);
+      throw new ApiException(ErrorCode.AGENT_STATUS_FAILED, "Failed to query agent status.", e);
     }
   }
 
-  private Map<String, Object> agentMap(
+  private static AgentConfigView agentConfigView(SingYaml config) {
+    var agent = config.agent();
+    return new AgentConfigView(
+        agent.type(), agent.autoSnapshot(), agent.autoBranch(), agent.specsDir());
+  }
+
+  private static AgentStatusView agentStatusView(
       SingYaml config, String mode, AgentSession.SessionInfo info) {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("type", config.agent() != null ? config.agent().type() : "");
-    map.put("mode", mode);
-    map.put("running", info != null && info.running());
-    if (info != null) {
-      map.putAll(sessionMap(info));
-    }
-    return map;
+    return new AgentStatusView(
+        config.agent() != null ? config.agent().type() : "",
+        mode,
+        info != null && info.running(),
+        info != null ? info.pid() : null,
+        info != null ? info.task() : null,
+        info != null ? info.startedAt() : null,
+        info != null ? info.branch() : null,
+        info != null ? info.logPath() : null);
   }
 
-  private static Map<String, Object> sessionMap(AgentSession.SessionInfo info) {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("pid", info.pid());
-    map.put("task", info.task());
-    map.put("started_at", info.startedAt());
-    map.put("branch", info.branch());
-    map.put("log_path", info.logPath());
-    return map;
+  private static AgentReportResponse agentReportView(AgentReporter.Report report) {
+    return new AgentReportResponse(
+        report.name(),
+        report.sessionStatus(),
+        report.startedAt(),
+        report.endedAt(),
+        report.duration(),
+        report.branch(),
+        report.specs().stream().map(spec -> specView(report.specs(), spec)).toList(),
+        report.commitCount(),
+        report.lastCommitMinutesAgo() >= 0 ? report.lastCommitMinutesAgo() : null,
+        report.guardrailTriggered(),
+        report.guardrailReason(),
+        report.guardrailAction(),
+        report.rolledBack(),
+        report.rollbackSnapshot());
+  }
+
+  private static SpecSummaryView summaryView(java.util.Map<String, Integer> counts) {
+    return new SpecSummaryView(
+        counts.getOrDefault("pending", 0),
+        counts.getOrDefault("in_progress", 0),
+        counts.getOrDefault("review", 0),
+        counts.getOrDefault("done", 0));
+  }
+
+  private static BoardSummaryView boardSummaryView(SpecDirectory.Summary summary) {
+    return new BoardSummaryView(
+        summaryView(summary.counts()),
+        summary.readyCount(),
+        summary.blockedCount(),
+        summary.nextReadyId());
   }
 
   private ShellExec.Result exec(List<String> command) {
     try {
       return shell.exec(command);
     } catch (Exception e) {
-      throw new ApiException(500, "command_failed", "A sing system command failed.", null);
+      throw new ApiException(ErrorCode.COMMAND_FAILED, "A sing system command failed.", e);
     }
   }
 
-  private static String optionalString(Map<String, Object> map, String key) {
-    var value = map.get(key);
-    return value == null ? null : value.toString();
+  private static <T> Result<T> safe(Supplier<T> supplier) {
+    try {
+      return Result.success(supplier.get());
+    } catch (ApiException e) {
+      return e.failure().asFailure();
+    } catch (Exception e) {
+      return Result.failure(ErrorCode.INTERNAL, "sing API operation failed.", e);
+    }
   }
 
   private record LoadedProject(SingYaml config, ContainerState state) {}

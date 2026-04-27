@@ -5,18 +5,23 @@
 
 package ai.singlr.sing.api;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 
-public record ApiError(String code, String message, String action) {
+public record ApiError(String code, String message, String action, List<FieldError> fieldErrors) {
+  public ApiError(String code, String message, String action) {
+    this(code, message, action, List.of());
+  }
 
-  public Map<String, Object> toMap() {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("code", code);
-    map.put("message", message);
-    if (action != null && !action.isBlank()) {
-      map.put("action", action);
-    }
-    return map;
+  public ApiError {
+    action = action == null || action.isBlank() ? null : action;
+    fieldErrors = fieldErrors == null ? List.of() : List.copyOf(fieldErrors);
+  }
+
+  static ApiError from(Result.Failure<?> failure) {
+    return new ApiError(
+        failure.errorCode().code(),
+        failure.errorMessage(),
+        failure.action(),
+        failure.fieldErrors());
   }
 }
