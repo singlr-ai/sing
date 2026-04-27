@@ -194,6 +194,26 @@ class ApiRouterTest {
   }
 
   @Test
+  void missingTailValueReturnsUnprocessableEntity() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/log?tail", "token");
+
+      assertEquals(422, response.statusCode());
+      assertTrue(response.body().contains("invalid_tail"));
+    }
+  }
+
+  @Test
+  void urlDecodedTailIsPassedToOperations() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/log?tail=4%32", "token");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("42"));
+    }
+  }
+
+  @Test
   void missingTailQueryValueUsesDefault() throws Exception {
     try (var server = server()) {
       var response = get(server, "/v1/projects/acme/agent/log?foo=bar", "token");
@@ -206,6 +226,7 @@ class ApiRouterTest {
   @Test
   void shortUnknownRoutesReturnNotFound() throws Exception {
     try (var server = server()) {
+      assertEquals(404, get(server, "/", "token").statusCode());
       assertEquals(404, get(server, "/v1", "token").statusCode());
       assertEquals(404, get(server, "/bad/projects/acme", "token").statusCode());
       assertEquals(404, get(server, "/v1/project/acme", "token").statusCode());
@@ -213,10 +234,34 @@ class ApiRouterTest {
   }
 
   @Test
-  void unknownKnownFamiliesReturnMethodNotAllowed() throws Exception {
+  void knownResourcesWithWrongMethodsReturnMethodNotAllowed() throws Exception {
+    try (var server = server()) {
+      assertEquals(405, post(server, "/v1/projects/acme", "token", "{}").statusCode());
+      assertEquals(405, post(server, "/v1/projects/acme/specs", "token", "{}").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/dispatch", "token").statusCode());
+      assertEquals(405, post(server, "/v1/projects/acme/agent", "token", "{}").statusCode());
+      assertEquals(405, post(server, "/v1/projects/acme/agent/log", "token", "{}").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/agent/stop", "token").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/agent/report", "token").statusCode());
+    }
+  }
+
+  @Test
+  void malformedKnownResourcesReturnMethodNotAllowed() throws Exception {
     try (var server = server()) {
       assertEquals(405, get(server, "/v1/projects/acme/specs/auth/extra", "token").statusCode());
-      assertEquals(405, get(server, "/v1/projects/acme/agent/report", "token").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/dispatch/extra", "token").statusCode());
+      assertEquals(405, get(server, "/v1/projects/acme/agent/log/extra", "token").statusCode());
+    }
+  }
+
+  @Test
+  void unknownAgentSubResourcesReturnNotFound() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/agent/unknown", "token");
+
+      assertEquals(404, response.statusCode());
+      assertTrue(response.body().contains("not_found"));
     }
   }
 

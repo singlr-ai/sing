@@ -11,10 +11,30 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class ApiRouter implements HttpHandler {
+
+  private static final String GET = "GET";
+  private static final String POST = "POST";
+  private static final String V1 = "v1";
+  private static final String HEALTH = "health";
+  private static final String PROJECTS = "projects";
+  private static final String SPECS = "specs";
+  private static final String DISPATCH = "dispatch";
+  private static final String AGENT = "agent";
+  private static final String LOG = "log";
+  private static final String STOP = "stop";
+  private static final String REPORT = "report";
+  private static final String TAIL = "tail";
+  private static final int DEFAULT_TAIL = 200;
+  private static final int MIN_TAIL = 1;
+  private static final int MAX_TAIL = 5000;
 
   private final ApiOperations operations;
   private final BearerAuth auth;
@@ -52,87 +72,95 @@ public final class ApiRouter implements HttpHandler {
   }
 
   ApiResponse route(HttpExchange exchange) throws IOException {
-    var method = exchange.getRequestMethod();
-    var path = cleanPath(exchange.getRequestURI());
-    if (method.equals("GET") && path.equals("/v1/health")) {
+    var request = RouteRequest.from(exchange);
+    if (request.matches(GET, V1, HEALTH)) {
       return ApiResponse.from(operations.health());
     }
+
     auth.require(exchange);
-    var segments = path.substring(1).split("/");
-    if (segments.length < 3 || !segments[0].equals("v1") || !segments[1].equals("projects")) {
+    if (!request.hasProjectPrefix()) {
       throw notFound();
     }
-    var project = segments[2];
+
+    var project = request.project();
     NameValidator.requireValidProjectName(project);
-    if (segments.length == 3 && method.equals("GET")) {
+    if (request.isProjectRoot()) {
+      return routeProject(request, project);
+    }
+
+    return switch (request.resource()) {
+      case SPECS -> routeSpecs(request, project);
+      case DISPATCH -> routeDispatch(exchange, request, project);
+      case AGENT -> routeAgent(request, project);
+      default -> throw notFound();
+    };
+  }
+
+  private ApiResponse routeProject(RouteRequest request, String project) {
+    if (request.is(GET)) {
       return ApiResponse.from(operations.project(project));
     }
-    if (segments.length == 4 && segments[3].equals("specs") && method.equals("GET")) {
+    throw methodNotAllowed();
+  }
+
+  private ApiResponse routeSpecs(RouteRequest request, String project) {
+    if (request.size() == 4) {
+      requireMethod(request, GET);
       return ApiResponse.from(operations.specs(project));
     }
-    if (segments.length == 5 && segments[3].equals("specs") && method.equals("GET")) {
-      NameValidator.requireValidSpecId(segments[4]);
-      return ApiResponse.from(operations.spec(project, segments[4]));
+    if (request.size() == 5) {
+      requireMethod(request, GET);
+      var specId = request.subResource();
+      NameValidator.requireValidSpecId(specId);
+      return ApiResponse.from(operations.spec(project, specId));
     }
-    if (segments.length == 4 && segments[3].equals("dispatch") && method.equals("POST")) {
-      return ApiResponse.from(operations.dispatch(project, JsonBody.readDispatchRequest(exchange)));
+    throw methodNotAllowed();
+  }
+
+  private ApiResponse routeDispatch(HttpExchange exchange, RouteRequest request, String project)
+      throws IOException {
+    if (request.size() != 4) {
+      throw methodNotAllowed();
     }
-    if (segments.length == 4 && segments[3].equals("agent") && method.equals("GET")) {
+    requireMethod(request, POST);
+    return ApiResponse.from(operations.dispatch(project, JsonBody.readDispatchRequest(exchange)));
+  }
+
+  private ApiResponse routeAgent(RouteRequest request, String project) {
+    if (request.size() == 4) {
+      requireMethod(request, GET);
       return ApiResponse.from(operations.agentStatus(project));
     }
-    if (segments.length == 5
-        && segments[3].equals("agent")
-        && segments[4].equals("log")
-        && method.equals("GET")) {
-      return ApiResponse.from(operations.agentLog(project, tail(exchange.getRequestURI())));
+    if (request.size() != 5) {
+      throw methodNotAllowed();
     }
-    if (segments.length == 5
-        && segments[3].equals("agent")
-        && segments[4].equals("stop")
-        && method.equals("POST")) {
-      return ApiResponse.from(operations.stopAgent(project));
-    }
-    if (segments.length == 5
-        && segments[3].equals("agent")
-        && segments[4].equals("report")
-        && method.equals("POST")) {
-      return ApiResponse.from(operations.agentReport(project));
-    }
-    if (knownPath(segments)) {
-      throw new ApiException(
-          ErrorCode.METHOD_NOT_ALLOWED, "HTTP method is not allowed for this endpoint.");
-    }
-    throw notFound();
-  }
-
-  private static boolean knownPath(String[] segments) {
-    return segments.length >= 4
-        && segments[0].equals("v1")
-        && segments[1].equals("projects")
-        && (segments[3].equals("specs")
-            || segments[3].equals("dispatch")
-            || segments[3].equals("agent"));
-  }
-
-  private static int tail(URI uri) {
-    var query = uri.getRawQuery();
-    if (query == null || query.isBlank()) {
-      return 200;
-    }
-    for (var part : query.split("&")) {
-      var pair = part.split("=", 2);
-      if (pair.length == 2 && pair[0].equals("tail")) {
-        try {
-          var value = Integer.parseInt(pair[1]);
-          if (value >= 1 && value <= 5000) {
-            return value;
-          }
-        } catch (NumberFormatException ignored) {
-        }
-        throw new ApiException(ErrorCode.INVALID_TAIL, "tail must be between 1 and 5000.");
+    return switch (request.subResource()) {
+      case LOG -> {
+        requireMethod(request, GET);
+        yield ApiResponse.from(
+            operations.agentLog(project, QueryParameters.from(request.uri()).tail()));
       }
+      case STOP -> {
+        requireMethod(request, POST);
+        yield ApiResponse.from(operations.stopAgent(project));
+      }
+      case REPORT -> {
+        requireMethod(request, POST);
+        yield ApiResponse.from(operations.agentReport(project));
+      }
+      default -> throw notFound();
+    };
+  }
+
+  private static void requireMethod(RouteRequest request, String method) {
+    if (!request.is(method)) {
+      throw methodNotAllowed();
     }
-    return 200;
+  }
+
+  private static ApiException methodNotAllowed() {
+    return new ApiException(
+        ErrorCode.METHOD_NOT_ALLOWED, "HTTP method is not allowed for this endpoint.");
   }
 
   private static String cleanPath(URI uri) {
@@ -151,6 +179,90 @@ public final class ApiRouter implements HttpHandler {
     exchange.sendResponseHeaders(response.status(), body.length);
     try (var output = exchange.getResponseBody()) {
       output.write(body);
+    }
+  }
+
+  private record RouteRequest(String method, URI uri, List<String> segments) {
+    static RouteRequest from(HttpExchange exchange) {
+      var uri = exchange.getRequestURI();
+      return new RouteRequest(exchange.getRequestMethod(), uri, segments(cleanPath(uri)));
+    }
+
+    boolean matches(String method, String... path) {
+      return is(method) && segments.equals(List.of(path));
+    }
+
+    boolean is(String method) {
+      return this.method.equals(method);
+    }
+
+    boolean hasProjectPrefix() {
+      return segments.size() >= 3 && V1.equals(segments.get(0)) && PROJECTS.equals(segments.get(1));
+    }
+
+    boolean isProjectRoot() {
+      return segments.size() == 3;
+    }
+
+    String project() {
+      return segments.get(2);
+    }
+
+    String resource() {
+      return segments.get(3);
+    }
+
+    String subResource() {
+      return segments.get(4);
+    }
+
+    int size() {
+      return segments.size();
+    }
+
+    private static List<String> segments(String path) {
+      if (path.equals("/")) {
+        return List.of();
+      }
+      return Arrays.stream(path.substring(1).split("/"))
+          .filter(segment -> !segment.isBlank())
+          .toList();
+    }
+  }
+
+  private record QueryParameters(Map<String, String> values) {
+    static QueryParameters from(URI uri) {
+      var query = uri.getRawQuery();
+      if (query == null || query.isBlank()) {
+        return new QueryParameters(Map.of());
+      }
+      var values = new LinkedHashMap<String, String>();
+      for (var part : query.split("&")) {
+        var separator = part.indexOf('=');
+        var name = separator >= 0 ? part.substring(0, separator) : part;
+        var value = separator >= 0 ? part.substring(separator + 1) : "";
+        values.put(decode(name), decode(value));
+      }
+      return new QueryParameters(values);
+    }
+
+    int tail() {
+      var value = values.get(TAIL);
+      if (value == null) {
+        return DEFAULT_TAIL;
+      }
+      try {
+        var tail = Integer.parseInt(value);
+        if (tail >= MIN_TAIL && tail <= MAX_TAIL) {
+          return tail;
+        }
+      } catch (NumberFormatException ignored) {
+      }
+      throw new ApiException(ErrorCode.INVALID_TAIL, "tail must be between 1 and 5000.");
+    }
+
+    private static String decode(String value) {
+      return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
   }
 }
