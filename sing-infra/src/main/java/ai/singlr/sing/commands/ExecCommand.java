@@ -6,7 +6,6 @@
 package ai.singlr.sing.commands;
 
 import ai.singlr.sing.config.YamlUtil;
-import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.ContainerExec;
 import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
@@ -14,9 +13,7 @@ import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -46,13 +43,7 @@ public final class ExecCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(spec, this::execute);
   }
 
   private void execute() throws Exception {

@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import picocli.CommandLine.Command;
@@ -72,13 +71,7 @@ public final class DispatchCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(commandSpec.commandLine(), msg, e);
-    }
+    CliCommand.run(commandSpec, this::execute);
   }
 
   private void execute() throws Exception {
@@ -151,13 +144,14 @@ public final class DispatchCommand implements Runnable {
     var task = buildTaskPrompt(nextSpec, description, config.agent().specsDir());
 
     if (json) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("name", name);
-      map.put("spec_id", nextSpec.id());
-      map.put("spec_title", nextSpec.title());
-      map.put("mode", background ? "background" : "foreground");
-      map.put("task", task);
-      System.out.println(YamlUtil.dumpJson(map));
+      System.out.println(
+          CliJson.stringify(
+              new DispatchPreview(
+                  name,
+                  nextSpec.id(),
+                  nextSpec.title(),
+                  background ? "background" : "foreground",
+                  task)));
       if (dryRun) {
         return;
       }
@@ -292,11 +286,7 @@ public final class DispatchCommand implements Runnable {
 
   private void printNoSpecs() {
     if (json) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("name", name);
-      map.put("dispatched", false);
-      map.put("reason", "no_pending_specs");
-      System.out.println(YamlUtil.dumpJson(map));
+      System.out.println(CliJson.stringify(new NoDispatch(name, false, "no_pending_specs")));
     } else {
       System.out.println(Ansi.AUTO.string("  @|faint No pending specs found for " + name + ".|@"));
     }
@@ -336,6 +326,10 @@ public final class DispatchCommand implements Runnable {
               Ansi.AUTO));
     }
   }
+
+  record DispatchPreview(String name, String specId, String specTitle, String mode, String task) {}
+
+  record NoDispatch(String name, boolean dispatched, String reason) {}
 
   private static final Duration SNAPSHOT_INTERVAL = Duration.ofHours(24);
 

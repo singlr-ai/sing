@@ -17,7 +17,6 @@ import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.SpecWorkspace;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
-import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -52,13 +51,7 @@ public final class SpecStatusCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(commandSpec.commandLine(), msg, e);
-    }
+    CliCommand.run(commandSpec, this::execute);
   }
 
   private void execute() throws Exception {

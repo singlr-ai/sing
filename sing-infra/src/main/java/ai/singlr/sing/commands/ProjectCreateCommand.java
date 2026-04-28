@@ -23,7 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -64,15 +63,10 @@ public final class ProjectCreateCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      System.err.println(
-          "  If this is unexpected, re-run with --dry-run to see what would execute.");
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(
+        spec,
+        "  If this is unexpected, re-run with --dry-run to see what would execute.",
+        this::execute);
   }
 
   private void execute() throws Exception {

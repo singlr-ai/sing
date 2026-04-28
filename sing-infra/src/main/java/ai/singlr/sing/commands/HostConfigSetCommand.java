@@ -7,12 +7,10 @@ package ai.singlr.sing.commands;
 
 import ai.singlr.sing.config.HostYaml;
 import ai.singlr.sing.config.YamlUtil;
-import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.NetworkDetector;
 import ai.singlr.sing.engine.SingPaths;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
-import java.util.Objects;
 import java.util.Set;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
@@ -45,13 +43,7 @@ public final class HostConfigSetCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(spec, this::execute);
   }
 
   private void execute() throws Exception {
