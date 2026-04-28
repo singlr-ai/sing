@@ -18,8 +18,17 @@ jobs:
           distribution: 'graalvm'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
-        run: mvn clean test
+      - name: Verify quality gates
+        run: mvn clean verify
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-reports
+          path: |
+            **/target/site/jacoco
+            **/target/site/jacoco.xml
 
       - name: Build native image
         run: mvn package -Pnative -DskipTests

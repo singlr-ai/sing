@@ -88,6 +88,53 @@ class CliCommandTest {
     assertTrue(capturedErr.toString(StandardCharsets.UTF_8).contains("try --dry-run"));
   }
 
+  @Test
+  void returnsWhenCommandSucceeds() {
+    var command = new CommandLine(new TestCommand());
+    var spec = command.getCommandSpec();
+
+    assertDoesNotThrow(() -> CliCommand.run(spec, () -> {}));
+    assertEquals("", capturedErr.toString(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void writesToCustomErrorStream() {
+    var command = new CommandLine(new TestCommand());
+    var spec = command.getCommandSpec();
+    var err = new ByteArrayOutputStream();
+
+    assertThrows(
+        CommandLine.ExecutionException.class,
+        () ->
+            CliCommand.run(
+                spec,
+                new PrintStream(err),
+                () -> {
+                  throw new IllegalStateException("custom");
+                }));
+
+    assertEquals("", capturedErr.toString(StandardCharsets.UTF_8));
+    assertTrue(err.toString(StandardCharsets.UTF_8).contains("custom"));
+  }
+
+  @Test
+  void ignoresBlankFailureHints() {
+    var command = new CommandLine(new TestCommand());
+    var spec = command.getCommandSpec();
+
+    assertThrows(
+        CommandLine.ExecutionException.class,
+        () ->
+            CliCommand.run(
+                spec,
+                " ",
+                () -> {
+                  throw new IllegalStateException("boom");
+                }));
+
+    assertEquals(1, capturedErr.toString(StandardCharsets.UTF_8).lines().count());
+  }
+
   @Command(name = "test")
   private static final class TestCommand implements Runnable {
     @Override
