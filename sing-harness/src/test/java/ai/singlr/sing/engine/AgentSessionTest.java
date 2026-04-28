@@ -225,6 +225,32 @@ class AgentSessionTest {
   }
 
   @Test
+  void backgroundLaunchKeepsWorkDirOutOfShellScript() {
+    var workDir = "/home/dev/workspace; touch /tmp/pwned";
+    var cmd =
+        AgentSession.buildBackgroundLaunchCommand(
+            "acme", "dev", workDir, false, AgentCli.CLAUDE_CODE);
+
+    var script = cmd.get(cmd.indexOf("-c") + 1);
+    assertTrue(script.contains("cd \"$2\""));
+    assertFalse(script.contains(workDir));
+    assertTrue(cmd.contains(workDir));
+  }
+
+  @Test
+  void foregroundLaunchKeepsWorkDirOutOfShellScript() {
+    var workDir = "/home/dev/workspace; touch /tmp/pwned";
+    var cmd =
+        AgentSession.buildForegroundTaskCommand(
+            "acme", "dev", workDir, false, AgentCli.CLAUDE_CODE);
+
+    var script = cmd.get(cmd.indexOf("-c") + 1);
+    assertTrue(script.contains("cd \"$1\""));
+    assertFalse(script.contains(workDir));
+    assertTrue(cmd.contains(workDir));
+  }
+
+  @Test
   void buildForegroundTaskCommandStructure() {
     var cmd =
         AgentSession.buildForegroundTaskCommand(

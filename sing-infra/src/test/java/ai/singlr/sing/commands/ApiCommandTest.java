@@ -39,4 +39,21 @@ class ApiCommandTest {
     assertTrue(output.toString().contains("--token"));
     assertTrue(output.toString().contains("--token-file"));
   }
+
+  @Test
+  void loopbackApiBindIsAllowedByDefault() throws Exception {
+    assertDoesNotThrow(() -> ApiCommand.requireSafeBindAddress("127.0.0.1", false));
+    assertDoesNotThrow(() -> ApiCommand.requireSafeBindAddress("localhost", false));
+  }
+
+  @Test
+  void nonLoopbackApiBindRequiresExplicitOptIn() {
+    var error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ApiCommand.requireSafeBindAddress("0.0.0.0", false));
+
+    assertTrue(error.getMessage().contains("Refusing to bind"));
+    assertDoesNotThrow(() -> ApiCommand.requireSafeBindAddress("0.0.0.0", true));
+  }
 }
