@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  verify:
+    name: Verify, security scan, and native build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,18 +34,22 @@ jobs:
       - name: Cache OWASP Dependency-Check data
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: dependency-check-${{ runner.os }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-${{ github.run_id }}
           restore-keys: |
+            dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-
             dependency-check-${{ runner.os }}-
 
       - name: Scan dependencies
         run: >
-          mvn org.owasp:dependency-check-maven:12.1.8:check
+          mvn install org.owasp:dependency-check-maven:12.1.8:aggregate
+          -DskipTests
+          -Djacoco.skip=true
           -Dformat=HTML
           -DfailBuildOnCVSS=7
           -DskipTestScope=true
           -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+          -DdataDirectory=${{ runner.temp }}/dependency-check-data
 
       - name: Upload dependency check reports
         uses: actions/upload-artifact@v4
