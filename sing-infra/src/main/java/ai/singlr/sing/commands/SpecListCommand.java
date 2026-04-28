@@ -20,7 +20,6 @@ import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import picocli.CommandLine.Command;
@@ -55,13 +54,7 @@ public final class SpecListCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(commandSpec.commandLine(), msg, e);
-    }
+    CliCommand.run(commandSpec, this::execute);
   }
 
   private void execute() throws Exception {

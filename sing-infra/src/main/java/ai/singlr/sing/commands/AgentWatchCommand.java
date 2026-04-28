@@ -10,7 +10,6 @@ import ai.singlr.sing.config.Notifications;
 import ai.singlr.sing.config.SingYaml;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.AgentSession;
-import ai.singlr.sing.engine.Banner;
 import ai.singlr.sing.engine.ContainerExec;
 import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
@@ -60,13 +59,7 @@ public final class AgentWatchCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(spec, this::execute);
   }
 
   private void execute() throws Exception {

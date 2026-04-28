@@ -81,13 +81,7 @@ public final class ProjectResourcesSetCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(spec, err, this::execute);
   }
 
   private void execute() throws Exception {

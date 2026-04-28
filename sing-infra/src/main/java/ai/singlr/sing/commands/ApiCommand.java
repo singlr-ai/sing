@@ -8,10 +8,8 @@ package ai.singlr.sing.commands;
 import ai.singlr.sing.api.ApiTokenStore;
 import ai.singlr.sing.api.SingApiOperations;
 import ai.singlr.sing.api.SingApiServer;
-import ai.singlr.sing.engine.Banner;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
@@ -41,13 +39,7 @@ public final class ApiCommand implements Runnable {
 
   @Override
   public void run() {
-    try {
-      execute();
-    } catch (Exception e) {
-      var msg = Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName());
-      System.err.println(Banner.errorLine(msg, Ansi.AUTO));
-      throw new picocli.CommandLine.ExecutionException(spec.commandLine(), msg, e);
-    }
+    CliCommand.run(spec, this::execute);
   }
 
   private void execute() throws Exception {
