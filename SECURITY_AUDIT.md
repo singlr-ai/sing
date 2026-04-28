@@ -49,7 +49,7 @@ Background and foreground agent launch commands now pass work directories and ge
 Spec index and markdown writes now pass output paths as positional arguments instead of concatenating target paths into shell redirection scripts.
 
 ### Dependency vulnerability scanning added
-CI now runs OWASP Dependency-Check with the repository `NVD_API_KEY` secret, fails builds for CVSS 7+ findings, skips test-scope dependencies, caches NVD data, and uploads HTML reports.
+CI now runs OWASP Dependency-Check with the repository `NVD_API_KEY` secret, fails builds for CVSS 7+ findings, skips test-scope dependencies, installs reactor modules before the aggregate scan, caches NVD data, and uploads HTML reports.
 
 ## Accepted Risks
 
@@ -62,5 +62,5 @@ Spec markdown is intentionally passed to coding agents. The security boundary is
 ## Verification
 - Focused regression suite: `mvn -pl sing-infra,sing-harness -am -Dtest=ApiTokenStoreTest,ApiRouterTest,ApiCommandTest,SpecWorkspaceTest,AgentSessionTest -Dsurefire.failIfNoSpecifiedTests=false test`
 - Full verification: `mvn clean verify`
-- CI dependency scan: `mvn org.owasp:dependency-check-maven:12.1.8:check -Dformat=HTML -DfailBuildOnCVSS=7 -DskipTestScope=true -DnvdApiKey=${{ secrets.NVD_API_KEY }}`
+- CI dependency scan: `mvn install org.owasp:dependency-check-maven:12.1.8:aggregate -DskipTests -Djacoco.skip=true -Dformat=HTML -DfailBuildOnCVSS=7 -DskipTestScope=true -DnvdApiKey=${{ secrets.NVD_API_KEY }} -DdataDirectory=${{ runner.temp }}/dependency-check-data`
 - Native packaging attempted with `mvn package -Pnative -DskipTests`; local execution requires GraalVM and this container uses Temurin, so CI remains the authoritative native-image check.
