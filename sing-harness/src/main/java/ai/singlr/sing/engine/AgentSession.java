@@ -55,7 +55,7 @@ public final class AgentSession {
     var cmd =
         ContainerExec.asDevUser(
             containerName,
-            List.of("bash", "-c", "printf '%s' \"$1\" > " + TASK_FILE, "bash", task));
+            List.of("bash", "-c", "printf '%s' \"$1\" > \"$2\"", "bash", task, TASK_FILE));
     var result = shell.exec(cmd);
     if (!result.ok()) {
       throw new IOException("Failed to write task file: " + result.stderr());
@@ -74,7 +74,7 @@ public final class AgentSession {
     var cmd =
         ContainerExec.asDevUser(
             containerName,
-            List.of("bash", "-c", "printf '%s' \"$1\" > " + SESSION_FILE, "bash", json));
+            List.of("bash", "-c", "printf '%s' \"$1\" > \"$2\"", "bash", json, SESSION_FILE));
     var result = shell.exec(cmd);
     if (!result.ok()) {
       throw new IOException("Failed to write session metadata: " + result.stderr());
@@ -160,17 +160,10 @@ public final class AgentSession {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
     var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
     var script =
-        "mkdir -p "
-            + SING_DIR
-            + " && cd "
-            + workDir
-            + " && bash -l -c '"
-            + agentCmd
-            + "' > "
-            + LOG_FILE
-            + " 2>&1 & echo $! > "
-            + PID_FILE;
-    return ContainerExec.asDevUser(containerName, List.of("bash", "-c", script));
+        "mkdir -p \"$1\" && cd \"$2\" && bash -l -c \"$3\" > \"$4\" 2>&1 & echo $! > \"$5\"";
+    return ContainerExec.asDevUser(
+        containerName,
+        List.of("bash", "-c", script, "bash", SING_DIR, workDir, agentCmd, LOG_FILE, PID_FILE));
   }
 
   /**
@@ -187,8 +180,9 @@ public final class AgentSession {
       AgentCli agentCli) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
     var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
-    var script = "cd " + workDir + " && " + agentCmd;
-    return ContainerExec.asDevUser(containerName, List.of("bash", "-l", "-c", script));
+    var script = "cd \"$1\" && bash -l -c \"$2\"";
+    return ContainerExec.asDevUser(
+        containerName, List.of("bash", "-l", "-c", script, "bash", workDir, agentCmd));
   }
 
   /** Returns the path to the agent log file inside the container. */

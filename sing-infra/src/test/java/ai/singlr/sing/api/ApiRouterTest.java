@@ -55,6 +55,23 @@ class ApiRouterTest {
   }
 
   @Test
+  void duplicateBearerHeadersAreRejected() throws Exception {
+    try (var server = server()) {
+      var request =
+          HttpRequest.newBuilder(uri(server, "/v1/projects/acme/agent"))
+              .header("Authorization", "Bearer token")
+              .header("Authorization", "Bearer token")
+              .GET()
+              .build();
+
+      var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(403, response.statusCode());
+      assertTrue(response.body().contains("invalid_bearer_token"));
+    }
+  }
+
+  @Test
   void protectedRoutesRejectWrongBearerToken() throws Exception {
     try (var server = server()) {
       var response = get(server, "/v1/projects/acme/agent", "wrong");

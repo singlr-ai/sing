@@ -71,7 +71,7 @@ public final class SpecWorkspace {
         shell.exec(
             ContainerExec.asDevUser(
                 containerName,
-                List.of("bash", "-c", "printf '%s' \"$1\" > " + indexPath(), "bash", yaml)));
+                List.of("bash", "-c", "printf '%s' \"$1\" > \"$2\"", "bash", yaml, indexPath())));
     if (!result.ok()) {
       throw new IOException("Failed to write spec index: " + result.stderr());
     }
@@ -130,9 +130,10 @@ public final class SpecWorkspace {
                 List.of(
                     "bash",
                     "-c",
-                    "printf '%s' \"$1\" > " + specMarkdownPath(specId),
+                    "printf '%s' \"$1\" > \"$2\"",
                     "bash",
-                    Objects.requireNonNullElse(markdown, ""))));
+                    Objects.requireNonNullElse(markdown, ""),
+                    specMarkdownPath(specId))));
     if (!result.ok()) {
       throw new IOException("Failed to write spec markdown: " + result.stderr());
     }

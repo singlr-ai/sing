@@ -113,6 +113,17 @@ class SpecWorkspaceTest {
   }
 
   @Test
+  void writeIndexKeepsPathOutOfShellScript() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/specs; touch /tmp/pwned");
+    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
+
+    workspace.writeIndex(List.of(spec));
+
+    assertTrue(shell.invocations().getLast().contains("printf '%s' \"$1\" > \"$2\""));
+  }
+
+  @Test
   void updateStatusWritesUpdatedIndex() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))

@@ -30,6 +30,29 @@ jobs:
             **/target/site/jacoco
             **/target/site/jacoco.xml
 
+      - name: Cache OWASP Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-${{ runner.os }}-
+
+      - name: Scan dependencies
+        run: >
+          mvn org.owasp:dependency-check-maven:12.1.8:check
+          -Dformat=HTML
+          -DfailBuildOnCVSS=7
+          -DskipTestScope=true
+          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+
+      - name: Upload dependency check reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-reports
+          path: '**/target/dependency-check-report.html'
+
       - name: Build native image
         run: mvn package -Pnative -DskipTests
 
