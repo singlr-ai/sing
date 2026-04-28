@@ -22,7 +22,7 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 @Command(
-    name = "down",
+    name = "stop",
     description = "Stop a project container, or all containers if no name given.",
     mixinStandardHelpOptions = true)
 public final class DownCommand implements Runnable {

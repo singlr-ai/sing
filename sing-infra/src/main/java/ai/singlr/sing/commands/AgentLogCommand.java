@@ -24,7 +24,11 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
-@Command(name = "log", description = "View agent session output.", mixinStandardHelpOptions = true)
+@Command(
+    name = "logs",
+    aliases = {"log"},
+    description = "View agent session output.",
+    mixinStandardHelpOptions = true)
 public final class AgentLogCommand implements Runnable {
 
   @Parameters(index = "0", description = "Project name.")
@@ -64,7 +68,7 @@ public final class AgentLogCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '" + name + "' does not exist. Run 'sing project create' first.");
@@ -99,7 +103,7 @@ public final class AgentLogCommand implements Runnable {
           }
           System.out.println(
               Ansi.AUTO.string(
-                  "  @|faint No agent log found. Launch an agent with: sing agent launch "
+                  "  @|faint No agent log found. Launch an agent with: sing agent start "
                       + name
                       + " --task \"...\" --background|@"));
           return;

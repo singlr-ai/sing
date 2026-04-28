@@ -55,7 +55,8 @@ public final class HostInitCommand implements Runnable {
 
   @Option(
       names = "--server-ip",
-      description = "Server's public IP address (for SSH config generation in 'sing connect').")
+      description =
+          "Server's public IP address (for SSH config generation in 'sing project connect').")
   private String serverIp;
 
   @Option(names = "--yes", description = "Skip confirmation prompts (for non-interactive use).")

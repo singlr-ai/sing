@@ -203,7 +203,7 @@ public final class ProjectCreateCommand implements Runnable {
                     + " Run: sudo sing host config set server-ip <your-server-ip>"));
         System.out.println(
             Ansi.AUTO.string(
-                "    Then: sing connect " + config.name() + " for SSH config snippet."));
+                "    Then: sing project connect " + config.name() + " for SSH config snippet."));
       }
 
       var ports = ContainerExec.queryServicePorts(shell, config.name());

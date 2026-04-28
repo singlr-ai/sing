@@ -14,12 +14,13 @@ class ApiResultIntegrationTest {
 
   @Test
   void exceptionExposesFailureStatusAndError() {
-    var exception = new ApiException(ErrorCode.PROJECT_STOPPED, "Stopped.", "Run sing up.");
+    var exception =
+        new ApiException(ErrorCode.PROJECT_STOPPED, "Stopped.", "Run sing project start.");
 
     assertEquals(409, exception.status());
     assertEquals(ErrorCode.PROJECT_STOPPED, exception.failure().errorCode());
     assertEquals("project_stopped", exception.error().code());
-    assertEquals("Run sing up.", exception.error().action());
+    assertEquals("Run sing project start.", exception.error().action());
   }
 
   @Test

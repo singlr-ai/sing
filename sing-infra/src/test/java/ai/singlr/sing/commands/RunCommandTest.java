@@ -55,7 +55,7 @@ class RunCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("run", "--help");
+    var exitCode = cmd.execute("agent", "run", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -68,15 +68,15 @@ class RunCommandTest {
   }
 
   @Test
-  void runRegisteredAsTopLevelCommand() {
+  void runRegisteredUnderAgentCommand() {
     var cmd = new CommandLine(new Sing());
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    cmd.execute("--help");
+    cmd.execute("agent", "--help");
 
     var output = sw.toString();
-    assertTrue(output.contains("run"), "run should appear in top-level help");
+    assertTrue(output.contains("run"), "run should appear under agent help");
   }
 
   @Test
@@ -86,6 +86,7 @@ class RunCommandTest {
 
     var exitCode =
         cmd.execute(
+            "agent",
             "run",
             "test-project",
             "--dry-run",
@@ -112,7 +113,8 @@ class RunCommandTest {
     var cmd = new CommandLine(new Sing());
     cmd.setExecutionExceptionHandler((ex, cl, pr) -> 1);
 
-    var exitCode = cmd.execute("run", "INVALID NAME!", "--dry-run", "--file", yamlFile.toString());
+    var exitCode =
+        cmd.execute("agent", "run", "INVALID NAME!", "--dry-run", "--file", yamlFile.toString());
 
     assertNotEquals(0, exitCode);
     var errOutput = capturedErr.toString(StandardCharsets.UTF_8);
@@ -136,7 +138,8 @@ class RunCommandTest {
     var cmd = new CommandLine(new Sing());
     cmd.setExecutionExceptionHandler((ex, cl, pr) -> 1);
 
-    var exitCode = cmd.execute("run", "test-proj", "--dry-run", "--file", yamlFile.toString());
+    var exitCode =
+        cmd.execute("agent", "run", "test-proj", "--dry-run", "--file", yamlFile.toString());
 
     assertNotEquals(0, exitCode);
     var errOutput = capturedErr.toString(StandardCharsets.UTF_8);

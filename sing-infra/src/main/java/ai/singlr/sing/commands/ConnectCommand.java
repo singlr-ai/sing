@@ -71,7 +71,7 @@ public final class ConnectCommand implements Runnable {
       throw new IllegalStateException(
           "Server IP not configured. Fix with one of:\n"
               + "  - sudo sing host config set server-ip <your-server-ip>\n"
-              + "  - Or pass: sing connect "
+              + "  - Or pass: sing project connect "
               + name
               + " --server-ip <your-server-ip>");
     }
@@ -82,7 +82,7 @@ public final class ConnectCommand implements Runnable {
           case ContainerState.Running r -> r.ipv4();
           case ContainerState.Stopped ignored ->
               throw new IllegalStateException(
-                  "Project '" + name + "' is stopped. Start it with: sing up " + name);
+                  "Project '" + name + "' is stopped. Start it with: sing project start " + name);
           case ContainerState.NotCreated ignored ->
               throw new IllegalStateException(
                   "Project '"

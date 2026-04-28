@@ -23,9 +23,9 @@ class SnapsPruneCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    cmd.execute("--help");
+    cmd.execute("project", "snapshot", "--help");
 
-    assertTrue(sw.toString().contains("snaps-prune"));
+    assertTrue(sw.toString().contains("prune"));
   }
 
   @Test
@@ -34,7 +34,7 @@ class SnapsPruneCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("snaps-prune", "--help");
+    var exitCode = cmd.execute("project", "snapshot", "prune", "--help");
 
     assertEquals(0, exitCode);
     assertTrue(sw.toString().contains("older than"));
@@ -46,7 +46,7 @@ class SnapsPruneCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    cmd.execute("snaps-prune", "--help");
+    cmd.execute("project", "snapshot", "prune", "--help");
 
     var help = sw.toString();
     assertTrue(help.contains("--older-than"));
@@ -60,7 +60,7 @@ class SnapsPruneCommandTest {
     var sw = new StringWriter();
     cmd.setErr(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("snaps-prune");
+    var exitCode = cmd.execute("project", "snapshot", "prune");
 
     assertNotEquals(0, exitCode);
   }
@@ -101,7 +101,7 @@ class SnapsPruneCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    cmd.execute("snaps-prune", "--help");
+    cmd.execute("project", "snapshot", "prune", "--help");
 
     assertTrue(sw.toString().contains("[<name>]") || sw.toString().contains("Project name"));
   }

@@ -54,7 +54,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("up", "--help");
+    var exitCode = cmd.execute("project", "start", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -69,7 +69,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("up");
+    var exitCode = cmd.execute("project", "start");
 
     assertNotEquals(0, exitCode);
   }
@@ -80,7 +80,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("down", "--help");
+    var exitCode = cmd.execute("project", "stop", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -94,7 +94,7 @@ class LifecycleCommandTest {
     var cmd = new CommandLine(new Sing());
     cmd.setExecutionExceptionHandler((ex, cl, pr) -> 1);
 
-    var exitCode = cmd.execute("down");
+    var exitCode = cmd.execute("project", "stop");
 
     assertTrue(exitCode == 0 || exitCode == 1, "Should not be a usage error (2)");
   }
@@ -105,13 +105,13 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("switch", "--help");
+    var exitCode = cmd.execute("project", "restart", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
     assertTrue(output.contains("--dry-run"));
     assertTrue(output.contains("--json"));
-    assertTrue(output.contains("Start a project"));
+    assertTrue(output.contains("Restart or switch to a project"));
   }
 
   @Test
@@ -120,7 +120,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("switch");
+    var exitCode = cmd.execute("project", "restart");
 
     assertNotEquals(0, exitCode);
   }
@@ -184,7 +184,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("snap", "--help");
+    var exitCode = cmd.execute("project", "snapshot", "create", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -199,7 +199,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("snap");
+    var exitCode = cmd.execute("project", "snapshot", "create");
 
     assertNotEquals(0, exitCode);
   }
@@ -210,7 +210,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("restore", "--help");
+    var exitCode = cmd.execute("project", "snapshot", "restore", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -225,7 +225,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("restore");
+    var exitCode = cmd.execute("project", "snapshot", "restore");
 
     assertNotEquals(0, exitCode);
   }
@@ -236,7 +236,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("snaps", "--help");
+    var exitCode = cmd.execute("project", "snapshot", "list", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -250,7 +250,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("snaps");
+    var exitCode = cmd.execute("project", "snapshot", "list");
 
     assertNotEquals(0, exitCode);
   }
@@ -277,7 +277,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("agent", "launch", "--help");
+    var exitCode = cmd.execute("agent", "start", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -296,7 +296,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("agent", "launch");
+    var exitCode = cmd.execute("agent", "start");
 
     assertNotEquals(0, exitCode);
   }
@@ -336,7 +336,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("agent", "log", "--help");
+    var exitCode = cmd.execute("agent", "logs", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -356,9 +356,9 @@ class LifecycleCommandTest {
 
     assertEquals(0, exitCode);
     var output = sw.toString();
-    assertTrue(output.contains("up"), "Should list 'up' command");
-    assertTrue(output.contains("down"), "Should list 'down' command");
-    assertTrue(output.contains("switch"), "Should list 'switch' command");
+    assertTrue(output.contains("host"), "Should list 'host' command");
+    assertTrue(output.contains("project"), "Should list 'project' command");
+    assertTrue(output.contains("spec"), "Should list 'spec' command");
   }
 
   @Test
@@ -371,9 +371,8 @@ class LifecycleCommandTest {
 
     assertEquals(0, exitCode);
     var output = sw.toString();
-    assertTrue(output.contains("snap"), "Should list 'snap' command");
-    assertTrue(output.contains("restore"), "Should list 'restore' command");
-    assertTrue(output.contains("snaps"), "Should list 'snaps' command");
+    assertTrue(output.contains("project"), "Should list 'project' command");
+    assertTrue(output.contains("spec"), "Should list 'spec' command");
     assertTrue(output.contains("agent"), "Should list 'agent' command");
   }
 
@@ -495,7 +494,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("ps", "--help");
+    var exitCode = cmd.execute("project", "containers", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -509,7 +508,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("ps");
+    var exitCode = cmd.execute("project", "containers");
 
     assertNotEquals(0, exitCode);
   }
@@ -520,7 +519,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("logs", "--help");
+    var exitCode = cmd.execute("project", "logs", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -536,7 +535,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("logs");
+    var exitCode = cmd.execute("project", "logs");
 
     assertNotEquals(0, exitCode);
   }
@@ -561,7 +560,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("exec", "--help");
+    var exitCode = cmd.execute("project", "exec", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -576,7 +575,7 @@ class LifecycleCommandTest {
     cmd.setOut(new PrintWriter(new StringWriter()));
     cmd.setErr(new PrintWriter(new StringWriter()));
 
-    var exitCode = cmd.execute("exec");
+    var exitCode = cmd.execute("project", "exec");
 
     assertNotEquals(0, exitCode);
   }
@@ -591,10 +590,9 @@ class LifecycleCommandTest {
 
     assertEquals(0, exitCode);
     var output = sw.toString();
-    assertTrue(output.contains("ps"), "Should list 'ps' command");
-    assertTrue(output.contains("logs"), "Should list 'logs' command");
-    assertTrue(output.contains("exec"), "Should list 'exec' command");
-    assertTrue(output.contains("connect"), "Should list 'connect' command");
+    assertTrue(output.contains("project"), "Should list 'project' command");
+    assertTrue(output.contains("agent"), "Should list 'agent' command");
+    assertTrue(output.contains("api"), "Should list 'api' command");
   }
 
   @Test
@@ -603,7 +601,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("connect", "--help");
+    var exitCode = cmd.execute("project", "connect", "--help");
 
     assertEquals(0, exitCode);
     var output = sw.toString();
@@ -616,7 +614,7 @@ class LifecycleCommandTest {
     var sw = new StringWriter();
     cmd.setErr(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("connect");
+    var exitCode = cmd.execute("project", "connect");
 
     assertNotEquals(0, exitCode);
   }

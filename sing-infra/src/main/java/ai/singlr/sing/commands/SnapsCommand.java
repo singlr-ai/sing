@@ -23,7 +23,7 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 @Command(
-    name = "snaps",
+    name = "list",
     description = "List snapshots for a project container.",
     mixinStandardHelpOptions = true)
 public final class SnapsCommand implements Runnable {
@@ -79,7 +79,7 @@ public final class SnapsCommand implements Runnable {
           Ansi.AUTO.string(
               "  @|faint No snapshots for "
                   + name
-                  + ". Create one with:|@ @|bold sing snap "
+                  + ". Create one with:|@ @|bold sing project snapshot create "
                   + name
                   + "|@"));
       return;

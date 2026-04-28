@@ -274,7 +274,7 @@ public final class SingApiOperations implements ApiOperations {
           throw new ApiException(
               ErrorCode.PROJECT_STOPPED,
               "Project '" + project + "' is stopped.",
-              "Start it with sing up " + project + ".");
+              "Start it with sing project start " + project + ".");
       case ContainerState.NotCreated ignored ->
           throw new ApiException(
               ErrorCode.PROJECT_NOT_CREATED, "Project '" + project + "' does not exist.");

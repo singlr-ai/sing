@@ -13,6 +13,7 @@ import picocli.CommandLine.Command;
     mixinStandardHelpOptions = true,
     subcommands = {
       AgentLaunchCommand.class,
+      RunCommand.class,
       AgentStatusCommand.class,
       AgentStopCommand.class,
       AgentLogCommand.class,

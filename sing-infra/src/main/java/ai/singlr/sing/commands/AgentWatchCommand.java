@@ -79,7 +79,7 @@ public final class AgentWatchCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '" + name + "' does not exist. Run 'sing project create' first.");
@@ -108,7 +108,7 @@ public final class AgentWatchCommand implements Runnable {
     var sessionInfo = agentSession.queryStatus(name);
     if (sessionInfo == null || !sessionInfo.running()) {
       throw new IllegalStateException(
-          "No agent session running. Launch one with: sing agent launch "
+          "No agent session running. Launch one with: sing agent start "
               + name
               + " --background --task '...'");
     }

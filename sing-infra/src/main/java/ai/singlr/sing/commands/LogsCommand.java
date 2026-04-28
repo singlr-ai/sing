@@ -71,7 +71,7 @@ public final class LogsCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '" + name + "' does not exist. Run 'sing project create' first.");
@@ -157,6 +157,7 @@ public final class LogsCommand implements Runnable {
       System.out.println("    " + svc);
     }
     System.out.println();
-    System.out.println(Ansi.AUTO.string("  Usage: @|bold sing logs " + name + " <service>|@"));
+    System.out.println(
+        Ansi.AUTO.string("  Usage: @|bold sing project logs " + name + " <service>|@"));
   }
 }
