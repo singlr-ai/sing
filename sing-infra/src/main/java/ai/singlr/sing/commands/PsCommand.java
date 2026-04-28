@@ -23,7 +23,8 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 @Command(
-    name = "ps",
+    name = "containers",
+    aliases = {"ps"},
     description = "Show Podman container status inside a project.",
     mixinStandardHelpOptions = true)
 public final class PsCommand implements Runnable {
@@ -57,7 +58,7 @@ public final class PsCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '" + name + "' does not exist. Run 'sing project create' first.");

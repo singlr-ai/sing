@@ -319,7 +319,7 @@ public final class SpecSkillGenerator {
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
         - **pending**: ready to be picked up
-        - **in_progress**: agent is actively working on it (set by `sing dispatch`)
+        - **in_progress**: agent is actively working on it (set by `sing spec dispatch`)
         - **review**: PR created, waiting for human review (set by `sing`)
         - **done**: PR merged, work complete (set by engineer via `sing`)
         Status is managed by `sing`, not by the agent. Do not modify status in index.yaml

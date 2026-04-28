@@ -56,7 +56,7 @@ class DispatchCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("dispatch", "--help");
+    var exitCode = cmd.execute("spec", "dispatch", "--help");
 
     assertEquals(0, exitCode);
     assertTrue(sw.toString().contains("Dispatch the next ready spec"));
@@ -67,7 +67,8 @@ class DispatchCommandTest {
     var cmd = new CommandLine(new Sing());
 
     var exitCode =
-        cmd.execute("dispatch", "test-project", "-f", tempDir.resolve("nope.yaml").toString());
+        cmd.execute(
+            "spec", "dispatch", "test-project", "-f", tempDir.resolve("nope.yaml").toString());
 
     assertNotEquals(0, exitCode);
   }
@@ -90,7 +91,7 @@ class DispatchCommandTest {
 
     var cmd = new CommandLine(new Sing());
 
-    var exitCode = cmd.execute("dispatch", "test-project", "-f", yamlPath.toString());
+    var exitCode = cmd.execute("spec", "dispatch", "test-project", "-f", yamlPath.toString());
 
     assertNotEquals(0, exitCode);
   }
@@ -142,7 +143,7 @@ class DispatchCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    cmd.execute("--help");
+    cmd.execute("spec", "--help");
 
     assertTrue(sw.toString().contains("dispatch"));
   }
@@ -153,7 +154,7 @@ class DispatchCommandTest {
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
 
-    var exitCode = cmd.execute("dispatch", "--help");
+    var exitCode = cmd.execute("spec", "dispatch", "--help");
 
     assertEquals(0, exitCode);
     var help = sw.toString();

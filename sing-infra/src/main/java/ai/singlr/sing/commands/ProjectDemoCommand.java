@@ -85,7 +85,7 @@ public final class ProjectDemoCommand implements Runnable {
       if (state instanceof ContainerState.Running) {
         throw new IllegalStateException(
             "Demo project is already running."
-                + "\n  Get a shell:    sudo sing shell "
+                + "\n  Get a shell:    sudo sing project shell "
                 + DEMO_PROJECT
                 + "\n  Destroy first:  sudo sing project destroy "
                 + DEMO_PROJECT);
@@ -93,7 +93,7 @@ public final class ProjectDemoCommand implements Runnable {
       if (state instanceof ContainerState.Stopped) {
         throw new IllegalStateException(
             "Demo project exists but is stopped."
-                + "\n  Start it:       sudo sing up "
+                + "\n  Start it:       sudo sing project start "
                 + DEMO_PROJECT
                 + "\n  Destroy first:  sudo sing project destroy "
                 + DEMO_PROJECT);

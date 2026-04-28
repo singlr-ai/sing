@@ -74,7 +74,10 @@ public final class RestoreCommand implements Runnable {
       var snapshots = snapMgr.list(name);
       if (snapshots.isEmpty()) {
         throw new IllegalStateException(
-            "No snapshots exist for '" + name + "'. Create one with: sing snap " + name);
+            "No snapshots exist for '"
+                + name
+                + "'. Create one with: sing project snapshot create "
+                + name);
       }
       label = snapshots.getLast().name();
     } else {

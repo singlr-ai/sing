@@ -333,8 +333,8 @@ class BannerTest {
 
     assertTrue(output.contains("\u2713"));
     assertTrue(output.contains("acme-health"));
-    assertTrue(output.contains("sing connect acme-health"));
-    assertTrue(output.contains("sing shell acme-health"));
+    assertTrue(output.contains("sing project connect acme-health"));
+    assertTrue(output.contains("sing project shell acme-health"));
   }
 
   @Test
@@ -344,8 +344,8 @@ class BannerTest {
     var output = out.toString(StandardCharsets.UTF_8);
 
     assertTrue(output.contains("simple"));
-    assertTrue(output.contains("sing connect simple"));
-    assertTrue(output.contains("sing shell simple"));
+    assertTrue(output.contains("sing project connect simple"));
+    assertTrue(output.contains("sing project shell simple"));
   }
 
   @Test
@@ -819,7 +819,7 @@ class BannerTest {
     assertTrue(output.contains("Overcommit warning"));
     assertTrue(output.contains("CPU 12/6 threads"));
     assertTrue(output.contains("Memory 48GB/32GB"));
-    assertTrue(output.contains("sing down"));
+    assertTrue(output.contains("sing project stop"));
   }
 
   @Test
@@ -955,7 +955,7 @@ class BannerTest {
     assertTrue(output.contains("18 commits"));
     assertTrue(output.contains("Not triggered"));
     assertTrue(output.contains("sing agent log"));
-    assertTrue(output.contains("sing dispatch"));
+    assertTrue(output.contains("sing spec dispatch"));
   }
 
   @Test

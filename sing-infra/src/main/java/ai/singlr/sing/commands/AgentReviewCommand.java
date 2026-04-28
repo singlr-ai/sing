@@ -79,7 +79,7 @@ public final class AgentReviewCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing up " + name);
+              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '" + name + "' does not exist. Run 'sing project create' first.");

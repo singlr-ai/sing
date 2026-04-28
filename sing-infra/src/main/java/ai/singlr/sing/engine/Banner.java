@@ -442,7 +442,8 @@ public final class Banner {
 
   /**
    * Prints the SSH config snippet that the user should add to {@code ~/.ssh/config} on their Mac.
-   * This is the same output as {@code sing connect} but printed inline after project creation.
+   * This is the same output as {@code sing project connect} but printed inline after project
+   * creation.
    */
   public static void printSshConfig(
       String name,
@@ -468,7 +469,7 @@ public final class Banner {
     out.println(
         amber(ansi, "    @|bold \u2192 Zed:|@     zed ssh://dev@" + name + "/home/dev/workspace"));
     out.println(amber(ansi, "    @|bold \u2192 SSH:|@     ssh " + name));
-    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing shell " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing project shell " + name));
   }
 
   /** Prints resume information when a prior incomplete provisioning run is detected. */
@@ -492,8 +493,8 @@ public final class Banner {
 
   /** Prints the connect and shell hints after a container starts. */
   public static void printZedConnect(String name, String sshUser, PrintStream out, Ansi ansi) {
-    out.println(amber(ansi, "    @|bold \u2192 Connect:|@ sing connect " + name));
-    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing shell " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Connect:|@ sing project connect " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing project shell " + name));
   }
 
   /**
@@ -785,7 +786,9 @@ public final class Banner {
     }
     out.println(amber(ansi, sb.toString()));
     out.println(
-        amber(ansi, "    @|faint Use 'sing down <name>' to stop projects and free resources.|@"));
+        amber(
+            ansi,
+            "    @|faint Use 'sing project stop <name>' to stop projects and free resources.|@"));
   }
 
   /** Prints agent session status with optional git activity and task progress. */
@@ -998,7 +1001,7 @@ public final class Banner {
       out.println(
           amber(
               ansi,
-              "    sing dispatch "
+              "    sing spec dispatch "
                   + name
                   + "               @|faint # continue "
                   + remaining

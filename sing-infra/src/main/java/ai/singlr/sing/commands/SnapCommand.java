@@ -22,7 +22,7 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 @Command(
-    name = "snap",
+    name = "create",
     description = "Create a snapshot of a project container.",
     mixinStandardHelpOptions = true)
 public final class SnapCommand implements Runnable {

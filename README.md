@@ -40,7 +40,7 @@ sing project create acme-health
 
 ```bash
 # Print SSH config for your editor
-sing connect acme-health
+sing project connect acme-health
 ```
 
 Add the output to `~/.ssh/config`, then connect in Zed: `Cmd+Shift+P` → "Connect to SSH Host" → `acme-health`.
@@ -54,7 +54,7 @@ Engineers work in two modes. `sing` supports both from the same project.
 Open Zed, connect via SSH remote dev, start the agent from Zed's Agent Panel. You're in the loop — brainstorming, exploring code, writing specs, reviewing output. `sing` is invisible here; the generated context files (CLAUDE.md, SECURITY.md, `.context/`) guide the agent.
 
 ```bash
-sing switch acme-health     # start container, show connection info
+sing project restart acme-health     # start container, show connection info
 ```
 
 Developer processes (`java -jar`, `npm run dev`) run interactively in Zed terminal tabs. Infrastructure services (Postgres, Meilisearch, etc.) are managed by Podman with `--restart=always` and survive container reboots automatically.
@@ -64,7 +64,7 @@ Developer processes (`java -jar`, `npm run dev`) run interactively in Zed termin
 Write specs during the day. Walk away. The agent works through them overnight.
 
 ```bash
-sing dispatch acme-health   # pick next ready spec, launch agent
+sing spec dispatch acme-health   # pick next ready spec, launch agent
 ```
 
 `dispatch` reads `specs/index.yaml` from the container, finds the next pending spec (respecting dependencies and assignee), reads the detailed `spec.md`, and launches the agent with full context. Guardrails enforce time limits. Auto-snapshot provides rollback safety.
@@ -127,7 +127,7 @@ Morning (Zed, interactive):
   Push specs to shared repo
 
 Evening:
-  sing dispatch acme-health
+  sing spec dispatch acme-health
 
 Overnight:
   Agent reads spec.md, works, commits, pushes branch
@@ -146,14 +146,14 @@ Specs live in a shared private repo (e.g., `your-org/projects/acme-health/specs/
 
 - Alice specs out OAuth, assigns to herself
 - Bob specs out payments, depends on Alice's OAuth work
-- `sing dispatch` respects `assignee` — each engineer's agent only picks up their specs (or unassigned ones)
+- `sing spec dispatch` respects `assignee` — each engineer's agent only picks up their specs (or unassigned ones)
 - Dependencies prevent premature work — payments won't start until OAuth is done
 
 No project board needed. The spec directory *is* the board. Git history is the audit trail.
 
 ## Context Generation
 
-`sing run` (or `sing agent context regen`) generates a complete agent environment from `sing.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
+`sing agent run` (or `sing agent context regen`) generates a complete agent environment from `sing.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
 
 | Generated | Purpose |
 |-----------|---------|
@@ -200,7 +200,7 @@ agent:
     action: snapshot-and-stop
 ```
 
-When the time limit triggers, the agent is stopped and rolled back to the pre-launch snapshot. The watcher starts automatically with `sing dispatch` and `sing run --background`.
+When the time limit triggers, the agent is stopped and rolled back to the pre-launch snapshot. The watcher starts automatically with `sing spec dispatch` and `sing agent run --background`.
 
 Actions: `snapshot-and-stop` (rollback), `stop` (keep changes), `notify` (webhook, agent continues).
 
@@ -208,13 +208,13 @@ Actions: `snapshot-and-stop` (rollback), `stop` (keep changes), `notify` (webhoo
 
 ```bash
 # Dispatch
-sing dispatch acme-health              # next ready spec, background launch
-sing dispatch acme-health --spec auth  # specific spec by ID
+sing spec dispatch acme-health              # next ready spec, background launch
+sing spec dispatch acme-health --spec auth  # specific spec by ID
 
 # Run (context regen + launch)
-sing run acme-health                   # interactive mode (Zed)
-sing run acme-health --task "..."      # headless with explicit task
-sing run acme-health --background      # background, picks next spec
+sing agent run acme-health                   # interactive mode (Zed)
+sing agent run acme-health --task "..."      # headless with explicit task
+sing agent run acme-health --background      # background, picks next spec
 
 # Monitor
 sing agent status                      # all projects at a glance
@@ -321,12 +321,12 @@ ssh:
 
 ```bash
 sing project create acme-health   # provision container from sing.yaml
-sing up acme-health               # start stopped container
-sing down acme-health             # stop container (preserves state)
-sing switch acme-health           # start + show connection info
-sing ps                           # list all projects with status
-sing snap acme-health             # create snapshot
-sing restore acme-health snap-01  # rollback to snapshot
+sing project start acme-health               # start stopped container
+sing project stop acme-health             # stop container (preserves state)
+sing project restart acme-health           # start + show connection info
+sing project containers                           # list all projects with status
+sing project snapshot create acme-health             # create snapshot
+sing project snapshot restore acme-health snap-01  # rollback to snapshot
 
 # Modify running projects
 sing project add service acme-health

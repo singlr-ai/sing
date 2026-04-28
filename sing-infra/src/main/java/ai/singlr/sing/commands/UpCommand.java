@@ -23,7 +23,10 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
-@Command(name = "up", description = "Start a project container.", mixinStandardHelpOptions = true)
+@Command(
+    name = "start",
+    description = "Start a project container.",
+    mixinStandardHelpOptions = true)
 public final class UpCommand implements Runnable {
 
   @Parameters(index = "0", description = "Project name.")

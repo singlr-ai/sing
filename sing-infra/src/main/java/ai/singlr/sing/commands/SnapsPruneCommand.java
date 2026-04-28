@@ -30,7 +30,7 @@ import picocli.CommandLine.Parameters;
  * creates snapshots on every dispatch.
  */
 @Command(
-    name = "snaps-prune",
+    name = "prune",
     description = "Delete snapshots older than a given age.",
     mixinStandardHelpOptions = true)
 public final class SnapsPruneCommand implements Runnable {

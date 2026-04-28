@@ -24,8 +24,8 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 @Command(
-    name = "switch",
-    description = "Start a project (warns if resources overcommit).",
+    name = "restart",
+    description = "Restart or switch to a project, warning if resources overcommit.",
     mixinStandardHelpOptions = true)
 public final class SwitchCommand implements Runnable {
 
