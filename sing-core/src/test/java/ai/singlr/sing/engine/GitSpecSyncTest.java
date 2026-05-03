@@ -12,6 +12,48 @@ import org.junit.jupiter.api.Test;
 class GitSpecSyncTest {
 
   @Test
+  void localFactoryUsesNormalizedPathAndDefaultTimeout() throws Exception {
+    var shell = repositoryShell("## main...origin/main\n");
+    var sync = GitSpecSync.local(shell, Path.of("/tmp/../specs"));
+
+    var status = sync.status();
+
+    assertEquals(GitSpecSync.State.CLEAN, status.state());
+    assertTrue(shell.invocations().stream().anyMatch(command -> command.contains("git -C /specs")));
+  }
+
+  @Test
+  void statusReadErrorUsesGenericMessageWhenGitIsSilent() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("rev-parse --is-inside-work-tree", "true\n")
+            .onOk("branch --show-current", "main\n")
+            .onOk("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+            .on("status --porcelain=v1 -b", new ShellExec.Result(1, "", ""));
+
+    var status = sync(shell).status();
+
+    assertEquals(GitSpecSync.State.ERROR, status.state());
+    assertEquals("Specs Git status could not be read.", status.message());
+  }
+
+  @Test
+  void dirtyStatusHandlesShortPorcelainEntries() throws Exception {
+    var status = sync(repositoryShell("## main...origin/main\n?\n")).status();
+
+    assertEquals(GitSpecSync.State.DIRTY, status.state());
+    assertFalse(status.conflicted());
+  }
+
+  @Test
+  void dirtyStatusHandlesNonConflictEntries() throws Exception {
+    var status = sync(repositoryShell("## main...origin/main\n?? index.yaml\n")).status();
+
+    assertEquals(GitSpecSync.State.DIRTY, status.state());
+    assertFalse(status.conflicted());
+  }
+
+  @Test
   void reportsMissingRepository() throws Exception {
     var shell = new ScriptedShellExecutor().onFail("rev-parse --is-inside-work-tree", "fatal");
     var sync = sync(shell);
@@ -174,6 +216,156 @@ class GitSpecSyncTest {
     assertTrue(
         shell.invocations().stream()
             .anyMatch(command -> command.contains("remote add origin ssh://host/specs.git")));
+  }
+
+  @Test
+  void reportsStatusReadError() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("rev-parse --is-inside-work-tree", "true\n")
+            .onOk("branch --show-current", "main\n")
+            .onOk("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+            .onFail("status --porcelain=v1 -b", "status failed");
+    var status = sync(shell).status();
+
+    assertEquals(GitSpecSync.State.ERROR, status.state());
+    assertEquals("status failed", status.message());
+  }
+
+  @Test
+  void pullAllowsAheadButMapsPullFailure() {
+    var shell =
+        repositoryShell("## main...origin/main [ahead 1]\n")
+            .onFail("pull --ff-only", "cannot fast-forward");
+    var sync = sync(shell);
+
+    var thrown = assertThrows(java.io.IOException.class, sync::pull);
+
+    assertTrue(thrown.getMessage().contains("Failed to pull specs"));
+  }
+
+  @Test
+  void pullRejectsUnsafeStates() {
+    assertPullRejected(repositoryShell("## main...origin/main [ahead 1, behind 1]\n"));
+    assertPullRejected(repositoryShell("## main...origin/main\nUU index.yaml\n"));
+    assertPullRejected(noUpstreamShell());
+    assertPullRejected(
+        new ScriptedShellExecutor().onFail("rev-parse --is-inside-work-tree", "fatal"));
+    assertPullRejected(statusErrorShell());
+  }
+
+  @Test
+  void pushRunsAndRefreshesStatus() throws Exception {
+    var shell = repositoryShell("## main...origin/main [ahead 1]\n").onOk("push", "pushed\n");
+    var sync = sync(shell);
+
+    var result = sync.push();
+
+    assertEquals("push", result.operation());
+    assertEquals(GitSpecSync.State.AHEAD, result.before().state());
+    assertTrue(shell.invocations().stream().anyMatch(command -> command.contains("push")));
+  }
+
+  @Test
+  void pushMapsPushFailure() {
+    var shell = repositoryShell("## main...origin/main [ahead 1]\n").onFail("push", "rejected");
+    var sync = sync(shell);
+
+    var thrown = assertThrows(java.io.IOException.class, sync::push);
+
+    assertTrue(thrown.getMessage().contains("Failed to push specs"));
+  }
+
+  @Test
+  void pushRejectsUnsafeStates() {
+    assertPushRejected(repositoryShell("## main...origin/main\n M index.yaml\n"));
+    assertPushRejected(repositoryShell("## main...origin/main [ahead 1, behind 1]\n"));
+    assertPushRejected(repositoryShell("## main...origin/main\nUU index.yaml\n"));
+    assertPushRejected(noUpstreamShell());
+    assertPushRejected(
+        new ScriptedShellExecutor().onFail("rev-parse --is-inside-work-tree", "fatal"));
+    assertPushRejected(statusErrorShell());
+  }
+
+  @Test
+  void initReturnsUnchangedForExistingRepository() throws Exception {
+    var sync = sync(repositoryShell("## main...origin/main\n"));
+
+    var result = sync.init("ssh://host/specs.git", "main");
+
+    assertEquals("init", result.operation());
+    assertFalse(result.changed());
+    assertEquals(GitSpecSync.State.CLEAN, result.after().state());
+  }
+
+  @Test
+  void initUsesMainByDefaultAndCanSkipRemote() throws Exception {
+    var shell =
+        new SequencedShell(
+            List.of(
+                fail("fatal"),
+                ok("Initialized empty Git repository\n"),
+                ok("true\n"),
+                ok("main\n"),
+                fail("no upstream"),
+                ok("## main\n")));
+    var sync = new GitSpecSync(shell, List.of("git", "-C", "/specs"), Duration.ofSeconds(5));
+
+    var result = sync.init("", "");
+
+    assertTrue(result.changed());
+    assertEquals(GitSpecSync.State.NO_UPSTREAM, result.after().state());
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(command -> command.contains("init --initial-branch main")));
+  }
+
+  @Test
+  void initMapsInitAndRemoteFailures() {
+    var initFailure = new SequencedShell(List.of(fail("fatal"), fail("init failed")));
+    var initSync =
+        new GitSpecSync(initFailure, List.of("git", "-C", "/specs"), Duration.ofSeconds(5));
+
+    assertThrows(java.io.IOException.class, () -> initSync.init(null, "main"));
+
+    var remoteFailure =
+        new SequencedShell(List.of(fail("fatal"), ok("Initialized\n"), fail("bad remote")));
+    var remoteSync =
+        new GitSpecSync(remoteFailure, List.of("git", "-C", "/specs"), Duration.ofSeconds(5));
+
+    assertThrows(java.io.IOException.class, () -> remoteSync.init("ssh://host/specs.git", "main"));
+  }
+
+  @Test
+  void rejectsMissingCommandAndNullLocalPath() {
+    var shell = new ScriptedShellExecutor();
+
+    assertThrows(IllegalArgumentException.class, () -> new GitSpecSync(shell, List.of()));
+    assertThrows(NullPointerException.class, () -> GitSpecSync.local(shell, null));
+  }
+
+  private static void assertPullRejected(ScriptedShellExecutor shell) {
+    assertThrows(IllegalStateException.class, () -> sync(shell).pull());
+  }
+
+  private static void assertPushRejected(ScriptedShellExecutor shell) {
+    assertThrows(IllegalStateException.class, () -> sync(shell).push());
+  }
+
+  private static ScriptedShellExecutor noUpstreamShell() {
+    return new ScriptedShellExecutor()
+        .onOk("rev-parse --is-inside-work-tree", "true\n")
+        .onOk("branch --show-current", "main\n")
+        .onFail("rev-parse --abbrev-ref --symbolic-full-name @{u}", "no upstream")
+        .onOk("status --porcelain=v1 -b", "## main\n");
+  }
+
+  private static ScriptedShellExecutor statusErrorShell() {
+    return new ScriptedShellExecutor()
+        .onOk("rev-parse --is-inside-work-tree", "true\n")
+        .onOk("branch --show-current", "main\n")
+        .onOk("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+        .onFail("status --porcelain=v1 -b", "boom");
   }
 
   private static ShellExec.Result ok(String stdout) {

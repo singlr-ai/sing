@@ -47,7 +47,7 @@ public final class GitSpecSync {
           false,
           false,
           false,
-          "Specs are not backed by a Git repository.");
+          message(State.NOT_A_REPOSITORY));
     }
 
     var branch = optionalOutput("branch", "--show-current");
@@ -55,8 +55,17 @@ public final class GitSpecSync {
     var upstream = upstreamResult.ok() ? blankToNull(upstreamResult.stdout().strip()) : null;
     var porcelain = exec("status", "--porcelain=v1", "-b");
     if (!porcelain.ok()) {
+      var errorMessage = cleanMessage(porcelain);
       return new Status(
-          State.ERROR, branch, upstream, 0, 0, false, false, true, cleanMessage(porcelain));
+          State.ERROR,
+          branch,
+          upstream,
+          0,
+          0,
+          false,
+          false,
+          true,
+          errorMessage.isBlank() ? message(State.ERROR) : errorMessage);
     }
 
     var lines = porcelain.stdout().lines().toList();

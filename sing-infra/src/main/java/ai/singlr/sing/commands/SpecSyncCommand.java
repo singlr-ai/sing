@@ -8,10 +8,12 @@ import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.GitSpecSync;
 import ai.singlr.sing.engine.NameValidator;
+import ai.singlr.sing.engine.ShellExec;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.function.Function;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -24,6 +26,16 @@ import picocli.CommandLine.Spec;
     description = "Synchronize project specs through Git.",
     mixinStandardHelpOptions = true)
 public final class SpecSyncCommand implements Runnable {
+
+  private final Function<Boolean, ShellExec> shellFactory;
+
+  public SpecSyncCommand() {
+    this(ShellExecutor::new);
+  }
+
+  SpecSyncCommand(Function<Boolean, ShellExec> shellFactory) {
+    this.shellFactory = shellFactory;
+  }
 
   @Parameters(index = "0", description = "Project name.")
   private String name;
@@ -82,7 +94,7 @@ public final class SpecSyncCommand implements Runnable {
   }
 
   private GitSpecSync sync() throws Exception {
-    var shell = new ShellExecutor(dryRun);
+    var shell = shellFactory.apply(dryRun);
     var state = new ContainerManager(shell).queryState(name);
     switch (state) {
       case ContainerState.Running ignored -> {}
