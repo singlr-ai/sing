@@ -187,6 +187,115 @@ class SingApiOperationsTest {
   }
 
   @Test
+  void specSyncStatusReturnsGitState() throws Exception {
+    var operations =
+        operations(
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .on("rev-parse --is-inside-work-tree", "true\n")
+                .on("branch --show-current", "main\n")
+                .on("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+                .on("status --porcelain=v1 -b", "## main...origin/main\n"));
+
+    var result = operations.specSyncStatus("acme");
+
+    assertEquals("acme", get(result, "name"));
+    assertTrue(get(result, "status").toString().contains("state=clean"));
+  }
+
+  @Test
+  void specSyncPullReturnsOperationResult() throws Exception {
+    var operations =
+        operations(
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .on("rev-parse --is-inside-work-tree", "true\n")
+                .on("branch --show-current", "main\n")
+                .on("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+                .on("status --porcelain=v1 -b", "## main...origin/main [behind 1]\n")
+                .on("pull --ff-only", "Fast-forward\n"));
+
+    var result = operations.specSync("acme", new SpecSyncRequest("pull", null, null));
+
+    assertEquals("pull", get(result, "operation"));
+    assertTrue(get(result, "before").toString().contains("state=behind"));
+  }
+
+  @Test
+  void specSyncRejectsUnknownOperation() throws Exception {
+    var operations = operations(shell().on("incus list ^acme$", RUNNING_JSON));
+
+    var error = operations.specSync("acme", new SpecSyncRequest("merge", null, null));
+
+    assertError(ErrorCode.INVALID_REQUEST, error);
+  }
+
+  @Test
+  void specSyncOperationStatusUsesRequestPath() throws Exception {
+    var operations = operations(cleanSyncShell());
+
+    var result = operations.specSync("acme", new SpecSyncRequest("status", null, null));
+
+    assertFalse(containsKey(result, "operation"));
+    assertTrue(get(result, "status").toString().contains("state=clean"));
+  }
+
+  @Test
+  void specSyncPushReturnsOperationResult() throws Exception {
+    var operations =
+        operations(
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .on("rev-parse --is-inside-work-tree", "true\n")
+                .on("branch --show-current", "main\n")
+                .on("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+                .on("status --porcelain=v1 -b", "## main...origin/main [ahead 1]\n")
+                .on("git -C /home/dev/workspace/specs push", "pushed\n"));
+
+    var result = operations.specSync("acme", new SpecSyncRequest("push", null, null));
+
+    assertEquals("push", get(result, "operation"));
+    assertTrue(get(result, "before").toString().contains("state=ahead"));
+  }
+
+  @Test
+  void specSyncInitReturnsUnchangedWhenRepositoryExists() throws Exception {
+    var operations = operations(cleanSyncShell());
+
+    var result =
+        operations.specSync("acme", new SpecSyncRequest("init", "ssh://host/specs.git", "main"));
+
+    assertEquals("init", get(result, "operation"));
+    assertEquals(false, get(result, "changed"));
+  }
+
+  @Test
+  void specSyncStatusMapsGitFailures() throws Exception {
+    var operations =
+        operations(
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .throwOn("rev-parse --is-inside-work-tree", new IOException("git missing")));
+
+    var error = operations.specSyncStatus("acme");
+
+    assertError(ErrorCode.SPEC_SYNC_FAILED, error);
+  }
+
+  @Test
+  void specSyncOperationMapsGitFailures() throws Exception {
+    var operations =
+        operations(
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .throwOn("rev-parse --is-inside-work-tree", new IOException("git missing")));
+
+    var error = operations.specSync("acme", new SpecSyncRequest("pull", null, null));
+
+    assertError(ErrorCode.SPEC_SYNC_FAILED, error);
+  }
+
+  @Test
   void dispatchReturnsNoPendingSpecs() throws Exception {
     var index = "specs:\n  - id: done\n    title: Done\n    status: done\n";
     var operations =
@@ -876,6 +985,15 @@ class SingApiOperationsTest {
   private static void assertError(ErrorCode errorCode, Result<?> result) {
     assertTrue(result.isFailure());
     assertEquals(errorCode, result.errorCode());
+  }
+
+  private static FakeShell cleanSyncShell() {
+    return shell()
+        .on("incus list ^acme$", RUNNING_JSON)
+        .on("rev-parse --is-inside-work-tree", "true\n")
+        .on("branch --show-current", "main\n")
+        .on("rev-parse --abbrev-ref --symbolic-full-name @{u}", "origin/main\n")
+        .on("status --porcelain=v1 -b", "## main...origin/main\n");
   }
 
   private static DispatchRequest request() {

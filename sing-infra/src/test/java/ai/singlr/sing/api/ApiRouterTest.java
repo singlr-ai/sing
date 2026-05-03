@@ -7,6 +7,7 @@ package ai.singlr.sing.api;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sing.engine.GitSpecSync;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -89,6 +90,16 @@ class ApiRouterTest {
       assertEquals(200, response.statusCode());
       assertTrue(response.body().contains("\"id\": \"auth\""));
       assertTrue(response.body().contains("\"name\": \"acme\""));
+    }
+  }
+
+  @Test
+  void specSyncRejectsExtraPathSegments() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/projects/acme/spec-sync/extra", "token");
+
+      assertEquals(405, response.statusCode());
+      assertTrue(response.body().contains("method_not_allowed"));
     }
   }
 
@@ -288,6 +299,8 @@ class ApiRouterTest {
       assertEquals(200, get(server, "/v1/projects/acme", "token").statusCode());
       assertEquals(200, get(server, "/v1/projects/acme/specs", "token").statusCode());
       assertEquals(200, get(server, "/v1/projects/acme/specs/auth", "token").statusCode());
+      assertEquals(200, get(server, "/v1/projects/acme/spec-sync", "token").statusCode());
+      assertEquals(200, post(server, "/v1/projects/acme/spec-sync", "token", "{}").statusCode());
       assertEquals(200, get(server, "/v1/projects/acme/agent", "token").statusCode());
       assertEquals(200, get(server, "/v1/projects/acme/agent/log", "token").statusCode());
       assertEquals(200, post(server, "/v1/projects/acme/agent/stop", "token", "{}").statusCode());
@@ -400,6 +413,32 @@ class ApiRouterTest {
               "specs/" + specId + "/spec.md",
               true,
               "content"));
+    }
+
+    @Override
+    public Result<SpecSyncResponse> specSyncStatus(String project) {
+      return Result.success(
+          new SpecSyncResponse(
+              project,
+              null,
+              false,
+              "Specs are synchronized.",
+              new SpecSyncStatusView(
+                  GitSpecSync.State.CLEAN, "main", "origin/main", 0, 0, false, false, true, "ok"),
+              null));
+    }
+
+    @Override
+    public Result<SpecSyncResponse> specSync(String project, SpecSyncRequest request) {
+      return Result.success(
+          new SpecSyncResponse(
+              project,
+              request.operation(),
+              false,
+              "Specs are synchronized.",
+              new SpecSyncStatusView(
+                  GitSpecSync.State.CLEAN, "main", "origin/main", 0, 0, false, false, true, "ok"),
+              null));
     }
 
     @Override

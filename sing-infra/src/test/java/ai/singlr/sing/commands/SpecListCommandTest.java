@@ -133,6 +133,22 @@ class SpecListCommandTest {
   }
 
   @Test
+  void specSyncHelpShowsGitOptions() {
+    var cmd = new CommandLine(new Sing());
+    var sw = new StringWriter();
+    cmd.setOut(new PrintWriter(sw));
+
+    var exitCode = cmd.execute("spec", "sync", "--help");
+
+    assertEquals(0, exitCode);
+    var help = sw.toString();
+    assertTrue(help.contains("Synchronize project specs through Git"));
+    assertTrue(help.contains("--remote"));
+    assertTrue(help.contains("--branch"));
+    assertTrue(help.contains("--json"));
+  }
+
+  @Test
   void parseSnapshotTimeHandlesIso8601() {
     var instant = SnapsPruneCommand.parseSnapshotTime("2026-04-07T03:58:31.123456789Z");
 

@@ -15,6 +15,8 @@ import ai.singlr.sing.engine.AgentSession;
 import ai.singlr.sing.engine.ContainerExec;
 import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
+import ai.singlr.sing.engine.GitSpecSync;
+import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExec;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
@@ -74,6 +76,16 @@ public final class SingApiOperations implements ApiOperations {
   }
 
   @Override
+  public Result<SpecSyncResponse> specSyncStatus(String project) {
+    return safe(() -> specSyncStatusValue(project));
+  }
+
+  @Override
+  public Result<SpecSyncResponse> specSync(String project, SpecSyncRequest request) {
+    return safe(() -> specSyncValue(project, request));
+  }
+
+  @Override
   public Result<DispatchResponse> dispatch(String project, DispatchRequest request) {
     return safe(() -> dispatchValue(project, request));
   }
@@ -130,6 +142,38 @@ public final class SingApiOperations implements ApiOperations {
         workspace.specMarkdownPath(specId),
         content != null,
         content);
+  }
+
+  private SpecSyncResponse specSyncStatusValue(String project) {
+    var loaded = loadRunningProject(project);
+    try {
+      return specSyncResponse(project, specSync(loaded).status());
+    } catch (Exception e) {
+      throw new ApiException(ErrorCode.SPEC_SYNC_FAILED, "Failed to read spec sync status.", e);
+    }
+  }
+
+  private SpecSyncResponse specSyncValue(String project, SpecSyncRequest request) {
+    var loaded = loadRunningProject(project);
+    NameValidator.requireValidGitRef(request.branch(), "branch");
+    try {
+      var sync = specSync(loaded);
+      return switch (request.operation().toLowerCase()) {
+        case "status" -> specSyncResponse(project, sync.status());
+        case "pull" -> specSyncResponse(project, sync.pull());
+        case "push" -> specSyncResponse(project, sync.push());
+        case "init" -> specSyncResponse(project, sync.init(request.remote(), request.branch()));
+        default ->
+            throw new ApiException(
+                ErrorCode.INVALID_REQUEST,
+                "Unknown spec sync operation: " + request.operation() + ".",
+                "Use status, pull, push, or init.");
+      };
+    } catch (ApiException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new ApiException(ErrorCode.SPEC_SYNC_FAILED, "Failed to synchronize specs.", e);
+    }
   }
 
   private DispatchResponse dispatchValue(String project, DispatchRequest request) {
@@ -310,16 +354,26 @@ public final class SingApiOperations implements ApiOperations {
     }
   }
 
+  private GitSpecSync specSync(LoadedProject loaded) {
+    var specsDir = specsDir(loaded.config());
+    return new GitSpecSync(
+        shell, ContainerExec.asDevUser(loaded.config().name(), List.of("git", "-C", specsDir)));
+  }
+
   private SpecWorkspace workspace(LoadedProject loaded) {
-    if (loaded.config().agent() == null || loaded.config().agent().specsDir() == null) {
+    return new SpecWorkspace(shell, loaded.config().name(), specsDir(loaded.config()));
+  }
+
+  private static String specsDir(SingYaml config) {
+    if (config.agent() == null || config.agent().specsDir() == null) {
       throw new ApiException(
           ErrorCode.SPECS_NOT_CONFIGURED,
           "No specs_dir configured in the project agent block.",
           "Add specs_dir to sing.yaml.");
     }
-    var specsDir =
-        "/home/" + loaded.config().sshUser() + "/workspace/" + loaded.config().agent().specsDir();
-    return new SpecWorkspace(shell, loaded.config().name(), specsDir);
+    NameValidator.requireSafePath(config.agent().specsDir(), "agent.specs_dir");
+    NameValidator.requireValidSshUser(config.sshUser());
+    return "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
   }
 
   private static Spec resolveSpec(List<Spec> specs, String specId) {
@@ -350,6 +404,35 @@ public final class SingApiOperations implements ApiOperations {
         SpecDirectory.isReady(specs, spec),
         SpecDirectory.isBlocked(specs, spec),
         SpecDirectory.unmetDependencies(specs, spec));
+  }
+
+  private static SpecSyncResponse specSyncResponse(String project, GitSpecSync.Status status) {
+    return new SpecSyncResponse(
+        project, null, false, status.message(), specSyncStatusView(status), null);
+  }
+
+  private static SpecSyncResponse specSyncResponse(
+      String project, GitSpecSync.OperationResult result) {
+    return new SpecSyncResponse(
+        project,
+        result.operation(),
+        result.changed(),
+        result.message(),
+        specSyncStatusView(result.after()),
+        specSyncStatusView(result.before()));
+  }
+
+  private static SpecSyncStatusView specSyncStatusView(GitSpecSync.Status status) {
+    return new SpecSyncStatusView(
+        status.state(),
+        status.branch(),
+        status.upstream(),
+        status.ahead(),
+        status.behind(),
+        status.dirty(),
+        status.conflicted(),
+        status.repository(),
+        status.message());
   }
 
   private static DispatchedSpecView dispatchedSpecView(Spec spec, String branch) {
