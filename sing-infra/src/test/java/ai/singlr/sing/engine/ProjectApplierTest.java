@@ -835,11 +835,8 @@ class ProjectApplierTest {
     assertEquals(1, result.added());
     assertEquals(0, result.skipped());
     assertTrue(
-        shell.invocations().stream()
-            .anyMatch(c -> c.contains("mkdir") && c.contains("specs/archive")));
-    assertTrue(
-        shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("index.yaml")));
+        shell.invocations().stream().anyMatch(c -> c.contains("mkdir") && c.contains("specs")));
+    assertFalse(shell.invocations().stream().anyMatch(c -> c.contains("incus file push")));
   }
 
   @Test

@@ -1,8 +1,3 @@
-/*
- * Copyright (c) 2026 Singular
- * SPDX-License-Identifier: MIT
- */
-
 package ai.singlr.sing.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,30 +8,127 @@ import org.junit.jupiter.api.Test;
 
 class SpecWorkspaceTest {
 
-  private static final String INDEX_YAML =
+  private static final String OAUTH_METADATA =
       """
-      specs:
-        - id: oauth-flow
-          title: OAuth Flow
-          status: pending
-        - id: search-api
-          title: Search API
-          status: review
-          depends_on:
-            - oauth-flow
+      id: oauth-flow
+      title: OAuth Flow
+      status: pending
+      """;
+
+  private static final String SEARCH_METADATA =
+      """
+      id: search-api
+      title: Search API
+      status: review
+      depends_on:
+        - oauth-flow
       """;
 
   @Test
-  void readIndexParsesOrderedSpecs() throws Exception {
+  void readSpecsScansMetadataFilesInSortedOrder() throws Exception {
     var shell =
-        new ScriptedShellExecutor().onOk("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML);
+        new ScriptedShellExecutor()
+            .onOk(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "/home/dev/workspace/specs/search-api/spec.yaml\n/home/dev/workspace/specs/oauth-flow/spec.yaml\n")
+            .onOk("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", OAUTH_METADATA)
+            .onOk("cat /home/dev/workspace/specs/search-api/spec.yaml", SEARCH_METADATA);
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
 
-    var specs = workspace.readIndex();
+    var specs = workspace.readSpecs();
 
     assertEquals(2, specs.size());
     assertEquals("oauth-flow", specs.getFirst().id());
     assertEquals("search-api", specs.get(1).id());
+    assertEquals(List.of("oauth-flow"), specs.get(1).dependsOn());
+  }
+
+  @Test
+  void readSpecsRejectsDuplicateIds() {
+    var duplicate =
+        """
+        id: oauth-flow
+        title: Duplicate OAuth Flow
+        status: pending
+        """;
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "/home/dev/workspace/specs/oauth-flow/spec.yaml\n/home/dev/workspace/specs/duplicate/spec.yaml\n")
+            .onOk("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", OAUTH_METADATA)
+            .onOk("cat /home/dev/workspace/specs/duplicate/spec.yaml", duplicate);
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    var error = assertThrows(IllegalArgumentException.class, workspace::readSpecs);
+
+    assertTrue(error.getMessage().contains("Duplicate spec id"));
+  }
+
+  @Test
+  void readSpecsReturnsEmptyWhenDirectoryIsMissing() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "No such file");
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    assertTrue(workspace.readSpecs().isEmpty());
+  }
+
+  @Test
+  void readSpecsThrowsOnUnexpectedListFailure() {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "permission denied");
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    var error = assertThrows(java.io.IOException.class, workspace::readSpecs);
+
+    assertTrue(error.getMessage().contains("Failed to list spec metadata"));
+  }
+
+  @Test
+  void readSpecReadsSingleMetadataFile() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", OAUTH_METADATA);
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    var spec = workspace.readSpec("oauth-flow");
+
+    assertEquals("OAuth Flow", spec.title());
+  }
+
+  @Test
+  void readSpecRejectsMismatchedMetadataId() {
+    var mismatch =
+        """
+        id: wrong-id
+        title: Wrong ID
+        status: pending
+        """;
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", mismatch);
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    var error = assertThrows(java.io.IOException.class, () -> workspace.readSpec("oauth-flow"));
+
+    assertTrue(error.getMessage().contains("Spec metadata id mismatch"));
+  }
+
+  @Test
+  void readSpecReturnsNullWhenMissing() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", "No such file");
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
+
+    assertNull(workspace.readSpec("oauth-flow"));
   }
 
   @Test
@@ -52,18 +144,6 @@ class SpecWorkspaceTest {
   }
 
   @Test
-  void readIndexThrowsOnUnexpectedFailure() {
-    var shell =
-        new ScriptedShellExecutor()
-            .onFail("cat /home/dev/workspace/specs/index.yaml", "permission denied");
-    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
-
-    var error = assertThrows(java.io.IOException.class, workspace::readIndex);
-
-    assertTrue(error.getMessage().contains("Failed to read spec index"));
-  }
-
-  @Test
   void readSpecBodyThrowsOnUnexpectedFailure() {
     var shell =
         new ScriptedShellExecutor()
@@ -76,7 +156,7 @@ class SpecWorkspaceTest {
   }
 
   @Test
-  void createSpecWritesMarkdownAndIndex() throws Exception {
+  void createSpecWritesMetadataAndMarkdown() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onceOnFail("test -e /home/dev/workspace/specs/oauth-flow", "No such file");
@@ -91,17 +171,15 @@ class SpecWorkspaceTest {
             .anyMatch(cmd -> cmd.contains("mkdir -p /home/dev/workspace/specs/oauth-flow")));
     assertTrue(
         commands.stream()
-            .anyMatch(cmd -> cmd.contains("/home/dev/workspace/specs/oauth-flow/spec.md")));
+            .anyMatch(cmd -> cmd.contains("/home/dev/workspace/specs/oauth-flow/spec.yaml")));
     assertTrue(
-        commands.stream().anyMatch(cmd -> cmd.contains("/home/dev/workspace/specs/index.yaml")));
-    assertTrue(commands.stream().anyMatch(cmd -> cmd.contains("oauth-flow")));
+        commands.stream()
+            .anyMatch(cmd -> cmd.contains("/home/dev/workspace/specs/oauth-flow/spec.md")));
   }
 
   @Test
-  void createSpecRejectsDuplicateIndexEntry() {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML);
+  void createSpecRejectsDuplicateDirectory() {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
     var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
 
@@ -113,26 +191,32 @@ class SpecWorkspaceTest {
   }
 
   @Test
-  void writeIndexKeepsPathOutOfShellScript() throws Exception {
-    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/specs; touch /tmp/pwned");
-    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
-
-    workspace.writeIndex(List.of(spec));
-
-    assertTrue(shell.invocations().getLast().contains("printf '%s' \"$1\" > \"$2\""));
-  }
-
-  @Test
-  void updateStatusWritesUpdatedIndex() throws Exception {
+  void updateStatusWritesOnlyMetadata() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML);
+            .onOk("cat /home/dev/workspace/specs/oauth-flow/spec.yaml", OAUTH_METADATA);
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
 
     var updated = workspace.updateStatus("oauth-flow", "review");
 
     assertEquals("review", updated.status());
     assertTrue(shell.invocations().stream().anyMatch(cmd -> cmd.contains("status: review")));
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(cmd -> cmd.contains("/home/dev/workspace/specs/oauth-flow/spec.yaml")));
+  }
+
+  @Test
+  void writeMetadataKeepsPathOutOfShellScript() throws Exception {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onceOnFail("test -e /home/dev/specs; touch /tmp/pwned/oauth-flow", "No such file");
+    var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/specs; touch /tmp/pwned");
+    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
+
+    workspace.createSpec(spec, "# OAuth Flow");
+
+    assertTrue(
+        shell.invocations().stream().anyMatch(cmd -> cmd.contains("printf '%s' \"$1\" > \"$2\"")));
   }
 }

@@ -29,8 +29,8 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * Lists specs from a project's {@code specs/index.yaml} as a kanban board grouped by status. Reads
- * the index from inside the Incus container via {@code incus exec}.
+ * Lists specs from project per-spec metadata as a kanban board grouped by status. Reads the index
+ * from inside the Incus container via {@code incus exec}.
  */
 @Command(
     name = "list",
@@ -91,7 +91,7 @@ public final class SpecListCommand implements Runnable {
     var sshUser = config.sshUser();
     var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
     var workspace = new SpecWorkspace(shell, name, specsDir);
-    var specs = workspace.readIndex();
+    var specs = workspace.readSpecs();
     if (specs.isEmpty()) {
       if (json) {
         var map = new LinkedHashMap<String, Object>();

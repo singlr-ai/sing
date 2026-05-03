@@ -1108,8 +1108,7 @@ public final class ProjectProvisioner {
     }
 
     step(19, "Creating specs scaffold...");
-    execInContainer(config.name(), List.of("mkdir", "-p", specsPath + "/archive"));
-    pushFileToContainer(config.name(), specsPath + "/index.yaml", "specs: []\n");
+    execInContainer(config.name(), List.of("mkdir", "-p", specsPath));
     execInContainer(config.name(), List.of("chown", "-R", user + ":" + user, specsPath));
     tracker.advance(currentPhase);
     stepDone(19, "specs scaffold created at " + config.agent().specsDir() + "/");

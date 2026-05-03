@@ -89,7 +89,7 @@ public final class SpecStatusCommand implements Runnable {
         new SpecWorkspace(
             shell, name, "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir());
     var updated = workspace.updateStatus(specId, status);
-    var summary = SpecDirectory.summarize(workspace.readIndex());
+    var summary = SpecDirectory.summarize(workspace.readSpecs());
 
     if (json) {
       var map = new LinkedHashMap<String, Object>();

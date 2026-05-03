@@ -136,13 +136,7 @@ public final class AgentReporter {
     var specs = List.<Spec>of();
     if (config.agent() != null && config.agent().specsDir() != null) {
       try {
-        var indexPath =
-            "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir() + "/index.yaml";
-        var catCmd = ContainerExec.asDevUser(containerName, List.of("cat", indexPath));
-        var catResult = shell.exec(catCmd);
-        if (catResult.ok() && !catResult.stdout().isBlank()) {
-          specs = SpecDirectory.parseIndex(YamlUtil.parseMap(catResult.stdout()));
-        }
+        specs = readSpecs(containerName, config);
       } catch (Exception ignored) {
       }
     }
@@ -241,6 +235,38 @@ public final class AgentReporter {
         guardrailAction,
         rolledBack,
         rollbackSnapshot);
+  }
+
+  private List<Spec> readSpecs(String containerName, SingYaml config)
+      throws IOException, InterruptedException, TimeoutException {
+    var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
+    var findResult =
+        shell.exec(
+            ContainerExec.asDevUser(
+                containerName,
+                List.of(
+                    "find",
+                    specsDir,
+                    "-mindepth",
+                    "2",
+                    "-maxdepth",
+                    "2",
+                    "-name",
+                    "spec.yaml",
+                    "-print")));
+    if (!findResult.ok() || findResult.stdout().isBlank()) {
+      return List.of();
+    }
+    var specs = new java.util.ArrayList<Spec>();
+    var paths = findResult.stdout().lines().filter(line -> !line.isBlank()).sorted().toList();
+    for (var path : paths) {
+      var catResult = shell.exec(ContainerExec.asDevUser(containerName, List.of("cat", path)));
+      if (!catResult.ok()) {
+        throw new IOException("Failed to read spec metadata: " + catResult.stderr());
+      }
+      specs.add(SpecDirectory.parseMetadata(YamlUtil.parseMap(catResult.stdout())));
+    }
+    return List.copyOf(specs);
   }
 
   private static Instant parseInstantSafe(String value) {

@@ -22,15 +22,17 @@ class AgentReporterTest {
   void completedSessionWithSpecs(@TempDir java.nio.file.Path stateDir) throws Exception {
     var startedAt = Instant.now().minusSeconds(3600 * 4).toString();
     var lastCommit = String.valueOf(Instant.now().minusSeconds(300).getEpochSecond());
-    var indexYaml =
+    var authSpecYaml =
         """
-        specs:
-          - id: auth
-            title: Build auth module
-            status: done
-          - id: tests
-            title: Write tests
-            status: done
+        id: auth
+        title: Build auth module
+        status: done
+        """;
+    var testsSpecYaml =
+        """
+        id: tests
+        title: Write tests
+        status: done
         """;
     var shell =
         new ScriptedShellExecutor()
@@ -41,7 +43,11 @@ class AgentReporterTest {
                 "{\"task\":\"build auth\",\"started_at\":\""
                     + startedAt
                     + "\",\"branch\":\"sing/snap-20260302\",\"log_path\":\"/home/dev/.sing/agent.log\"}")
-            .onOk("cat /home/dev/workspace/specs/index.yaml", indexYaml)
+            .onOk(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "/home/dev/workspace/specs/auth/spec.yaml\n/home/dev/workspace/specs/tests/spec.yaml\n")
+            .onOk("cat /home/dev/workspace/specs/auth/spec.yaml", authSpecYaml)
+            .onOk("cat /home/dev/workspace/specs/tests/spec.yaml", testsSpecYaml)
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", lastCommit + "\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "18\n")
             .onFail("cat /home/dev/guardrail-triggered.yaml", "No such file");
@@ -79,7 +85,9 @@ class AgentReporterTest {
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", lastCommit + "\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "5\n")
             .onFail("cat /home/dev/guardrail-triggered.yaml", "No such file")
-            .onFail("cat /home/dev/workspace/specs/index.yaml", "No such file");
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "No such file");
 
     var config = buildConfig("specs");
     var reporter = new AgentReporter(shell);
@@ -107,7 +115,9 @@ class AgentReporterTest {
                 "reason: max_duration\naction: snapshot-and-stop\n")
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", "0\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "45\n")
-            .onFail("cat /home/dev/workspace/specs/index.yaml", "No such file");
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "No such file");
 
     var config = buildConfig("specs");
     var reporter = new AgentReporter(shell);
@@ -126,7 +136,9 @@ class AgentReporterTest {
         new ScriptedShellExecutor()
             .onFail("cat /home/dev/.sing/agent.pid", "No such file")
             .onFail("cat /home/dev/guardrail-triggered.yaml", "No such file")
-            .onFail("cat /home/dev/workspace/specs/index.yaml", "No such file")
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "No such file")
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", "\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "0\n");
 
@@ -188,7 +200,9 @@ class AgentReporterTest {
             .onFail("cat /home/dev/guardrail-triggered.yaml", "No such file")
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", "\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "10\n")
-            .onFail("cat /home/dev/workspace/specs/index.yaml", "No such file");
+            .onFail(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "No such file");
 
     var config = buildConfig("specs");
     var reporter = new AgentReporter(shell);
@@ -203,17 +217,19 @@ class AgentReporterTest {
   @Test
   void specsWithDependenciesIncluded(@TempDir java.nio.file.Path stateDir) throws Exception {
     var startedAt = Instant.now().minusSeconds(3600).toString();
-    var indexYaml =
+    var authSpecYaml =
         """
-        specs:
-          - id: auth
-            title: Build auth
-            status: done
-          - id: docs
-            title: Update docs
-            status: pending
-            depends_on:
-              - auth
+        id: auth
+        title: Build auth
+        status: done
+        """;
+    var docsSpecYaml =
+        """
+        id: docs
+        title: Update docs
+        status: pending
+        depends_on:
+          - auth
         """;
     var shell =
         new ScriptedShellExecutor()
@@ -224,7 +240,11 @@ class AgentReporterTest {
                 "{\"task\":\"build auth\",\"started_at\":\""
                     + startedAt
                     + "\",\"branch\":\"\",\"log_path\":\"/home/dev/.sing/agent.log\"}")
-            .onOk("cat /home/dev/workspace/specs/index.yaml", indexYaml)
+            .onOk(
+                "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+                "/home/dev/workspace/specs/auth/spec.yaml\n/home/dev/workspace/specs/docs/spec.yaml\n")
+            .onOk("cat /home/dev/workspace/specs/auth/spec.yaml", authSpecYaml)
+            .onOk("cat /home/dev/workspace/specs/docs/spec.yaml", docsSpecYaml)
             .onOk("git -C /home/dev/workspace log -1 --format=%ct", "\n")
             .onOk("git -C /home/dev/workspace rev-list --count", "8\n")
             .onFail("cat /home/dev/guardrail-triggered.yaml", "No such file");

@@ -6,6 +6,7 @@
 package ai.singlr.sing.commands;
 
 import ai.singlr.sing.config.SingYaml;
+import ai.singlr.sing.config.SpecDirectory;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.AgentCli;
 import ai.singlr.sing.engine.AgentSession;
@@ -17,6 +18,7 @@ import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
 import ai.singlr.sing.engine.SnapshotManager;
+import ai.singlr.sing.engine.SpecWorkspace;
 import ai.singlr.sing.gen.AgentContextGenerator;
 import ai.singlr.sing.gen.CodeReviewGenerator;
 import ai.singlr.sing.gen.GeneratedFile;
@@ -203,35 +205,28 @@ public final class RunCommand implements Runnable {
   private void launchAgent(ShellExecutor shell, SingYaml config) throws Exception {
     if (task == null && config.agent() != null && config.agent().specsDir() != null) {
       var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
-      var catCmd = ContainerExec.asDevUser(name, List.of("cat", specsDir + "/index.yaml"));
-      var catResult = shell.exec(catCmd);
-      if (catResult.ok() && !catResult.stdout().isBlank()) {
-        var specs =
-            ai.singlr.sing.config.SpecDirectory.parseIndex(YamlUtil.parseMap(catResult.stdout()));
-        var nextSpec = ai.singlr.sing.config.SpecDirectory.nextReady(specs);
-        if (nextSpec != null) {
-          var specMdCmd =
-              ContainerExec.asDevUser(
-                  name, List.of("cat", specsDir + "/" + nextSpec.id() + "/spec.md"));
-          var specMdResult = shell.exec(specMdCmd);
-          var specBody = specMdResult.ok() ? specMdResult.stdout().strip() : "";
-          var description = !specBody.isBlank() ? specBody : nextSpec.title();
-          task =
-              "Your current spec: \""
-                  + nextSpec.title()
-                  + "\" (id: "
-                  + nextSpec.id()
-                  + ").\n\n"
-                  + description
-                  + "\n\nWhen complete, update "
-                  + config.agent().specsDir()
-                  + "/index.yaml and set this spec's status to \"done\"."
-                  + " Then pick up the next pending spec and continue working.";
-          if (!json) {
-            System.out.println(Ansi.AUTO.string("  @|bold Spec:|@ " + nextSpec.id()));
-            System.out.println(Ansi.AUTO.string("  @|faint " + nextSpec.title() + "|@"));
-            System.out.println();
-          }
+      var workspace = new SpecWorkspace(shell, name, specsDir);
+      var specs = workspace.readSpecs();
+      var nextSpec = SpecDirectory.nextReady(specs);
+      if (nextSpec != null) {
+        var specBody = Objects.requireNonNullElse(workspace.readSpecBody(nextSpec.id()), "");
+        var description = !specBody.isBlank() ? specBody : nextSpec.title();
+        task =
+            "Your current spec: \""
+                + nextSpec.title()
+                + "\" (id: "
+                + nextSpec.id()
+                + ").\n\n"
+                + description
+                + "\n\nWhen complete, run `sing spec status "
+                + name
+                + " "
+                + nextSpec.id()
+                + " done`. Then pick up the next pending spec and continue working.";
+        if (!json) {
+          System.out.println(Ansi.AUTO.string("  @|bold Spec:|@ " + nextSpec.id()));
+          System.out.println(Ansi.AUTO.string("  @|faint " + nextSpec.title() + "|@"));
+          System.out.println();
         }
       }
     }

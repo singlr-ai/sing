@@ -118,7 +118,7 @@ public final class SingApiOperations implements ApiOperations {
 
   private SpecsResponse specsValue(String project) {
     var loaded = loadRunningProject(project);
-    var specs = readIndex(workspace(loaded));
+    var specs = readSpecs(workspace(loaded));
     var summary = SpecDirectory.summarize(specs);
     return new SpecsResponse(
         project,
@@ -130,7 +130,7 @@ public final class SingApiOperations implements ApiOperations {
   private SpecResponse specValue(String project, String specId) {
     var loaded = loadRunningProject(project);
     var workspace = workspace(loaded);
-    var specs = readIndex(workspace);
+    var specs = readSpecs(workspace);
     var spec = SpecDirectory.findById(specs, specId);
     if (spec == null) {
       throw new ApiException(ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found.");
@@ -193,7 +193,7 @@ public final class SingApiOperations implements ApiOperations {
     }
 
     var workspace = workspace(loaded);
-    var specs = readIndex(workspace);
+    var specs = readSpecs(workspace);
     var nextSpec = resolveSpec(specs, request.specId());
     if (nextSpec == null) {
       return new DispatchResponse(project, false, "no_pending_specs", null, null, "", false);
@@ -274,11 +274,11 @@ public final class SingApiOperations implements ApiOperations {
     }
   }
 
-  private static List<Spec> readIndex(SpecWorkspace workspace) {
+  private static List<Spec> readSpecs(SpecWorkspace workspace) {
     try {
-      return workspace.readIndex();
+      return workspace.readSpecs();
     } catch (Exception e) {
-      throw new ApiException(ErrorCode.SPECS_READ_FAILED, "Failed to read specs index.", e);
+      throw new ApiException(ErrorCode.SPECS_READ_FAILED, "Failed to read spec metadata.", e);
     }
   }
 

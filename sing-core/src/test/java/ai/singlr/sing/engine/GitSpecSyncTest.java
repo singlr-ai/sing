@@ -47,7 +47,7 @@ class GitSpecSyncTest {
 
   @Test
   void dirtyStatusHandlesNonConflictEntries() throws Exception {
-    var status = sync(repositoryShell("## main...origin/main\n?? index.yaml\n")).status();
+    var status = sync(repositoryShell("## main...origin/main\n?? spec.yaml\n")).status();
 
     assertEquals(GitSpecSync.State.DIRTY, status.state());
     assertFalse(status.conflicted());
@@ -81,7 +81,7 @@ class GitSpecSyncTest {
 
   @Test
   void reportsDirtyBeforeAheadBehind() throws Exception {
-    var shell = repositoryShell("## main...origin/main [ahead 1, behind 2]\n M index.yaml\n");
+    var shell = repositoryShell("## main...origin/main [ahead 1, behind 2]\n M spec.yaml\n");
     var sync = sync(shell);
 
     var status = sync.status();
@@ -94,7 +94,7 @@ class GitSpecSyncTest {
 
   @Test
   void reportsConflictedBeforeDirty() throws Exception {
-    var shell = repositoryShell("## main...origin/main\nUU index.yaml\n");
+    var shell = repositoryShell("## main...origin/main\nUU spec.yaml\n");
     var sync = sync(shell);
 
     var status = sync.status();
@@ -150,7 +150,7 @@ class GitSpecSyncTest {
 
   @Test
   void pullFailsWhenDirty() throws Exception {
-    var shell = repositoryShell("## main...origin/main\n M index.yaml\n");
+    var shell = repositoryShell("## main...origin/main\n M spec.yaml\n");
     var sync = sync(shell);
 
     var thrown = assertThrows(IllegalStateException.class, sync::pull);
@@ -247,7 +247,7 @@ class GitSpecSyncTest {
   @Test
   void pullRejectsUnsafeStates() {
     assertPullRejected(repositoryShell("## main...origin/main [ahead 1, behind 1]\n"));
-    assertPullRejected(repositoryShell("## main...origin/main\nUU index.yaml\n"));
+    assertPullRejected(repositoryShell("## main...origin/main\nUU spec.yaml\n"));
     assertPullRejected(noUpstreamShell());
     assertPullRejected(
         new ScriptedShellExecutor().onFail("rev-parse --is-inside-work-tree", "fatal"));
@@ -278,9 +278,9 @@ class GitSpecSyncTest {
 
   @Test
   void pushRejectsUnsafeStates() {
-    assertPushRejected(repositoryShell("## main...origin/main\n M index.yaml\n"));
+    assertPushRejected(repositoryShell("## main...origin/main\n M spec.yaml\n"));
     assertPushRejected(repositoryShell("## main...origin/main [ahead 1, behind 1]\n"));
-    assertPushRejected(repositoryShell("## main...origin/main\nUU index.yaml\n"));
+    assertPushRejected(repositoryShell("## main...origin/main\nUU spec.yaml\n"));
     assertPushRejected(noUpstreamShell());
     assertPushRejected(
         new ScriptedShellExecutor().onFail("rev-parse --is-inside-work-tree", "fatal"));

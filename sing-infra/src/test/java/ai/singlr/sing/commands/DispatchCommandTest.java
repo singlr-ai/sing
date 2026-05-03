@@ -106,7 +106,7 @@ class DispatchCommandTest {
     assertTrue(prompt.contains("oauth-flow"));
     assertTrue(prompt.contains("Implement OAuth"));
     assertTrue(prompt.contains("Build Google OAuth integration"));
-    assertFalse(prompt.contains("index.yaml"), "Prompt should not contain lifecycle instructions");
+    assertFalse(prompt.contains("spec.yaml"), "Prompt should not contain lifecycle instructions");
   }
 
   @Test

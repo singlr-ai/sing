@@ -47,29 +47,49 @@ class SingApiOperationsTest {
 
   private static final String EMPTY_JSON = "[]";
 
-  private static final String INDEX_YAML =
+  private static final String SPEC_PATHS =
       """
-      specs:
-        - id: setup
-          title: Setup project
-          status: done
-        - id: auth
-          title: Add auth
-          status: pending
-          depends_on: [setup]
-        - id: billing
-          title: Add billing
-          status: pending
-          depends_on: [missing]
+      /home/dev/workspace/specs/auth/spec.yaml
+      /home/dev/workspace/specs/billing/spec.yaml
+      /home/dev/workspace/specs/setup/spec.yaml
       """;
 
-  private static final String INDEX_WITH_BRANCH_YAML =
+  private static final String SETUP_SPEC_YAML =
       """
-      specs:
-        - id: auth
-          title: Add auth
-          status: pending
-          branch: feat/custom
+      id: setup
+      title: Setup project
+      status: done
+      """;
+
+  private static final String AUTH_SPEC_YAML =
+      """
+      id: auth
+      title: Add auth
+      status: pending
+      depends_on: [setup]
+      """;
+
+  private static final String BILLING_SPEC_YAML =
+      """
+      id: billing
+      title: Add billing
+      status: pending
+      depends_on: [missing]
+      """;
+
+  private static final String AUTH_BRANCH_SPEC_YAML =
+      """
+      id: auth
+      title: Add auth
+      status: pending
+      branch: feat/custom
+      """;
+
+  private static final String DONE_SPEC_YAML =
+      """
+      id: done
+      title: Done
+      status: done
       """;
 
   @TempDir Path tempDir;
@@ -128,11 +148,7 @@ class SingApiOperationsTest {
 
   @Test
   void specsReturnsBoardSummary() throws Exception {
-    var operations =
-        operations(
-            shell()
-                .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
+    var operations = operations(shell().on("incus list ^acme$", RUNNING_JSON).withSpecs());
 
     var result = operations.specs("acme");
 
@@ -147,7 +163,7 @@ class SingApiOperationsTest {
         operations(
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "# Auth"));
 
     var result = operations.spec("acme", "auth");
@@ -158,11 +174,7 @@ class SingApiOperationsTest {
 
   @Test
   void specReturnsNotFoundForUnknownSpec() throws Exception {
-    var operations =
-        operations(
-            shell()
-                .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
+    var operations = operations(shell().on("incus list ^acme$", RUNNING_JSON).withSpecs());
 
     var error = operations.spec("acme", "missing");
 
@@ -175,7 +187,7 @@ class SingApiOperationsTest {
         operations(
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on(
                     "cat /home/dev/workspace/specs/auth/spec.md",
                     new ShellExec.Result(1, "", "No such file")));
@@ -297,12 +309,7 @@ class SingApiOperationsTest {
 
   @Test
   void dispatchReturnsNoPendingSpecs() throws Exception {
-    var index = "specs:\n  - id: done\n    title: Done\n    status: done\n";
-    var operations =
-        operations(
-            shell()
-                .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", index));
+    var operations = operations(shell().on("incus list ^acme$", RUNNING_JSON).withDoneSpec());
 
     var result = operations.dispatch("acme", request());
 
@@ -317,7 +324,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", ""));
@@ -336,7 +343,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
+                .withSpecs());
 
     var error = operations.dispatch("acme", request("billing"));
 
@@ -359,7 +366,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
+                .withSpecs());
 
     var error = operations.dispatch("acme", request("missing"));
 
@@ -544,7 +551,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -567,7 +574,7 @@ class SingApiOperationsTest {
                 .on("cat /home/dev/.sing/agent.pid", "123")
                 .on("kill -0 123", new ShellExec.Result(1, "", "missing"))
                 .on("cat /home/dev/.sing/agent-session.json", "{\"task\": \"work\"}")
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -597,7 +604,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -618,7 +625,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -643,7 +650,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -675,7 +682,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -696,7 +703,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_WITH_BRANCH_YAML)
+                .withAuthBranchSpec()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -716,7 +723,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -737,7 +744,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -759,7 +766,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -780,7 +787,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -799,7 +806,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -821,7 +828,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
                 .on("mkdir -p /home/dev/workspace/specs", "")
                 .on("printf '%s'", "")
@@ -876,7 +883,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML));
+                .withSpecs());
 
     var result = operations.agentReport("acme");
 
@@ -937,7 +944,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on(
-                    "cat /home/dev/workspace/specs/index.yaml",
+                    "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
                     new ShellExec.Result(1, "", "denied")));
 
     var error = operations.specs("acme");
@@ -951,7 +958,7 @@ class SingApiOperationsTest {
         operations(
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .throwOn("cat /home/dev/workspace/specs/auth/spec.md", new IOException("denied")));
 
     var error = operations.spec("acme", "auth");
@@ -966,7 +973,7 @@ class SingApiOperationsTest {
             shell()
                 .on("incus list ^acme$", RUNNING_JSON)
                 .on("cat /home/dev/.sing/agent.pid", new ShellExec.Result(1, "", "missing"))
-                .on("cat /home/dev/workspace/specs/index.yaml", INDEX_YAML)
+                .withSpecs()
                 .throwOn("mkdir -p /home/dev/workspace/specs", new IOException("denied")));
 
     var error = operations.dispatch("acme", request("auth"));
@@ -1109,6 +1116,29 @@ class SingApiOperationsTest {
     FakeShell throwOn(String pattern, Exception failure) {
       failures.put(pattern, failure);
       return this;
+    }
+
+    FakeShell withSpecs() {
+      return on(
+              "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+              SPEC_PATHS)
+          .on("cat /home/dev/workspace/specs/auth/spec.yaml", AUTH_SPEC_YAML)
+          .on("cat /home/dev/workspace/specs/billing/spec.yaml", BILLING_SPEC_YAML)
+          .on("cat /home/dev/workspace/specs/setup/spec.yaml", SETUP_SPEC_YAML);
+    }
+
+    FakeShell withAuthBranchSpec() {
+      return on(
+              "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+              "/home/dev/workspace/specs/auth/spec.yaml\n")
+          .on("cat /home/dev/workspace/specs/auth/spec.yaml", AUTH_BRANCH_SPEC_YAML);
+    }
+
+    FakeShell withDoneSpec() {
+      return on(
+              "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+              "/home/dev/workspace/specs/done/spec.yaml\n")
+          .on("cat /home/dev/workspace/specs/done/spec.yaml", DONE_SPEC_YAML);
     }
 
     @Override

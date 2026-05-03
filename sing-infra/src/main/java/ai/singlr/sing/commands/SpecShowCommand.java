@@ -84,10 +84,10 @@ public final class SpecShowCommand implements Runnable {
 
     var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
     var workspace = new SpecWorkspace(shell, name, specsDir);
-    var specs = workspace.readIndex();
+    var specs = workspace.readSpecs();
     var spec = SpecDirectory.findById(specs, specId);
     if (spec == null) {
-      throw new IllegalArgumentException("Spec '" + specId + "' not found in index.yaml");
+      throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
 
     var content = workspace.readSpecBody(specId);

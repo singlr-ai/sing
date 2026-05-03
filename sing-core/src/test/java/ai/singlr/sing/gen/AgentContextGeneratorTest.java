@@ -1233,7 +1233,7 @@ class AgentContextGeneratorTest {
 
     assertTrue(md.contains("## Spec-Driven Development"));
     assertTrue(md.contains("specs/"));
-    assertTrue(md.contains("index.yaml"));
+    assertTrue(md.contains("spec.yaml"));
     assertTrue(md.contains("spec.md"));
     assertTrue(md.contains("Status Lifecycle"));
     assertTrue(md.contains("pending"));

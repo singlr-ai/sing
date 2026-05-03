@@ -67,7 +67,7 @@ Write specs during the day. Walk away. The agent works through them overnight.
 sing spec dispatch acme-health   # pick next ready spec, launch agent
 ```
 
-`dispatch` reads `specs/index.yaml` from the container, finds the next pending spec (respecting dependencies and assignee), reads the detailed `spec.md`, and launches the agent with full context. Guardrails enforce time limits. Auto-snapshot provides rollback safety.
+`dispatch` scans `specs/*/spec.yaml` from the container, finds the next pending spec (respecting dependencies and assignee), reads the detailed `spec.md`, and launches the agent with full context. Guardrails enforce time limits. Auto-snapshot provides rollback safety.
 
 ## Spec-Driven Workflow
 
@@ -77,37 +77,29 @@ Specs are the unit of work. Each spec lives in its own directory inside `specs/`
 
 ```
 specs/
-├── index.yaml                # Ordered list: id, title, status, assignee, depends_on
 ├── oauth-flow/
+│   ├── spec.yaml             # Metadata: id, title, status, assignee, depends_on
 │   ├── spec.md               # What to build and why (brainstormed with agent in Zed)
 │   └── plan.md               # How to build it (optional, for complex specs)
 ├── payment-integration/
+│   ├── spec.yaml
 │   ├── spec.md
 │   └── plan.md
 └── fix-footer-typo/
+    ├── spec.yaml
     └── spec.md               # Simple spec, no plan needed
 ```
 
-### index.yaml
+### spec.yaml
 
 ```yaml
-specs:
-  - id: oauth-flow
-    title: "Implement OAuth flow with Google"
-    status: pending
-    assignee: alice
-    depends_on: []
-
-  - id: payment-integration
-    title: "Stripe payment webhook"
-    status: pending
-    assignee: bob
-    depends_on:
-      - oauth-flow
-
-  - id: fix-footer-typo
-    title: "Fix typo in footer"
-    status: done
+id: payment-integration
+title: "Stripe payment webhook"
+status: pending
+assignee: bob
+depends_on:
+  - oauth-flow
+branch: feat/payment-integration
 ```
 
 ### Lifecycle

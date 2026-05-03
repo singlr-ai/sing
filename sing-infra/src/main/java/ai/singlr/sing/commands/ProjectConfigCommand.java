@@ -177,7 +177,7 @@ public final class ProjectConfigCommand implements Runnable {
     }
     var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
     try {
-      var summary = SpecDirectory.summarize(new SpecWorkspace(shell, name, specsDir).readIndex());
+      var summary = SpecDirectory.summarize(new SpecWorkspace(shell, name, specsDir).readSpecs());
       return SpecSnapshot.available(summary);
     } catch (Exception e) {
       return SpecSnapshot.unavailable("specs_unavailable");
