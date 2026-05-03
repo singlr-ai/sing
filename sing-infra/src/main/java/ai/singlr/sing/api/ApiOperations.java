@@ -14,6 +14,10 @@ public interface ApiOperations {
 
   Result<SpecResponse> spec(String project, String specId);
 
+  Result<SpecSyncResponse> specSyncStatus(String project);
+
+  Result<SpecSyncResponse> specSync(String project, SpecSyncRequest request);
+
   Result<DispatchResponse> dispatch(String project, DispatchRequest request);
 
   Result<AgentStatusResponse> agentStatus(String project);

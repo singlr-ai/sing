@@ -5,6 +5,7 @@
 
 package ai.singlr.sing.api;
 
+import ai.singlr.sing.engine.GitSpecSync;
 import java.util.List;
 
 record HealthResponse(String status) {}
@@ -18,6 +19,32 @@ record SpecsResponse(
 
 record SpecResponse(
     String name, SpecView spec, String specPath, boolean contentAvailable, String content) {}
+
+record SpecSyncRequest(String operation, String remote, String branch) {
+  SpecSyncRequest {
+    operation = operation == null || operation.isBlank() ? "status" : operation;
+    branch = branch == null || branch.isBlank() ? "main" : branch;
+  }
+}
+
+record SpecSyncResponse(
+    String name,
+    String operation,
+    boolean changed,
+    String message,
+    SpecSyncStatusView status,
+    SpecSyncStatusView before) {}
+
+record SpecSyncStatusView(
+    GitSpecSync.State state,
+    String branch,
+    String upstream,
+    int ahead,
+    int behind,
+    boolean dirty,
+    boolean conflicted,
+    boolean repository,
+    String message) {}
 
 record DispatchRequest(String specId, String mode, boolean dryRun) {
   DispatchRequest {

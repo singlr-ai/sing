@@ -26,6 +26,14 @@ public final class JsonBody {
         Boolean.TRUE.equals(map.get("dry_run")));
   }
 
+  public static SpecSyncRequest readSpecSyncRequest(HttpExchange exchange) throws IOException {
+    var map = read(exchange);
+    return new SpecSyncRequest(
+        optionalString(map, "operation"),
+        optionalString(map, "remote"),
+        optionalString(map, "branch"));
+  }
+
   private static Map<String, Object> read(HttpExchange exchange) throws IOException {
     var contentType = exchange.getRequestHeaders().getFirst("Content-Type");
     if (contentType != null && !contentType.toLowerCase().startsWith("application/json")) {

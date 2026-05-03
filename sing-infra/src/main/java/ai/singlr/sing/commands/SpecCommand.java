@@ -17,6 +17,7 @@ import picocli.CommandLine.Command;
       SpecShowCommand.class,
       SpecCreateCommand.class,
       SpecStatusCommand.class,
+      SpecSyncCommand.class,
       DispatchCommand.class,
     })
 public final class SpecCommand implements Runnable {
