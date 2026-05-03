@@ -28,7 +28,7 @@ import picocli.CommandLine.Parameters;
 
 @Command(
     name = "create",
-    description = "Create a spec scaffold and add it to index.yaml.",
+    description = "Create a spec scaffold with per-spec metadata.",
     mixinStandardHelpOptions = true)
 public final class SpecCreateCommand implements Runnable {
 

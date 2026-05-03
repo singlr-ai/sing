@@ -454,44 +454,37 @@ public final class AgentContextGenerator {
         ### Directory Structure
         ```
         %s/
-        \u251c\u2500\u2500 index.yaml          # Ordered list of all specs with status
-        \u251c\u2500\u2500 oauth-flow/
-        \u2502   \u251c\u2500\u2500 spec.md           # Detailed specification
-        \u2502   \u2514\u2500\u2500 plan.md           # Optional implementation plan
-        \u251c\u2500\u2500 search-api/
-        \u2502   \u2514\u2500\u2500 spec.md
-        \u2514\u2500\u2500 archive/            # Completed specs moved here
+        ├── oauth-flow/
+        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, branch
+        │   ├── spec.md          # Detailed specification
+        │   └── plan.md          # Optional implementation plan
+        └── search-api/
+            ├── spec.yaml
+            └── spec.md
         ```
 
         **Important:** Specs are managed separately from source repos. Never create a `specs/`
         directory inside a repo. Always use the absolute path `%1$s/` for all spec operations.
 
-        ### index.yaml Format
+        ### spec.yaml Format
         ```yaml
-        specs:
-          - id: oauth-flow
-            title: "OAuth 2.0 authorization code flow"
-            status: in_progress
-            assignee: claude-code
-            depends_on: []
-            branch: feat/oauth-flow
-          - id: search-api
-            title: "Full-text search API with Meilisearch"
-            status: pending
-            assignee: claude-code
-            depends_on: [oauth-flow]
-            branch: feat/search-api
+        id: oauth-flow
+        title: OAuth 2.0 authorization code flow
+        status: in_progress
+        assignee: claude-code
+        depends_on: []
+        branch: feat/oauth-flow
         ```
 
         ### Status Lifecycle
-        `pending` \u2192 `in_progress` \u2192 `review` \u2192 `done`
-        Spec status is managed by `sing`, not by you. Do not modify spec status in index.yaml.
+        `pending` → `in_progress` → `review` → `done`
+        Spec status is managed by `sing`, not by you. Do not modify spec status directly during autonomous execution.
 
         ### Interactive Mode
         When the engineer asks you to brainstorm or write a spec:
         1. Create a directory under `%1$s/` named after the spec id
-        2. Write `spec.md` with the detailed specification
-        3. Add the spec entry to `%1$s/index.yaml` with status `pending`
+        2. Write `%1$s/<id>/spec.yaml` with metadata and status `pending`
+        3. Write `%1$s/<id>/spec.md` with the detailed specification
 
         ### Dependencies
         The `depends_on` field lists spec ids that must be `done` before this spec can start.

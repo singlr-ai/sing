@@ -34,9 +34,9 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * Dispatches the next ready spec to an agent for autonomous execution. Reads {@code
- * specs/index.yaml} from the container, finds the next pending spec (respecting dependencies and
- * assignee), reads its {@code spec.md}, and launches the configured agent.
+ * Dispatches the next ready spec to an agent for autonomous execution. Reads per-spec metadata from
+ * the container, finds the next pending spec, reads its {@code spec.md}, and launches the
+ * configured agent.
  */
 @Command(
     name = "dispatch",
@@ -113,7 +113,7 @@ public final class DispatchCommand implements Runnable {
     var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
     var specWorkspace = new SpecWorkspace(shell, name, specsDir);
 
-    var specs = specWorkspace.readIndex();
+    var specs = specWorkspace.readSpecs();
     if (specs.isEmpty()) {
       printNoSpecs();
       return;
@@ -274,8 +274,7 @@ public final class DispatchCommand implements Runnable {
       return specs.stream()
           .filter(s -> s.id().equals(specId))
           .findFirst()
-          .orElseThrow(
-              () -> new IllegalArgumentException("Spec '" + specId + "' not found in index.yaml"));
+          .orElseThrow(() -> new IllegalArgumentException("Spec '" + specId + "' not found"));
     }
     return SpecDirectory.nextReady(specs);
   }

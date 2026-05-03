@@ -46,7 +46,7 @@ class SpecSkillGeneratorTest {
     var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "my-specs", BASE);
     var content = files.get(0).content();
 
-    assertTrue(content.contains("my-specs/index.yaml"));
+    assertTrue(content.contains("my-specs/<id>/spec.yaml"));
     assertTrue(content.contains("my-specs/<id>/spec.md"));
   }
 
@@ -137,7 +137,7 @@ class SpecSkillGeneratorTest {
 
     assertFalse(instructions.isEmpty());
     assertTrue(instructions.contains("Spec Management"));
-    assertTrue(instructions.contains("specs/index.yaml"));
+    assertTrue(instructions.contains("specs/<id>/spec.yaml"));
     assertTrue(instructions.contains("spec.md"));
   }
 
@@ -177,13 +177,13 @@ class SpecSkillGeneratorTest {
     var customDir = "work-items";
 
     var claude = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, customDir, BASE);
-    assertTrue(claude.get(0).content().contains("work-items/index.yaml"));
+    assertTrue(claude.get(0).content().contains("work-items/<id>/spec.yaml"));
 
     var gemini = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, customDir, BASE);
-    assertTrue(gemini.get(0).content().contains("work-items/index.yaml"));
+    assertTrue(gemini.get(0).content().contains("work-items/<id>/spec.yaml"));
 
     var codex = SpecSkillGenerator.codexInstructions(customDir);
-    assertTrue(codex.contains("work-items/index.yaml"));
+    assertTrue(codex.contains("work-items/<id>/spec.yaml"));
   }
 
   @Test

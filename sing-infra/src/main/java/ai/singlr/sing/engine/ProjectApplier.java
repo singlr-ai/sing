@@ -434,8 +434,7 @@ public final class ProjectApplier {
       return new ApplyResult(0, 0, 1, List.of());
     }
     out.println("  [add] Creating specs scaffold at " + config.agent().specsDir() + "/...");
-    shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", specsPath + "/archive")));
-    pushFile(name, specsPath + "/index.yaml", "specs: []\n", sshUser);
+    shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", specsPath)));
     return new ApplyResult(1, 0, 0, List.of());
   }
 

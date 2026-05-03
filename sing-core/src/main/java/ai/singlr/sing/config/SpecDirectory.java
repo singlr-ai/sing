@@ -12,9 +12,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Reads and writes the {@code specs/} directory structure used for spec-driven agent work. The
- * directory contains an {@code index.yaml} listing spec IDs in order, and one subdirectory per spec
- * with {@code spec.yaml} (metadata) and optionally {@code spec.md} (detailed description).
+ * Reads and writes the {@code specs/} directory structure used for spec-driven agent work. Each
+ * spec lives in its own directory with {@code spec.yaml} metadata and {@code spec.md} details.
  *
  * <p>This class is pure parsing/generation logic with no I/O — callers pass content strings in and
  * receive content strings back.
@@ -41,34 +40,19 @@ public final class SpecDirectory {
 
   private SpecDirectory() {}
 
-  /**
-   * Parses the {@code index.yaml} content into an ordered list of specs. Each entry in the {@code
-   * specs} list must have at least an {@code id} field.
-   */
-  @SuppressWarnings("unchecked")
-  public static List<Spec> parseIndex(Map<String, Object> indexMap) {
-    var rawSpecs = (List<Map<String, Object>>) indexMap.get("specs");
-    if (rawSpecs == null || rawSpecs.isEmpty()) {
-      return List.of();
-    }
-    return rawSpecs.stream().map(Spec::fromMap).toList();
+  public static Spec parseMetadata(Map<String, Object> metadata) {
+    return Spec.fromMap(metadata);
   }
 
-  /**
-   * Generates the {@code index.yaml} content from an ordered list of specs. Only writes the fields
-   * relevant to the index (id, title, status, assignee, depends_on, branch).
-   */
-  public static Map<String, Object> generateIndex(List<Spec> specs) {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("specs", specs.stream().map(Spec::toMap).toList());
-    return map;
+  public static Map<String, Object> generateMetadata(Spec spec) {
+    return spec.toMap();
   }
 
   /**
    * Returns the first pending spec whose dependencies are all done and whose assignee matches the
    * given identity (or is unassigned). Returns {@code null} if no spec is ready.
    *
-   * @param specs ordered list of specs (from index)
+   * @param specs ordered list of specs
    * @param assignee the engineer's identity to match (nullable for any assignee)
    */
   public static Spec nextReady(List<Spec> specs, String assignee) {
@@ -110,7 +94,7 @@ public final class SpecDirectory {
   public static List<Spec> updateStatus(List<Spec> specs, String specId, String newStatus) {
     requireValidStatus(newStatus);
     if (findById(specs, specId) == null) {
-      throw new IllegalArgumentException("Spec '" + specId + "' not found in index.yaml");
+      throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
     return specs.stream()
         .map(

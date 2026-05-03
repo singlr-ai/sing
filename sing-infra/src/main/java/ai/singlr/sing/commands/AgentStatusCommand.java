@@ -10,13 +10,13 @@ import ai.singlr.sing.config.SpecDirectory;
 import ai.singlr.sing.config.YamlUtil;
 import ai.singlr.sing.engine.AgentSession;
 import ai.singlr.sing.engine.Banner;
-import ai.singlr.sing.engine.ContainerExec;
 import ai.singlr.sing.engine.ContainerManager;
 import ai.singlr.sing.engine.ContainerState;
 import ai.singlr.sing.engine.GuardrailChecker;
 import ai.singlr.sing.engine.NameValidator;
 import ai.singlr.sing.engine.ShellExecutor;
 import ai.singlr.sing.engine.SingPaths;
+import ai.singlr.sing.engine.SpecWorkspace;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
@@ -214,14 +214,9 @@ public final class AgentStatusCommand implements Runnable {
         && config.agent().specsDir() != null
         && info != null) {
       try {
-        var indexPath =
-            "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir() + "/index.yaml";
-        var catCmd = ContainerExec.asDevUser(name, List.of("cat", indexPath));
-        var catResult = shell.exec(catCmd);
-        if (catResult.ok() && !catResult.stdout().isBlank()) {
-          var specs = SpecDirectory.parseIndex(YamlUtil.parseMap(catResult.stdout()));
-          taskCounts = SpecDirectory.statusCounts(specs);
-        }
+        var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
+        var specs = new SpecWorkspace(shell, name, specsDir).readSpecs();
+        taskCounts = SpecDirectory.statusCounts(specs);
       } catch (Exception ignored) {
       }
     }

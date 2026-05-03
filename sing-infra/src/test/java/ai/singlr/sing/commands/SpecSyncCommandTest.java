@@ -43,7 +43,7 @@ class SpecSyncCommandTest {
   @Test
   void humanStatusUsesRedForDirtyRepository() throws Exception {
     var shell =
-        cleanShell().on("status --porcelain=v1 -b", "## main...origin/main\n M index.yaml\n");
+        cleanShell().on("status --porcelain=v1 -b", "## main...origin/main\n M spec.yaml\n");
 
     var result = execute(shell, "acme", "status", "-f", yaml());
 

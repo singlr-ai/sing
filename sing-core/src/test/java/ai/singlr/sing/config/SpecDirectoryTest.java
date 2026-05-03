@@ -14,53 +14,37 @@ import org.junit.jupiter.api.Test;
 class SpecDirectoryTest {
 
   @Test
-  void parseIndexReturnsOrderedSpecs() {
-    var indexMap =
+  void parseMetadataReturnsSpec() {
+    var metadata =
         Map.<String, Object>of(
-            "specs",
-            List.of(
-                Map.<String, Object>of("id", "auth", "title", "Implement auth", "status", "done"),
-                Map.<String, Object>of(
-                    "id", "search",
-                    "title", "Add search",
-                    "status", "pending",
-                    "depends_on", List.of("auth"))));
+            "id",
+            "search",
+            "title",
+            "Add search",
+            "status",
+            "pending",
+            "depends_on",
+            List.of("auth"));
 
-    var specs = SpecDirectory.parseIndex(indexMap);
+    var spec = SpecDirectory.parseMetadata(metadata);
 
-    assertEquals(2, specs.size());
-    assertEquals("auth", specs.getFirst().id());
-    assertEquals("search", specs.get(1).id());
-    assertEquals(List.of("auth"), specs.get(1).dependsOn());
+    assertEquals("search", spec.id());
+    assertEquals("Add search", spec.title());
+    assertEquals("pending", spec.status());
+    assertEquals(List.of("auth"), spec.dependsOn());
   }
 
   @Test
-  void parseIndexReturnsEmptyForMissingKey() {
-    assertTrue(SpecDirectory.parseIndex(Map.of()).isEmpty());
-  }
+  void generateMetadataRoundTrips() {
+    var spec = new Spec("search", "Search", "pending", "alice", List.of("auth"), "feat/search");
 
-  @Test
-  void parseIndexReturnsEmptyForEmptyList() {
-    assertTrue(SpecDirectory.parseIndex(Map.of("specs", List.of())).isEmpty());
-  }
+    var metadata = SpecDirectory.generateMetadata(spec);
+    var parsed = SpecDirectory.parseMetadata(metadata);
 
-  @Test
-  @SuppressWarnings("unchecked")
-  void generateIndexRoundTrips() {
-    var specs =
-        List.of(
-            new Spec("auth", "Auth", "done", null, List.of(), null),
-            new Spec("search", "Search", "pending", "alice", List.of("auth"), "feat/search"));
-
-    var indexMap = SpecDirectory.generateIndex(specs);
-    var parsed = SpecDirectory.parseIndex(indexMap);
-
-    assertEquals(2, parsed.size());
-    assertEquals("auth", parsed.getFirst().id());
-    assertEquals("done", parsed.getFirst().status());
-    assertEquals("search", parsed.get(1).id());
-    assertEquals("alice", parsed.get(1).assignee());
-    assertEquals(List.of("auth"), parsed.get(1).dependsOn());
+    assertEquals("search", parsed.id());
+    assertEquals("alice", parsed.assignee());
+    assertEquals(List.of("auth"), parsed.dependsOn());
+    assertEquals("feat/search", parsed.branch());
   }
 
   @Test
@@ -250,20 +234,6 @@ class SpecDirectoryTest {
 
     assertEquals(1, counts.get("blocked"));
     assertEquals(0, counts.get("pending"));
-  }
-
-  @Test
-  void generateIndexPreservesOrder() {
-    var specs =
-        List.of(
-            new Spec("z-last", "Z", "pending", null, List.of(), null),
-            new Spec("a-first", "A", "done", null, List.of(), null));
-
-    var indexMap = SpecDirectory.generateIndex(specs);
-    var parsed = SpecDirectory.parseIndex(indexMap);
-
-    assertEquals("z-last", parsed.getFirst().id());
-    assertEquals("a-first", parsed.get(1).id());
   }
 
   @Test

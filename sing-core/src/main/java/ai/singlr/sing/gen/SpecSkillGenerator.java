@@ -206,13 +206,13 @@ public final class SpecSkillGenerator {
         description = "Show the spec board — list all specs grouped by status"
 
         [command.prompt]
-        text = "Read specs/index.yaml and display all specs grouped by status as a kanban board. Show columns: Pending, In Progress, Review, Done. For each spec show id, title, and dependencies."
+        text = "Scan specs/*/spec.yaml and display all specs grouped by status as a kanban board. Show columns: Pending, In Progress, Review, Done. For each spec show id, title, and dependencies."
         """;
   }
 
   private static String listInstructions(String specsDir) {
     return """
-        Read `%s/index.yaml` and display specs grouped by status columns:
+        Scan `%s/*/spec.yaml` and display specs grouped by status columns:
 
         ```
         ┌─────────────┬─────────────────┬──────────────┬──────────────┐
@@ -236,16 +236,15 @@ public final class SpecSkillGenerator {
     return """
         1. Derive an id from the title (lowercase, hyphens, e.g., "OAuth Flow" → `oauth-flow`)
         2. Create directory `%1$s/<id>/`
-        3. Write `%1$s/<id>/spec.md` using the spec template
-        4. Read current `%1$s/index.yaml`
-        5. Append the new spec entry:
+        3. Write `%1$s/<id>/spec.yaml`:
            ```yaml
-           - id: <id>
-             title: "<title>"
-             status: pending
+           id: <id>
+           title: "<title>"
+           status: pending
+           depends_on: []
            ```
-        6. Write the updated `%1$s/index.yaml`
-        7. Confirm: "Created spec `<id>` — fill in the details in `%1$s/<id>/spec.md`"
+        4. Write `%1$s/<id>/spec.md` using the spec template
+        5. Confirm: "Created spec `<id>` — fill in the details in `%1$s/<id>/spec.md`"
 
         If the engineer provided detailed requirements during the conversation, fill in the \
         spec.md with those details instead of leaving placeholders.
@@ -258,25 +257,21 @@ public final class SpecSkillGenerator {
 
   private static String showInstructions(String specsDir) {
     return """
-        1. Read `%s/<id>/spec.md`
-        2. Display the full content
-        3. Also show the spec's status, assignee, and dependencies from index.yaml
+        1. Read `%s/<id>/spec.yaml`
+        2. Read `%s/<id>/spec.md`
+        3. Display metadata, dependencies, and the full markdown content
         """
-        .formatted(specsDir);
+        .formatted(specsDir, specsDir);
   }
 
   private static String updateInstructions(String specsDir) {
     return """
         Valid statuses: `pending`, `in_progress`, `review`, `done`
 
-        1. Read `%1$s/index.yaml`
-        2. Find the spec entry by id
-        3. Update the `status` field
-        4. Write the updated `%1$s/index.yaml`
-        5. Confirm: "Updated `<id>` → `<new-status>`"
-
-        When moving to `done`, ask the engineer if they want the spec directory moved to \
-        `%1$s/archive/<id>/`.
+        1. Read `%1$s/<id>/spec.yaml`
+        2. Update the `status` field
+        3. Write the updated `%1$s/<id>/spec.yaml`
+        4. Confirm: "Updated `<id>` → `<new-status>`"
         """
         .formatted(specsDir);
   }
@@ -289,31 +284,25 @@ public final class SpecSkillGenerator {
         1. Extract each distinct unit of work from the conversation
         2. For each, derive an id and title
         3. Infer dependencies from the natural ordering and relationships discussed
-        4. Create all spec directories and spec.md files
-        5. Update `%s/index.yaml` with all new entries in dependency order
-        6. Show the resulting board view
+        4. Create each `%s/<id>/spec.yaml` and `%s/<id>/spec.md`
+        5. Show the resulting board view
 
         This is the primary daytime workflow: brainstorm with the engineer, then materialize \
         the plan into specs with one confirmation.
         """
-        .formatted(specsDir);
+        .formatted(specsDir, specsDir);
   }
 
   private static String coreReference(String specsDir) {
     return """
-        ### index.yaml Format
+        ### spec.yaml Format
         ```yaml
-        specs:
-          - id: oauth-flow
-            title: "OAuth 2.0 authorization code flow"
-            status: in_progress
-            assignee: claude-code
-            depends_on: []
-            branch: feat/oauth-flow
-          - id: search-api
-            title: "Full-text search API"
-            status: pending
-            depends_on: [oauth-flow]
+        id: oauth-flow
+        title: OAuth 2.0 authorization code flow
+        status: in_progress
+        assignee: claude-code
+        depends_on: []
+        branch: feat/oauth-flow
         ```
 
         ### Status Lifecycle
@@ -322,8 +311,7 @@ public final class SpecSkillGenerator {
         - **in_progress**: agent is actively working on it (set by `sing spec dispatch`)
         - **review**: PR created, waiting for human review (set by `sing`)
         - **done**: PR merged, work complete (set by engineer via `sing`)
-        Status is managed by `sing`, not by the agent. Do not modify status in index.yaml
-        during autonomous execution.
+        Status is managed by `sing`, not by the agent. Do not modify status directly during autonomous execution.
 
         ### Important
         Specs live at `%1$s/` — an absolute path in the workspace root, NOT inside any repo.
@@ -340,18 +328,17 @@ public final class SpecSkillGenerator {
         ### Directory Structure
         ```
         %s/
-        ├── index.yaml
-        ├── <spec-id>/
-        │   ├── spec.md        # Detailed specification
-        │   └── plan.md        # Optional implementation plan
-        └── archive/           # Completed specs moved here
+        └── <spec-id>/
+            ├── spec.yaml     # Metadata
+            ├── spec.md       # Detailed specification
+            └── plan.md       # Optional implementation plan
         ```
 
         ### Dependency Rules
         A spec cannot be started if any of its `depends_on` specs are not `done`.
         When listing specs, visually indicate which pending specs are blocked.
         """
-        .formatted(specsDir);
+        .formatted(specsDir, specsDir);
   }
 
   private static String specTemplate() {
