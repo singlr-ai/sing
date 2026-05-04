@@ -15,6 +15,7 @@ import picocli.CommandLine.Command;
       ProjectInitCommand.class,
       ProjectCreateCommand.class,
       ProjectApplyCommand.class,
+      ProjectMigrateCommand.class,
       UpCommand.class,
       DownCommand.class,
       SwitchCommand.class,

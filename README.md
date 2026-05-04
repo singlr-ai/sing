@@ -143,6 +143,26 @@ Specs live in a shared private repo (e.g., `your-org/projects/acme-health/specs/
 
 No project board needed. The spec directory *is* the board. Git history is the audit trail.
 
+### Fleet Migration
+
+After upgrading `sing`, bring existing project containers up to the current spec layout and agent
+instructions with one command:
+
+```bash
+sing project migrate --all --pull-specs
+```
+
+For a single project:
+
+```bash
+sing project migrate acme-health --pull-specs
+```
+
+The migration starts stopped projects, regenerates agent context files, converts legacy
+`specs/index.yaml` entries into `specs/<id>/spec.yaml`, removes the legacy index after a safe
+conversion, and reports spec Git sync state. Use `--json` for automation or `--keep-index` if you
+want to retain the old index file during manual review.
+
 ## Context Generation
 
 `sing agent run` (or `sing agent context regen`) generates a complete agent environment from `sing.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
