@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.singlr</groupId>
         <artifactId>sing</artifactId>
-        <version>0.11.6</version>
+        <version>0.11.7</version>
     </parent>
 
     <artifactId>sing-infra</artifactId>

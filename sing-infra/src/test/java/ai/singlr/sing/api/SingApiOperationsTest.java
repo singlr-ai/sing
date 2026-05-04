@@ -669,7 +669,7 @@ class SingApiOperationsTest {
   void watcherProcessLauncherStartsCommand() throws Exception {
     var logPath = tempDir.resolve("watch.log");
 
-    SingApiOperations.launchWatcherProcess(List.of("/bin/true"), logPath);
+    SingApiOperations.launchWatcherProcess(List.of("sh", "-c", "true"), logPath);
 
     assertTrue(Files.exists(logPath));
   }
