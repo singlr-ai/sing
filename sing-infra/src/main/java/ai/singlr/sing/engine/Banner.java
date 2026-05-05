@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import picocli.CommandLine.Help.Ansi;
 
@@ -32,6 +33,7 @@ public final class Banner {
   private static final String CYAN_BOLD = "\033[1;36m";
   private static final String DIM = "\033[2m";
   private static final String RESET = "\033[0m";
+  private static final int ANIMATION_WIDTH = 64;
 
   /**
    * Replaces picocli's bold-cyan ANSI escape with 256-color amber for brand-consistent borders.
@@ -47,6 +49,7 @@ public final class Banner {
 
   /** Prints the SAIL ASCII wordmark and version. */
   public static void printBranding(PrintStream out, Ansi ansi) {
+    printIntroAnimation(out, ansi);
     var useColor = ansi != Ansi.OFF;
     var a = useColor ? AMBER : "";
     var d = useColor ? DIM : "";
@@ -62,6 +65,47 @@ public final class Banner {
     out.println(
         "  " + d + "Isolated dev environments for AI agents  ·  v" + SingVersion.version() + r);
     out.println("  " + d + "https://github.com/singlr-ai/sing" + r);
+  }
+
+  static boolean shouldAnimateBranding(
+      Ansi ansi, Map<String, String> env, BooleanSupplier hasConsole) {
+    return ansi != Ansi.OFF
+        && hasConsole.getAsBoolean()
+        && !"1".equals(env.get("SAIL_NO_ANIMATION"))
+        && !"true".equalsIgnoreCase(env.get("CI"))
+        && !env.containsKey("NO_COLOR")
+        && !"dumb".equalsIgnoreCase(env.get("TERM"));
+  }
+
+  private static void printIntroAnimation(PrintStream out, Ansi ansi) {
+    if (!shouldAnimateBranding(ansi, System.getenv(), () -> System.console() != null)) {
+      return;
+    }
+
+    var frames =
+        List.of(
+            "      /|   setting course",
+            "     /_|   raising sail",
+            "    /__|   catching wind",
+            "   /___|   SAIL ready");
+    var useColor = ansi != Ansi.OFF;
+    var color = useColor ? AMBER : "";
+    var reset = useColor ? RESET : "";
+    for (var frame : frames) {
+      out.print("\r  " + color + frame + reset);
+      out.flush();
+      sleepAnimationFrame();
+    }
+    out.print("\r" + " ".repeat(ANIMATION_WIDTH) + "\r");
+    out.flush();
+  }
+
+  private static void sleepAnimationFrame() {
+    try {
+      Thread.sleep(90);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   /** Prints the host detection banner to stdout with auto ANSI detection. */

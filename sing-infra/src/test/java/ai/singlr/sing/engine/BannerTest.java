@@ -15,6 +15,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine.Help.Ansi;
 
@@ -105,6 +106,22 @@ class BannerTest {
 
     assertTrue(output.contains("███████"));
     assertTrue(output.contains("singlr-ai/sing"));
+  }
+
+  @Test
+  void brandingAnimationRequiresInteractiveAnsiOutput() {
+    assertTrue(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of(), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.OFF, Map.of(), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of(), () -> false));
+  }
+
+  @Test
+  void brandingAnimationHonorsEnvironmentOptOuts() {
+    assertFalse(
+        Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("SAIL_NO_ANIMATION", "1"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("CI", "true"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("NO_COLOR", "1"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("TERM", "dumb"), () -> true));
   }
 
   @Test
