@@ -10,9 +10,9 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>sing-core</module>
-        <module>sing-harness</module>
-        <module>sing-infra</module>
+        <module>sail-core</module>
+        <module>sail-harness</module>
+        <module>sail-infra</module>
     </modules>
 
     <developers>
@@ -158,7 +158,7 @@
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>ai.singlr.sing.api.*</include>
+                                        <include>ai.singlr.sail.api.*</include>
                                     </includes>
                                     <limits>
                                         <limit>
@@ -176,8 +176,8 @@
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>ai.singlr.sing.engine.GitSpecSync</include>
-                                        <include>ai.singlr.sing.commands.SpecSyncCommand</include>
+                                        <include>ai.singlr.sail.engine.GitSpecSync</include>
+                                        <include>ai.singlr.sail.commands.SpecSyncCommand</include>
                                     </includes>
                                     <limits>
                                         <limit>
@@ -195,7 +195,7 @@
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>ai.singlr.sing.commands.CliCommand</include>
+                                        <include>ai.singlr.sail.commands.CliCommand</include>
                                     </includes>
                                     <limits>
                                         <limit>
@@ -218,7 +218,7 @@
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>ai.singlr.sing.commands.CliJson</include>
+                                        <include>ai.singlr.sail.commands.CliJson</include>
                                     </includes>
                                     <limits>
                                         <limit>

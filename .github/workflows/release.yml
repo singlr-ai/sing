@@ -37,21 +37,21 @@ jobs:
         run: mvn package -Pnative -DskipTests
 
       - name: Smoke test
-        run: ./sing-infra/target/sail -V
+        run: ./sail-infra/target/sail -V
 
       - name: Rename binary
-        run: mv sing-infra/target/sail sing-infra/target/${{ matrix.binary-name }}
+        run: mv sail-infra/target/sail sail-infra/target/${{ matrix.binary-name }}
 
       - name: Generate checksum
-        run: ${{ matrix.checksum-cmd }} sing-infra/target/${{ matrix.binary-name }} | awk '{print $1}' > sing-infra/target/${{ matrix.binary-name }}.sha256
+        run: ${{ matrix.checksum-cmd }} sail-infra/target/${{ matrix.binary-name }} | awk '{print $1}' > sail-infra/target/${{ matrix.binary-name }}.sha256
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary-name }}
           path: |
-            sing-infra/target/${{ matrix.binary-name }}
-            sing-infra/target/${{ matrix.binary-name }}.sha256
+            sail-infra/target/${{ matrix.binary-name }}
+            sail-infra/target/${{ matrix.binary-name }}.sha256
 
   release:
     needs: build
@@ -59,16 +59,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
 
-      - name: Create legacy aliases for backward compatibility
+      - name: Create short Linux alias
         run: |
           cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sail
           cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sail.sha256
-          cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sing-linux-amd64
-          cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sing-linux-amd64.sha256
-          cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sing
-          cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sing.sha256
-          cp sail-darwin-arm64/sail-darwin-arm64 sail-darwin-arm64/sing-darwin-arm64
-          cp sail-darwin-arm64/sail-darwin-arm64.sha256 sail-darwin-arm64/sing-darwin-arm64.sha256
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -78,12 +72,6 @@ jobs:
             sail-linux-amd64/sail.sha256
             sail-linux-amd64/sail-linux-amd64
             sail-linux-amd64/sail-linux-amd64.sha256
-            sail-linux-amd64/sing
-            sail-linux-amd64/sing.sha256
-            sail-linux-amd64/sing-linux-amd64
-            sail-linux-amd64/sing-linux-amd64.sha256
             sail-darwin-arm64/sail-darwin-arm64
             sail-darwin-arm64/sail-darwin-arm64.sha256
-            sail-darwin-arm64/sing-darwin-arm64
-            sail-darwin-arm64/sing-darwin-arm64.sha256
           generate_release_notes: true

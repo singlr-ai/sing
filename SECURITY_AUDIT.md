@@ -1,4 +1,4 @@
-# Sing Security Audit
+# Sail Security Audit
 
 ## Scope
 This audit covers the current `sail` CLI and runtime trust boundaries:

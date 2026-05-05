@@ -62,4 +62,4 @@ jobs:
         run: mvn package -Pnative -DskipTests
 
       - name: Smoke test
-        run: ./sing-infra/target/sail -V
+        run: ./sail-infra/target/sail -V

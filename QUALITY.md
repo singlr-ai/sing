@@ -19,7 +19,7 @@ mvn clean verify
 
 ## Coverage Policy
 
-- API contract classes under `ai.singlr.sing.api.*` require 100% line and method coverage.
+- API contract classes under `ai.singlr.sail.api.*` require 100% line and method coverage.
 - Pure CLI runtime utilities have explicit class gates. `CliCommand` requires 100% line, method, and branch coverage. `CliJson` requires 100% method coverage and high line/branch coverage, with only defensive reflection failure paths outside the current threshold.
 - Every module has bundle-level line, method, branch, and class gates set to the current verified baseline so coverage cannot silently regress.
 - Generated code, unreachable defensive paths, and external process boundaries may use staged thresholds only when full coverage would encourage brittle tests.
