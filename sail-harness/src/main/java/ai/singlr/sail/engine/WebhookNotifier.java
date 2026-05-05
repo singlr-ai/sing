@@ -53,10 +53,12 @@ public final class WebhookNotifier {
       var client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
       var response = client.send(request, HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() >= 400) {
-        System.err.println("  [webhook] Warning: HTTP " + response.statusCode() + " from " + url);
+        System.err.println(
+            "  [webhook] Warning: HTTP " + response.statusCode() + " from " + redactedUrl(url));
       }
     } catch (Exception e) {
-      System.err.println("  [webhook] Warning: failed to notify " + url + " — " + e.getMessage());
+      System.err.println(
+          "  [webhook] Warning: failed to notify " + redactedUrl(url) + " - " + e.getMessage());
     }
   }
 
@@ -131,6 +133,19 @@ public final class WebhookNotifier {
     var lower = url.toLowerCase();
     if (!lower.startsWith("https://") && !lower.startsWith("http://")) {
       throw new IllegalArgumentException("Webhook URL must use http or https scheme, got: " + url);
+    }
+  }
+
+  static String redactedUrl(String url) {
+    try {
+      var uri = URI.create(url);
+      var host = uri.getHost();
+      if (host == null || host.isBlank()) {
+        return "<webhook>";
+      }
+      return uri.getScheme() + "://" + host + "/...";
+    } catch (Exception e) {
+      return "<webhook>";
     }
   }
 

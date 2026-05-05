@@ -54,6 +54,13 @@ class ContainerExecTest {
   }
 
   @Test
+  void asDevUserRejectsInvalidContainerName() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ContainerExec.asDevUser("proj;touch-owned", List.of("echo", "hi")));
+  }
+
+  @Test
   void asDevUserReturnsUnmodifiableList() {
     var cmd = ContainerExec.asDevUser("proj", List.of("echo", "hi"));
 

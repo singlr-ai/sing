@@ -142,6 +142,16 @@ class WebhookNotifierTest {
   }
 
   @Test
+  void redactedUrlKeepsSecretPathOutOfLogs() {
+    var redacted =
+        WebhookNotifier.redactedUrl("https://hooks.slack.com/services/T123/B456/secret-token");
+
+    assertEquals("https://hooks.slack.com/...", redacted);
+    assertFalse(redacted.contains("secret-token"));
+    assertFalse(redacted.contains("T123"));
+  }
+
+  @Test
   void payloadEscapesSpecialCharacters() {
     var payload =
         WebhookNotifier.buildPayload(

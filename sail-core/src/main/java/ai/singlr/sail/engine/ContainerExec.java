@@ -42,6 +42,7 @@ public final class ContainerExec {
    * @return an unmodifiable command list ready for {@link ShellExec#exec}
    */
   public static List<String> asDevUser(String containerName, List<String> args) {
+    NameValidator.requireValidProjectName(containerName);
     var prefix =
         List.of(
             "incus",

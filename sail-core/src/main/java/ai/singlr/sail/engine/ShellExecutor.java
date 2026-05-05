@@ -55,13 +55,8 @@ public final class ShellExecutor implements ShellExec {
     var process = pb.start();
     process.getOutputStream().close();
 
+    var stdoutFuture = CompletableFuture.supplyAsync(() -> readFully(process.getInputStream()));
     var stderrFuture = CompletableFuture.supplyAsync(() -> readFully(process.getErrorStream()));
-    String stdout;
-    String stderr;
-    try (var stdoutStream = process.getInputStream()) {
-      stdout = new String(stdoutStream.readAllBytes(), StandardCharsets.UTF_8);
-    }
-    stderr = stderrFuture.join();
 
     var finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
     if (!finished) {
@@ -70,6 +65,8 @@ public final class ShellExecutor implements ShellExec {
           "Command timed out after " + timeout.toSeconds() + "s: " + String.join(" ", command));
     }
 
+    var stdout = stdoutFuture.join();
+    var stderr = stderrFuture.join();
     return new Result(process.exitValue(), stdout, stderr);
   }
 

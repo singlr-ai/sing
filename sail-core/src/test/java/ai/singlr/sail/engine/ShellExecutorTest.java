@@ -78,6 +78,19 @@ class ShellExecutorTest {
   }
 
   @Test
+  void timesOutWhenProcessKeepsStdoutOpen() {
+    var executor = new ShellExecutor(false);
+
+    assertTimeoutPreemptively(
+        Duration.ofSeconds(2),
+        () ->
+            assertThrows(
+                TimeoutException.class,
+                () ->
+                    executor.exec(List.of("sh", "-c", "sleep 30"), null, Duration.ofMillis(200))));
+  }
+
+  @Test
   void customDefaultTimeout() throws Exception {
     var executor = new ShellExecutor(false, Duration.ofSeconds(30));
     var result = executor.exec(List.of("echo", "fast"));
