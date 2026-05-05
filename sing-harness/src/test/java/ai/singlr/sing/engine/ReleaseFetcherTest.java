@@ -26,6 +26,20 @@ class ReleaseFetcherTest {
   }
 
   @Test
+  void releaseAssetCandidatesIncludeLegacySingAssetForSailAsset() {
+    assertEquals(
+        java.util.List.of("sail-linux-amd64", "sing-linux-amd64"),
+        ReleaseFetcher.releaseAssetCandidates("sail-linux-amd64"));
+  }
+
+  @Test
+  void releaseAssetCandidatesDoNotRewriteLegacyAsset() {
+    assertEquals(
+        java.util.List.of("sing-linux-amd64"),
+        ReleaseFetcher.releaseAssetCandidates("sing-linux-amd64"));
+  }
+
+  @Test
   void apiBasePointsToGitHub() {
     assertTrue(ReleaseFetcher.API_BASE.contains("api.github.com"));
     assertTrue(ReleaseFetcher.API_BASE.contains("singlr-ai/sing"));

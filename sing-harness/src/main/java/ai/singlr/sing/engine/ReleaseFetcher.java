@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -85,30 +86,37 @@ public final class ReleaseFetcher {
     return DOWNLOAD_BASE + "/" + versionTag + "/" + asset;
   }
 
+  static List<String> releaseAssetCandidates(String asset) {
+    if (!asset.startsWith("sail-")) {
+      return List.of(asset);
+    }
+    return List.of(asset, asset.replaceFirst("^sail-", "sing-"));
+  }
+
   private static byte[] fetchReleaseAsset(String versionTag, String asset, Duration timeout)
       throws IOException, InterruptedException {
-    try {
-      return fetchBytes(buildDownloadUrl(versionTag, asset), timeout);
-    } catch (IOException error) {
-      if (!asset.startsWith("sail-")) {
-        throw error;
+    IOException failure = null;
+    for (var candidate : releaseAssetCandidates(asset)) {
+      try {
+        return fetchBytes(buildDownloadUrl(versionTag, candidate), timeout);
+      } catch (IOException error) {
+        failure = error;
       }
-      return fetchBytes(
-          buildDownloadUrl(versionTag, asset.replaceFirst("^sail-", "sing-")), timeout);
     }
+    throw failure;
   }
 
   private static String fetchReleaseAssetText(String versionTag, String asset, Duration timeout)
       throws IOException, InterruptedException {
-    try {
-      return fetchText(buildDownloadUrl(versionTag, asset), timeout);
-    } catch (IOException error) {
-      if (!asset.startsWith("sail-")) {
-        throw error;
+    IOException failure = null;
+    for (var candidate : releaseAssetCandidates(asset)) {
+      try {
+        return fetchText(buildDownloadUrl(versionTag, candidate), timeout);
+      } catch (IOException error) {
+        failure = error;
       }
-      return fetchText(
-          buildDownloadUrl(versionTag, asset.replaceFirst("^sail-", "sing-")), timeout);
     }
+    throw failure;
   }
 
   private static String fetchText(String url, Duration timeout)
