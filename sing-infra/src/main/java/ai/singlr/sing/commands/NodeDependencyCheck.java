@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -103,7 +103,7 @@ final class NodeDependencyCheck {
             + " require(s) Node.js, but Node is not in the project runtimes."
             + "\n  Either add 'node: "
             + ProjectDefaults.DEFAULT_NODE_VERSION
-            + "' under 'runtimes:' in sing.yaml,"
+            + "' under 'runtimes:' in sail.yaml,"
             + "\n  or remove the Node-dependent agent(s) from 'agent.install'.");
   }
 

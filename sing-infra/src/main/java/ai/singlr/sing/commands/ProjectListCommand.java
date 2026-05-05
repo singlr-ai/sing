@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -51,7 +51,7 @@ public final class ProjectListCommand implements Runnable {
       System.out.println();
       System.out.println(
           Ansi.AUTO.string(
-              "  @|faint No projects found.|@ Create one with: @|bold sing project create|@"));
+              "  @|faint No projects found.|@ Create one with: @|bold sail project create|@"));
       System.out.println();
       return;
     }

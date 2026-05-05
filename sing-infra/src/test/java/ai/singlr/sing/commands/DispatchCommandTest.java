@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -86,7 +86,7 @@ class DispatchCommandTest {
           type: claude-code
           specs_dir: specs
         """;
-    var yamlPath = tempDir.resolve("sing.yaml");
+    var yamlPath = tempDir.resolve("sail.yaml");
     Files.writeString(yamlPath, yaml);
 
     var cmd = new CommandLine(new Sing());

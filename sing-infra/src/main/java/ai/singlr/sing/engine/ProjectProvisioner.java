@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -631,7 +631,7 @@ public final class ProjectProvisioner {
         throw new IOException(
             "SSH key not found: "
                 + sshKeyHostPath
-                + "\n  Check the 'git.ssh_key' path in sing.yaml points to an existing private key.");
+                + "\n  Check the 'git.ssh_key' path in sail.yaml points to an existing private key.");
       }
       var sshDir = "/home/" + user + "/.ssh";
       execInContainer(name, List.of("mkdir", "-p", sshDir));
@@ -1211,7 +1211,7 @@ public final class ProjectProvisioner {
                 + "\n    - The SSH key has a passphrase (not supported in non-interactive mode)"
                 + "\n    - The key is not registered in "
                 + host
-                + "\n    - Wrong key path in sing.yaml (git.ssh_key)"
+                + "\n    - Wrong key path in sail.yaml (git.ssh_key)"
                 + "\n  Debug: ssh into the container and run 'ssh -vT git@"
                 + host
                 + "'");

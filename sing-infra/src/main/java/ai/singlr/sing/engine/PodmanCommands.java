@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -21,7 +21,7 @@ public final class PodmanCommands {
    * Builds a {@code podman run -d --restart=always} command for the given service.
    *
    * @param serviceName the container name (e.g. "postgres")
-   * @param service the service definition from sing.yaml
+   * @param service the service definition from sail.yaml
    * @return an unmodifiable command list ready for {@link ShellExec#exec}
    */
   public static List<String> buildRunCommand(String serviceName, SingYaml.Service service) {

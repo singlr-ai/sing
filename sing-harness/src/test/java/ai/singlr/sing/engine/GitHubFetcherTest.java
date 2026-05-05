@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -13,10 +13,10 @@ class GitHubFetcherTest {
 
   @Test
   void buildUrlConstructsCorrectPath() {
-    var url = GitHubFetcher.buildUrl("acme-org/projects", "acme-health/sing.yaml", "main");
+    var url = GitHubFetcher.buildUrl("acme-org/projects", "acme-health/sail.yaml", "main");
 
     assertEquals(
-        "https://raw.githubusercontent.com/acme-org/projects/main/acme-health/sing.yaml", url);
+        "https://raw.githubusercontent.com/acme-org/projects/main/acme-health/sail.yaml", url);
   }
 
   @Test

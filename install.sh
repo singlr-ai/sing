@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sing CLI installer — downloads from GitHub Releases (no authentication required).
+# SAIL CLI installer — downloads from GitHub Releases (no authentication required).
 # Supports Linux (amd64) and macOS (arm64).
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
@@ -10,7 +10,8 @@ set -euo pipefail
 
 GITHUB_REPO="singlr-ai/sing"
 INSTALL_DIR="/usr/local/bin"
-BINARY="sing"
+BINARY="sail"
+LEGACY_BINARY="sing"
 
 # --- Colors (disabled if not a TTY) ---
 if [ -t 1 ]; then
@@ -33,7 +34,7 @@ ARCH="$(uname -m)"
 case "$OS" in
   Linux)
     PLATFORM="linux-amd64"
-    [ "$ARCH" = "x86_64" ] || fail "sing only supports x86_64 on Linux. Detected: $ARCH"
+    [ "$ARCH" = "x86_64" ] || fail "SAIL only supports x86_64 on Linux. Detected: $ARCH"
     CHECKSUM_CMD="sha256sum"
     ELF_CHECK=true
     ;;
@@ -43,11 +44,12 @@ case "$OS" in
     ELF_CHECK=false
     ;;
   *)
-    fail "Unsupported OS: $OS. sing supports Linux and macOS."
+    fail "Unsupported OS: $OS. SAIL supports Linux and macOS."
     ;;
 esac
 
-BINARY_NAME="sing-${PLATFORM}"
+BINARY_NAME="sail-${PLATFORM}"
+LEGACY_BINARY_NAME="sing-${PLATFORM}"
 
 # --- Resolve version ---
 VERSION="${1:-latest}"
@@ -65,7 +67,7 @@ case "$VERSION" in
   *)  TAG="v$VERSION" ;;
 esac
 
-info "Installing sing $TAG ($PLATFORM)..."
+info "Installing SAIL $TAG ($PLATFORM)..."
 
 # --- Download binary ---
 TMPFILE=$(mktemp)
@@ -73,13 +75,21 @@ trap 'rm -f "$TMPFILE"' EXIT
 
 DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${BINARY_NAME}"
 info "Downloading from GitHub Releases..."
-HTTP_CODE=$(curl -fsSL -w '%{http_code}' "$DOWNLOAD_URL" -o "$TMPFILE" 2>/dev/null)
+HTTP_CODE=$(curl -fsSL -w '%{http_code}' "$DOWNLOAD_URL" -o "$TMPFILE" 2>/dev/null || true)
+if [ "$HTTP_CODE" != "200" ]; then
+  DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${LEGACY_BINARY_NAME}"
+  HTTP_CODE=$(curl -fsSL -w '%{http_code}' "$DOWNLOAD_URL" -o "$TMPFILE" 2>/dev/null || true)
+fi
 [ "$HTTP_CODE" = "200" ] || fail "Download failed (HTTP $HTTP_CODE). Check the version exists: $DOWNLOAD_URL"
 
 # --- Verify checksum ---
 info "Verifying checksum..."
 CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${BINARY_NAME}.sha256"
-EXPECTED=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}')
+EXPECTED=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}' || true)
+if [ -z "$EXPECTED" ]; then
+  CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${LEGACY_BINARY_NAME}.sha256"
+  EXPECTED=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}' || true)
+fi
 if [ -n "$EXPECTED" ]; then
   ACTUAL=$($CHECKSUM_CMD "$TMPFILE" | awk '{print $1}')
   if [ "$EXPECTED" != "$ACTUAL" ]; then
@@ -113,21 +123,24 @@ fi
 # --- Install ---
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPFILE" "$INSTALL_DIR/$BINARY"
+  ln -sf "$BINARY" "$INSTALL_DIR/$LEGACY_BINARY"
 else
   info "Installing to $INSTALL_DIR (requires sudo)..."
   sudo mv "$TMPFILE" "$INSTALL_DIR/$BINARY"
+  sudo ln -sf "$BINARY" "$INSTALL_DIR/$LEGACY_BINARY"
 fi
 
 # --- Verify ---
-ok "Installed sing $TAG to $INSTALL_DIR/$BINARY"
+ok "Installed SAIL $TAG to $INSTALL_DIR/$BINARY"
+ok "Installed compatibility alias at $INSTALL_DIR/$LEGACY_BINARY"
 echo
 
 if [ "$OS" = "Darwin" ]; then
   info "Get started:"
-  info "  sing init <server>  # connect to your host (IP or SSH alias)"
-  info "  sing spec list <project>"
+  info "  sail init <server>  # connect to your host (IP or SSH alias)"
+  info "  sail spec list <project>"
 else
   info "Get started:"
-  info "  sing host init      # provision your server"
-  info "  sing upgrade        # update to the latest version"
+  info "  sail host init      # provision your server"
+  info "  sail upgrade        # update to the latest version"
 fi

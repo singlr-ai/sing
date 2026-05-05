@@ -1,4 +1,4 @@
-# sing
+# sail
 
 A single native binary that provisions bare-metal servers and manages isolated dev environments for AI-assisted engineering. One binary, zero dependencies, fully declarative.
 
@@ -8,16 +8,16 @@ Built with Java 25 + picocli + GraalVM native-image. <1ms startup.
 
 You have a bare-metal server. You work on multiple projects simultaneously, each needing its own JDK, Postgres, Meilisearch, Redpanda, and AI coding agents — fully isolated so a runaway agent in one project can't affect another.
 
-`sing` provisions the server, creates project environments as Incus system containers, manages their lifecycle, and orchestrates AI agents inside them with spec-driven workflows, guardrails, and rollback safety. Each project gets a complete Ubuntu 24.04 userspace with its own filesystem, network stack, and rootless Podman runtime.
+`sail` provisions the server, creates project environments as Incus system containers, manages their lifecycle, and orchestrates AI agents inside them with spec-driven workflows, guardrails, and rollback safety. Each project gets a complete Ubuntu 24.04 userspace with its own filesystem, network stack, and rootless Podman runtime.
 
 ## Day 0: Server + Project Setup
 
 ```bash
-# Install sing (single binary, no dependencies)
+# Install sail (single binary, no dependencies)
 curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
 
 # Initialize server (one-time, needs sudo)
-sudo sing host init
+sudo sail host init
 ```
 
 `host init` installs Incus, creates a storage pool (dir by default, ZFS with `--storage zfs --disk /dev/sdX`), configures networking, and caches the base Ubuntu 24.04 image.
@@ -25,36 +25,36 @@ sudo sing host init
 ```bash
 # Pull project descriptor from shared repo (team projects)
 export GITHUB_TOKEN=ghp_...
-sing project pull acme-health
+sail project pull acme-health
 
-# Or generate a new sing.yaml interactively
-sing project init
+# Or generate a new sail.yaml interactively
+sail project init
 
 # Create the environment
-sing project create acme-health
+sail project create acme-health
 ```
 
 `project pull` stores the project bundle under `~/.sing/projects/<name>/` by default.
 
-`project create` provisions an Incus container with everything declared in `sing.yaml` — installs runtimes, starts Podman services, clones repos, configures git identity, generates agent context files, and sets up the harness.
+`project create` provisions an Incus container with everything declared in `sail.yaml` — installs runtimes, starts Podman services, clones repos, configures git identity, generates agent context files, and sets up the harness.
 
 ```bash
 # Print SSH config for your editor
-sing project connect acme-health
+sail project connect acme-health
 ```
 
 Add the output to `~/.ssh/config`, then connect in Zed: `Cmd+Shift+P` → "Connect to SSH Host" → `acme-health`.
 
 ## Day 2: The Two Modes
 
-Engineers work in two modes. `sing` supports both from the same project.
+Engineers work in two modes. `sail` supports both from the same project.
 
 ### Interactive Mode (Daytime)
 
-Open Zed, connect via SSH remote dev, start the agent from Zed's Agent Panel. You're in the loop — brainstorming, exploring code, writing specs, reviewing output. `sing` is invisible here; the generated context files (CLAUDE.md, SECURITY.md, `.context/`) guide the agent.
+Open Zed, connect via SSH remote dev, start the agent from Zed's Agent Panel. You're in the loop — brainstorming, exploring code, writing specs, reviewing output. `sail` is invisible here; the generated context files (CLAUDE.md, SECURITY.md, `.context/`) guide the agent.
 
 ```bash
-sing project restart acme-health     # start container, show connection info
+sail project restart acme-health     # start container, show connection info
 ```
 
 Developer processes (`java -jar`, `npm run dev`) run interactively in Zed terminal tabs. Infrastructure services (Postgres, Meilisearch, etc.) are managed by Podman with `--restart=always` and survive container reboots automatically.
@@ -64,7 +64,7 @@ Developer processes (`java -jar`, `npm run dev`) run interactively in Zed termin
 Write specs during the day. Walk away. The agent works through them overnight.
 
 ```bash
-sing spec dispatch acme-health   # pick next ready spec, launch agent
+sail spec dispatch acme-health   # pick next ready spec, launch agent
 ```
 
 `dispatch` scans `specs/*/spec.yaml` from the container, finds the next pending spec (respecting dependencies and assignee), reads the detailed `spec.md`, and launches the agent with full context. Guardrails enforce time limits. Auto-snapshot provides rollback safety.
@@ -108,7 +108,7 @@ branch: feat/payment-integration
 pending → in_progress → review → done → archive
 ```
 
-**pending**: Ready for an agent to pick up. **in_progress**: Agent is working. **review**: Work complete, security review and code review hooks run automatically. **done**: All reviews pass. **archive**: Cleaned up (`sing task archive`).
+**pending**: Ready for an agent to pick up. **in_progress**: Agent is working. **review**: Work complete, security review and code review hooks run automatically. **done**: All reviews pass. **archive**: Cleaned up (`sail task archive`).
 
 ### The Full Loop
 
@@ -119,7 +119,7 @@ Morning (Zed, interactive):
   Push specs to shared repo
 
 Evening:
-  sing spec dispatch acme-health
+  sail spec dispatch acme-health
 
 Overnight:
   Agent reads spec.md, works, commits, pushes branch
@@ -127,8 +127,8 @@ Overnight:
   Guardrails enforce time limits
 
 Next morning:
-  sing agent status              # all projects at a glance
-  sing agent report acme-health  # detailed: commits, spec progress, review results
+  sail agent status              # all projects at a glance
+  sail agent report acme-health  # detailed: commits, spec progress, review results
   Review PRs, merge or address findings
 ```
 
@@ -138,24 +138,24 @@ Specs live in a shared private repo (e.g., `your-org/projects/acme-health/specs/
 
 - Alice specs out OAuth, assigns to herself
 - Bob specs out payments, depends on Alice's OAuth work
-- `sing spec dispatch` respects `assignee` — each engineer's agent only picks up their specs (or unassigned ones)
+- `sail spec dispatch` respects `assignee` — each engineer's agent only picks up their specs (or unassigned ones)
 - Dependencies prevent premature work — payments won't start until OAuth is done
 
 No project board needed. The spec directory *is* the board. Git history is the audit trail.
 
 ### Fleet Migration
 
-After upgrading `sing`, bring existing project containers up to the current spec layout and agent
+After upgrading `sail`, bring existing project containers up to the current spec layout and agent
 instructions with one command:
 
 ```bash
-sing project migrate --all --pull-specs
+sail project migrate --all --pull-specs
 ```
 
 For a single project:
 
 ```bash
-sing project migrate acme-health --pull-specs
+sail project migrate acme-health --pull-specs
 ```
 
 The migration starts stopped projects, regenerates agent context files, converts legacy
@@ -165,7 +165,7 @@ want to retain the old index file during manual review.
 
 ## Context Generation
 
-`sing agent run` (or `sing agent context regen`) generates a complete agent environment from `sing.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
+`sail agent run` (or `sail agent context regen`) generates a complete agent environment from `sail.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
 
 | Generated | Purpose |
 |-----------|---------|
@@ -212,7 +212,7 @@ agent:
     action: snapshot-and-stop
 ```
 
-When the time limit triggers, the agent is stopped and rolled back to the pre-launch snapshot. The watcher starts automatically with `sing spec dispatch` and `sing agent run --background`.
+When the time limit triggers, the agent is stopped and rolled back to the pre-launch snapshot. The watcher starts automatically with `sail spec dispatch` and `sail agent run --background`.
 
 Actions: `snapshot-and-stop` (rollback), `stop` (keep changes), `notify` (webhook, agent continues).
 
@@ -220,33 +220,33 @@ Actions: `snapshot-and-stop` (rollback), `stop` (keep changes), `notify` (webhoo
 
 ```bash
 # Dispatch
-sing spec dispatch acme-health              # next ready spec, background launch
-sing spec dispatch acme-health --spec auth  # specific spec by ID
+sail spec dispatch acme-health              # next ready spec, background launch
+sail spec dispatch acme-health --spec auth  # specific spec by ID
 
 # Run (context regen + launch)
-sing agent run acme-health                   # interactive mode (Zed)
-sing agent run acme-health --task "..."      # headless with explicit task
-sing agent run acme-health --background      # background, picks next spec
+sail agent run acme-health                   # interactive mode (Zed)
+sail agent run acme-health --task "..."      # headless with explicit task
+sail agent run acme-health --background      # background, picks next spec
 
 # Monitor
-sing agent status                      # all projects at a glance
-sing agent status acme-health          # single project detail
-sing agent log acme-health -f          # stream output live
-sing agent report acme-health          # morning-after summary
+sail agent status                      # all projects at a glance
+sail agent status acme-health          # single project detail
+sail agent log acme-health -f          # stream output live
+sail agent report acme-health          # morning-after summary
 
 # Control
-sing agent stop acme-health            # SIGTERM → SIGKILL after 3s
-sing agent watch acme-health           # enforce guardrails (auto-started by dispatch)
+sail agent stop acme-health            # SIGTERM → SIGKILL after 3s
+sail agent watch acme-health           # enforce guardrails (auto-started by dispatch)
 
 # Quality
-sing agent audit acme-health           # cross-agent security audit
-sing agent review acme-health          # cross-agent code review
-sing agent sweep acme-health           # codebase cleanup pass
+sail agent audit acme-health           # cross-agent security audit
+sail agent review acme-health          # cross-agent code review
+sail agent sweep acme-health           # codebase cleanup pass
 ```
 
 ## Multi-Agent Support
 
-`sing` is agent-agnostic. Configure the primary agent and optionally install others for cross-agent review:
+`sail` is agent-agnostic. Configure the primary agent and optionally install others for cross-agent review:
 
 ```yaml
 agent:
@@ -263,7 +263,7 @@ agent:
 
 Claude codes. Gemini reviews. Or the same agent does both with fresh context. The hooks fire at spec completion, not session stop — so reviews always see complete, coherent work.
 
-## Example `sing.yaml`
+## Example `sail.yaml`
 
 ```yaml
 name: acme-health
@@ -332,19 +332,19 @@ ssh:
 ## Project Lifecycle
 
 ```bash
-sing project create acme-health   # provision container from sing.yaml
-sing project start acme-health               # start stopped container
-sing project stop acme-health             # stop container (preserves state)
-sing project restart acme-health           # start + show connection info
-sing project containers                           # list all projects with status
-sing project snapshot create acme-health             # create snapshot
-sing project snapshot restore acme-health snap-01  # rollback to snapshot
+sail project create acme-health   # provision container from sail.yaml
+sail project start acme-health               # start stopped container
+sail project stop acme-health             # stop container (preserves state)
+sail project restart acme-health           # start + show connection info
+sail project containers                           # list all projects with status
+sail project snapshot create acme-health             # create snapshot
+sail project snapshot restore acme-health snap-01  # rollback to snapshot
 
 # Modify running projects
-sing project add service acme-health
-sing project add repo acme-health
-sudo sing project resources set acme-health --memory 16GB
-sing project destroy acme-health  # delete container and state
+sail project add service acme-health
+sail project add repo acme-health
+sudo sail project resources set acme-health --memory 16GB
+sail project destroy acme-health  # delete container and state
 ```
 
 ## Building from Source

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeoutException;
  * Applies incremental changes to an already-provisioned project container. Detects what is already
  * present in the container and only applies the delta — adding missing services, repos, agent
  * tools, etc. Also supports declarative reconciliation: removing services that are running in the
- * container but no longer declared in sing.yaml.
+ * container but no longer declared in sail.yaml.
  *
  * <p>Unlike {@link ProjectProvisioner} (which runs the full provisioning pipeline from scratch),
  * this engine is safe to run on a live container at any time.
@@ -338,7 +338,7 @@ public final class ProjectApplier {
    * are running in the Incus container but are not declared in the services map.
    *
    * @param name the Incus container name
-   * @param services the desired services from sing.yaml (may be null)
+   * @param services the desired services from sail.yaml (may be null)
    * @return result with removed count for orphaned services
    */
   public ApplyResult reconcileServices(String name, Map<String, SingYaml.Service> services)
@@ -354,7 +354,7 @@ public final class ProjectApplier {
     }
     var removed = 0;
     for (var orphan : orphans) {
-      out.println("  [remove] Orphaned service '" + orphan + "' not in sing.yaml");
+      out.println("  [remove] Orphaned service '" + orphan + "' not in sail.yaml");
       shell.exec(ContainerExec.asDevUser(name, List.of("podman", "stop", orphan)));
       shell.exec(ContainerExec.asDevUser(name, List.of("podman", "rm", "-f", orphan)));
       removed++;
@@ -505,8 +505,8 @@ public final class ProjectApplier {
             || !normalizedSize(config.resources().memory())
                 .equals(normalizedSize(liveLimits.memory())))) {
       warnings.add(
-          "CPU and memory changes are not applied by 'sing project apply'."
-              + " Use 'sing project resources set "
+          "CPU and memory changes are not applied by 'sail project apply'."
+              + " Use 'sail project resources set "
               + config.name()
               + " ...' instead.");
     }
@@ -555,7 +555,7 @@ public final class ProjectApplier {
       throw new IOException(
           "SSH key not found: "
               + sshKeyHostPath
-              + "\n  Check the 'git.ssh_key' path in sing.yaml points to an existing private key.");
+              + "\n  Check the 'git.ssh_key' path in sail.yaml points to an existing private key.");
     }
     var sshDir = "/home/" + sshUser + "/.ssh";
     shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", sshDir)));

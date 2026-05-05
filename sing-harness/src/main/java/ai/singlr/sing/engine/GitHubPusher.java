@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -73,7 +73,7 @@ public final class GitHubPusher {
     if (statusCode == 409) {
       throw new IOException(
           "Conflict: the file was modified on the remote since it was last fetched."
-              + "\n  Pull the latest version with 'sing project pull' and try again.");
+              + "\n  Pull the latest version with 'sail project pull' and try again.");
     }
     if (statusCode == 401 || statusCode == 403) {
       throw new IOException(

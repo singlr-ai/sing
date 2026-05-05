@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -54,7 +54,7 @@ class CliEntryPointTest {
   }
 
   @Test
-  void singWithNoArgsShowsUsage() {
+  void sailWithNoArgsShowsUsage() {
     var cmd = new CommandLine(new Sing());
     cmd.setErr(new PrintWriter(new StringWriter()));
 
@@ -62,7 +62,7 @@ class CliEntryPointTest {
 
     assertEquals(0, exitCode);
     var output = capturedOut.toString(StandardCharsets.UTF_8);
-    assertTrue(output.contains("sing"), "Usage should mention 'sing'");
+    assertTrue(output.contains("sail"), "Usage should mention 'sail'");
   }
 
   @Test
@@ -75,7 +75,7 @@ class CliEntryPointTest {
 
     assertEquals(0, exitCode);
     var output = sw.toString();
-    assertTrue(output.contains("sing"), "Version should include 'sing'");
+    assertTrue(output.contains("sail"), "Version should include 'sail'");
   }
 
   @Test
@@ -91,7 +91,7 @@ class CliEntryPointTest {
   }
 
   @Test
-  void singHelpShowsDescription() {
+  void sailHelpShowsDescription() {
     var cmd = new CommandLine(new Sing());
     var sw = new StringWriter();
     cmd.setOut(new PrintWriter(sw));
@@ -267,7 +267,7 @@ class CliEntryPointTest {
     var output = sw.toString();
     assertTrue(output.contains("--json"));
     assertTrue(output.contains("--output"));
-    assertTrue(output.contains("sing.yaml"));
+    assertTrue(output.contains("sail.yaml"));
   }
 
   @Test
@@ -317,7 +317,7 @@ class CliEntryPointTest {
   }
 
   @Test
-  void projectCreateMissingSingYamlFails() {
+  void projectCreateMissingDescriptorFails() {
     var cmd = new CommandLine(new Sing());
     cmd.setExecutionExceptionHandler((ex, cl, pr) -> 1);
 
@@ -331,12 +331,12 @@ class CliEntryPointTest {
 
     assertNotEquals(0, exitCode);
     var errOutput = capturedErr.toString(StandardCharsets.UTF_8);
-    assertTrue(errOutput.contains("not found"), "Should report missing sing.yaml");
+    assertTrue(errOutput.contains("not found"), "Should report missing sail.yaml");
   }
 
   @Test
   void projectCreateInvalidNameFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """
@@ -358,7 +358,7 @@ class CliEntryPointTest {
 
   @Test
   void projectCreateMissingNameFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """
@@ -379,7 +379,7 @@ class CliEntryPointTest {
 
   @Test
   void projectCreateMissingResourcesFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """
@@ -397,7 +397,7 @@ class CliEntryPointTest {
 
   @Test
   void projectCreateNonDryRunWithoutRootFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -28,13 +28,13 @@ public enum ProjectPhase {
   PODMAN_INSTALLED,
   /** Testcontainers environment variables configured for the dev user. */
   TESTCONTAINERS_CONFIGURED,
-  /** JDK installed at the version specified in sing.yaml runtimes. */
+  /** JDK installed at the version specified in sail.yaml runtimes. */
   JDK_INSTALLED,
-  /** Node.js installed at the version specified in sing.yaml runtimes. */
+  /** Node.js installed at the version specified in sail.yaml runtimes. */
   NODE_INSTALLED,
   /** Git configured with user name, email, known hosts, and optional credentials. */
   GIT_CONFIGURED,
-  /** Maven installed at the version specified in sing.yaml runtimes. */
+  /** Maven installed at the version specified in sail.yaml runtimes. */
   MAVEN_INSTALLED,
   /** Source repositories cloned into ~/workspace/. */
   REPOS_CLONED,

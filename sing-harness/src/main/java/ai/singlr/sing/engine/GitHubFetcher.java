@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -31,7 +31,7 @@ public final class GitHubFetcher {
    * Fetches a raw file from a GitHub repository.
    *
    * @param repo the repository in {@code owner/name} format (e.g. {@code your-org/projects})
-   * @param path the file path within the repository (e.g. {@code acme-health/sing.yaml})
+   * @param path the file path within the repository (e.g. {@code acme-health/sail.yaml})
    * @param token a GitHub personal access token with {@code repo} scope
    * @param ref the branch or tag name (e.g. {@code main})
    * @return the file content as a string

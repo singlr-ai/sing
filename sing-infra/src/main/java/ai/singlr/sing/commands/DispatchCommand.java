@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -63,8 +63,8 @@ public final class DispatchCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @picocli.CommandLine.Spec private CommandSpec commandSpec;
@@ -89,10 +89,10 @@ public final class DispatchCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -106,7 +106,7 @@ public final class DispatchCommand implements Runnable {
 
     if (config.agent() == null || config.agent().specsDir() == null) {
       throw new IllegalStateException(
-          "No specs_dir configured in agent block. Add 'specs_dir: specs' to sing.yaml.");
+          "No specs_dir configured in agent block. Add it to sail.yaml.");
     }
 
     var sshUser = config.sshUser();
@@ -127,7 +127,7 @@ public final class DispatchCommand implements Runnable {
               + name
               + "' (PID "
               + existingSession.pid()
-              + "). Stop it first with: sing agent stop "
+              + "). Stop it first with: sail agent stop "
               + name);
     }
 
@@ -320,7 +320,7 @@ public final class DispatchCommand implements Runnable {
           Banner.errorLine(
               "Failed to start guardrail watcher: "
                   + e.getMessage()
-                  + ". Run manually: sing agent watch "
+                  + ". Run manually: sail agent watch "
                   + name,
               Ansi.AUTO));
     }

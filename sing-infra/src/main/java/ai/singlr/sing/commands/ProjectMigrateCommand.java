@@ -30,7 +30,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
     name = "migrate",
-    description = "Bring existing project containers up to the current sing layout.",
+    description = "Bring existing project containers up to the current SAIL layout.",
     mixinStandardHelpOptions = true)
 public final class ProjectMigrateCommand implements Runnable {
 
@@ -47,13 +47,13 @@ public final class ProjectMigrateCommand implements Runnable {
   @Parameters(index = "0", arity = "0..1", description = "Project name.")
   private String name;
 
-  @Option(names = "--all", description = "Migrate all managed sing projects.")
+  @Option(names = "--all", description = "Migrate all managed SAIL projects.")
   private boolean all;
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor for single-project migration.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor for single-project migration.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--no-start", description = "Do not start stopped projects automatically.")
@@ -125,7 +125,10 @@ public final class ProjectMigrateCommand implements Runnable {
     try (var paths = Files.list(projectsDir)) {
       return paths
           .filter(Files::isDirectory)
-          .filter(path -> Files.isRegularFile(path.resolve("sing.yaml")))
+          .filter(
+              path ->
+                  Files.isRegularFile(path.resolve(SingPaths.PROJECT_DESCRIPTOR))
+                      || Files.isRegularFile(path.resolve(SingPaths.LEGACY_PROJECT_DESCRIPTOR)))
           .map(path -> path.getFileName().toString())
           .sorted(Comparator.naturalOrder())
           .toList();
@@ -133,7 +136,7 @@ public final class ProjectMigrateCommand implements Runnable {
   }
 
   private String descriptorFile(String project) {
-    return all ? SingPaths.projectDir(project).resolve("sing.yaml").toString() : file;
+    return all ? SingPaths.resolveSingYaml(project, file).toString() : file;
   }
 
   private static java.util.Map<String, Object> summary(List<ProjectResult> results) {
@@ -202,7 +205,7 @@ public final class ProjectMigrateCommand implements Runnable {
         var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
         if (config.agent() == null || config.agent().specsDir() == null) {
           throw new IllegalStateException(
-              "No specs_dir configured in agent block. Add 'specs_dir: specs' to sing.yaml.");
+              "No specs_dir configured in agent block. Add it to sail.yaml.");
         }
 
         var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
@@ -234,14 +237,14 @@ public final class ProjectMigrateCommand implements Runnable {
         case ContainerState.Stopped ignored -> {
           if (noStart) {
             throw new IllegalStateException(
-                "Project is stopped. Start it with: sing project start " + project);
+                "Project is stopped. Start it with: sail project start " + project);
           }
           manager.start(project);
           yield true;
         }
         case ContainerState.NotCreated ignored ->
             throw new IllegalStateException(
-                "Project does not exist. Run 'sing project create' first.");
+                "Project does not exist. Run 'sail project create' first.");
         case ContainerState.Error error ->
             throw new IllegalStateException("Container error: " + error.message());
       };

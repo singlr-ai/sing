@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -24,7 +24,7 @@ class RemoteCommandRunnerTest {
     assertEquals("ssh", cmd.getFirst());
     assertFalse(cmd.contains("-t"));
     assertTrue(cmd.contains("kubera-server"));
-    assertTrue(cmd.contains("sing"));
+    assertTrue(cmd.contains("sail"));
     assertTrue(cmd.contains("spec"));
     assertTrue(cmd.contains("list"));
     assertTrue(cmd.contains("kubera"));
@@ -57,8 +57,8 @@ class RemoteCommandRunnerTest {
 
     var cmd = runner.buildSshCommand(args, false);
 
-    var singIdx = cmd.indexOf("sing");
-    var tail = cmd.subList(singIdx + 1, cmd.size());
+    var sailIdx = cmd.indexOf("sail");
+    var tail = cmd.subList(sailIdx + 1, cmd.size());
     assertEquals(List.of("dispatch", "kubera", "--spec", "auth", "--json"), tail);
   }
 
@@ -68,8 +68,8 @@ class RemoteCommandRunnerTest {
 
     var cmd = runner.buildSshCommand(new String[] {}, false);
 
-    assertTrue(cmd.contains("sing"));
-    assertEquals(cmd.indexOf("sing"), cmd.size() - 1);
+    assertTrue(cmd.contains("sail"));
+    assertEquals(cmd.indexOf("sail"), cmd.size() - 1);
   }
 
   @Test
@@ -110,6 +110,6 @@ class RemoteCommandRunnerTest {
 
     var cmd = runner.buildSshCommand(new String[] {"ps", "kubera"}, false);
 
-    assertEquals(List.of("ssh", "kubera-server", "sing", "ps", "kubera"), cmd);
+    assertEquals(List.of("ssh", "kubera-server", "sail", "ps", "kubera"), cmd);
   }
 }

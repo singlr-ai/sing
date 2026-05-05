@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -52,7 +52,7 @@ public final class SnapsCommand implements Runnable {
       case ContainerState.Stopped ignored -> {}
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -72,7 +72,7 @@ public final class SnapsCommand implements Runnable {
           Ansi.AUTO.string(
               "  @|faint No snapshots for "
                   + name
-                  + ". Create one with:|@ @|bold sing project snapshot create "
+                  + ". Create one with:|@ @|bold sail project snapshot create "
                   + name
                   + "|@"));
       return;

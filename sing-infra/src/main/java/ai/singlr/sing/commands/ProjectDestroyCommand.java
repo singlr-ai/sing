@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -61,7 +61,7 @@ public final class ProjectDestroyCommand implements Runnable {
 
     if (!dryRun && !ConsoleHelper.isRoot()) {
       throw new IllegalStateException(
-          "Root privileges required. Run with: sudo sing project destroy " + name);
+          "Root privileges required. Run with: sudo sail project destroy " + name);
     }
 
     var shell = new ShellExecutor(dryRun);

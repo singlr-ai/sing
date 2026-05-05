@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -29,7 +29,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
     name = "apply",
-    description = "Apply incremental changes from sing.yaml to a running project.",
+    description = "Apply incremental changes from sail.yaml to a running project.",
     mixinStandardHelpOptions = true)
 public final class ProjectApplyCommand implements Runnable {
 
@@ -38,8 +38,8 @@ public final class ProjectApplyCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -71,7 +71,7 @@ public final class ProjectApplyCommand implements Runnable {
               + singYamlPath.toAbsolutePath()
               + "\n  Ensure ~/.sing/projects/"
               + name
-              + "/sing.yaml exists.");
+              + "/sail.yaml exists.");
     }
     SingYaml config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
@@ -84,12 +84,12 @@ public final class ProjectApplyCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '"
                   + name
-                  + "' does not exist. Run 'sing project create "
+                  + "' does not exist. Run 'sail project create "
                   + name
                   + "' first.");
       case ContainerState.Error e ->

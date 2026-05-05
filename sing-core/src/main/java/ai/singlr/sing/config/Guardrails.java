@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * Agent guardrail configuration parsed from the {@code guardrails} block inside {@code agent} in
- * sing.yaml. The only enforced guardrail is wall-clock duration — a hard time limit. Git-based
+ * sail.yaml. The only enforced guardrail is wall-clock duration — a hard time limit. Git-based
  * heuristics (idle timeout, commit burst) were removed because they produce false positives (agent
  * working but not committing) and false negatives (agent committing garbage). Quality assessment
  * happens post-task via {@code agent review} and {@code agent audit}.

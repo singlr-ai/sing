@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -26,7 +26,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
     name = "init",
-    description = "Interactively generate a sing.yaml project descriptor.",
+    description = "Interactively generate a sail.yaml project descriptor.",
     mixinStandardHelpOptions = true)
 public final class ProjectInitCommand implements Runnable {
 
@@ -35,7 +35,7 @@ public final class ProjectInitCommand implements Runnable {
 
   @Option(
       names = {"-o", "--output"},
-      description = "Output file path (default: ~/.sing/projects/<name>/sing.yaml).")
+      description = "Output file path (default: ~/.sing/projects/<name>/sail.yaml).")
   private String output;
 
   @Spec private CommandSpec spec;
@@ -52,7 +52,7 @@ public final class ProjectInitCommand implements Runnable {
     if (!json) {
       Banner.printBranding(out, ansi);
       out.println();
-      out.println(ansi.string("  @|bold Initializing sing.yaml|@"));
+      out.println(ansi.string("  @|bold Initializing sail.yaml|@"));
       out.println(ansi.string("  @|faint Press Enter to accept defaults shown in [brackets].|@"));
       out.println();
     }
@@ -89,7 +89,7 @@ public final class ProjectInitCommand implements Runnable {
   }
 
   static Path defaultOutputPath(String name) {
-    return SingPaths.projectDir(name).resolve("sing.yaml");
+    return SingPaths.projectDir(name).resolve(SingPaths.PROJECT_DESCRIPTOR);
   }
 
   static String nextCreateCommand(String name, Path outputPath) {
@@ -97,9 +97,9 @@ public final class ProjectInitCommand implements Runnable {
         .toAbsolutePath()
         .normalize()
         .equals(defaultOutputPath(name).toAbsolutePath().normalize())) {
-      return "sing project create " + name;
+      return "sail project create " + name;
     }
-    return "sing project create " + name + " -f " + outputPath;
+    return "sail project create " + name + " -f " + outputPath;
   }
 
   private SingYaml collectInputs(java.io.PrintStream out, Ansi ansi) {

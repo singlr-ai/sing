@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -63,13 +63,13 @@ public final class ProjectInstallAgentCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
               "Project '"
                   + name
                   + "' does not exist."
-                  + "\n  Create it first with: sing project create "
+                  + "\n  Create it first with: sail project create "
                   + name);
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
@@ -98,7 +98,7 @@ public final class ProjectInstallAgentCommand implements Runnable {
                 + "' requires Node.js, but Node is not installed in '"
                 + name
                 + "'."
-                + "\n  Add a 'node' version under 'runtimes:' in sing.yaml and reprovision,"
+                + "\n  Add a 'node' version under 'runtimes:' in sail.yaml and reprovision,"
                 + "\n  or install Node.js manually inside the container.");
       }
     }

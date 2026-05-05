@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -10,8 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Centralized path constants for all {@code sing} state files. All state lives under {@code
- * ~/.sing/} — project descriptors, provisioning state, host config, and client config. Every
+ * Centralized path constants for CLI state files. All state lives under {@code ~/.sing/} for
+ * compatibility — project descriptors, provisioning state, host config, and client config. Every
  * command works from any directory by project name alone.
  */
 public final class SingPaths {
@@ -20,6 +20,8 @@ public final class SingPaths {
 
   private static final Path SING_DIR = Path.of(System.getProperty("user.home"), ".sing");
   private static final Path PROJECTS_DIR = SING_DIR.resolve("projects");
+  public static final String PROJECT_DESCRIPTOR = "sail.yaml";
+  public static final String LEGACY_PROJECT_DESCRIPTOR = "sing.yaml";
 
   /** Returns the base sing directory: {@code ~/.sing}. */
   public static Path singDir() {
@@ -57,11 +59,13 @@ public final class SingPaths {
   }
 
   /**
-   * Resolves the sing.yaml path for a project. Checks in order:
+   * Resolves the project descriptor path for a project. Checks in order:
    *
    * <ol>
-   *   <li>{@code ~/.sing/projects/<name>/sing.yaml} (canonical location)
+   *   <li>{@code ~/.sing/projects/<name>/sail.yaml} (canonical location)
+   *   <li>{@code ~/.sing/projects/<name>/sing.yaml} (legacy canonical location)
    *   <li>The explicit {@code file} path (from {@code -f} flag)
+   *   <li>{@code <name>/sail.yaml} in the current directory
    *   <li>{@code <name>/sing.yaml} in the current directory
    * </ol>
    *
@@ -69,9 +73,13 @@ public final class SingPaths {
    */
   public static Path resolveSingYaml(String name, String file) {
     if (name != null) {
-      var canonical = projectDir(name).resolve("sing.yaml");
+      var canonical = projectDir(name).resolve(PROJECT_DESCRIPTOR);
       if (Files.exists(canonical)) {
         return canonical;
+      }
+      var legacyCanonical = projectDir(name).resolve(LEGACY_PROJECT_DESCRIPTOR);
+      if (Files.exists(legacyCanonical)) {
+        return legacyCanonical;
       }
     }
     var path = Path.of(file);
@@ -79,11 +87,15 @@ public final class SingPaths {
       return path;
     }
     if (name != null) {
-      var namedPath = Path.of(name, "sing.yaml");
+      var namedPath = Path.of(name, PROJECT_DESCRIPTOR);
       if (Files.exists(namedPath)) {
         return namedPath;
       }
-      return projectDir(name).resolve("sing.yaml");
+      var legacyNamedPath = Path.of(name, LEGACY_PROJECT_DESCRIPTOR);
+      if (Files.exists(legacyNamedPath)) {
+        return legacyNamedPath;
+      }
+      return projectDir(name).resolve(PROJECT_DESCRIPTOR);
     }
     return path;
   }
@@ -101,7 +113,7 @@ public final class SingPaths {
 
   /**
    * Returns the path to the running binary. Uses {@code /proc/self/exe} on Linux, falls back to
-   * {@code /usr/local/bin/sing}.
+   * {@code /usr/local/bin/sail}.
    */
   public static Path binaryPath() {
     var procSelf = Path.of("/proc/self/exe");
@@ -111,6 +123,6 @@ public final class SingPaths {
       }
     } catch (IOException ignored) {
     }
-    return Path.of("/usr/local/bin/sing");
+    return Path.of("/usr/local/bin/sail");
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -32,14 +32,14 @@ import picocli.CommandLine.Spec;
 
 @Command(
     name = "create",
-    description = "Create a project environment from sing.yaml.",
+    description = "Create a project environment from sail.yaml.",
     mixinStandardHelpOptions = true)
 public final class ProjectCreateCommand implements Runnable {
 
   @Parameters(
       index = "0",
       arity = "0..1",
-      description = "Project name (uses ~/.sing/projects/<name>/sing.yaml if -f not given).")
+      description = "Project name (uses ~/.sing/projects/<name>/sail.yaml if -f not given).")
   private String name;
 
   @Option(names = "--dry-run", description = "Print commands instead of executing them.")
@@ -47,7 +47,7 @@ public final class ProjectCreateCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.")
+      description = "Path to sail.yaml project descriptor.")
   private String file;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -76,7 +76,7 @@ public final class ProjectCreateCommand implements Runnable {
 
     if (!dryRun && !ConsoleHelper.isRoot()) {
       throw new IllegalStateException(
-          "Root privileges required. Run with: sudo sing project create");
+          "Root privileges required. Run with: sudo sail project create");
     }
 
     var singYamlPath = resolveSingYamlPath();
@@ -84,12 +84,12 @@ public final class ProjectCreateCommand implements Runnable {
       var hint = new StringBuilder();
       hint.append("Project descriptor not found: ").append(singYamlPath.toAbsolutePath());
       if (name != null) {
-        hint.append("\n  Run 'sing project init' to create ")
+        hint.append("\n  Run 'sail project init' to create ")
             .append(defaultDescriptorPath(name))
             .append(", or specify one with --file.");
       } else {
         hint.append(
-            "\n  Run 'sing project init' to generate a sing.yaml, or specify one with --file.");
+            "\n  Run 'sail project init' to generate a sail.yaml, or specify one with --file.");
       }
       throw new IllegalStateException(hint.toString());
     }
@@ -97,12 +97,12 @@ public final class ProjectCreateCommand implements Runnable {
     SingYaml config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
     if (config.name() == null || config.name().isBlank()) {
-      throw new IllegalStateException("sing.yaml must have a 'name' field.");
+      throw new IllegalStateException("sail.yaml must have a 'name' field.");
     }
     NameValidator.requireValidProjectName(config.name());
     if (config.resources() == null) {
       throw new IllegalStateException(
-          "sing.yaml must have a 'resources' section with cpu, memory, and disk.");
+          "sail.yaml must have a 'resources' section with cpu, memory, and disk.");
     }
 
     if (yes || json) {
@@ -113,12 +113,12 @@ public final class ProjectCreateCommand implements Runnable {
 
     var projectDir = SingPaths.projectDir(config.name());
     Files.createDirectories(projectDir);
-    var canonicalYaml = projectDir.resolve("sing.yaml");
+    var canonicalYaml = projectDir.resolve(SingPaths.PROJECT_DESCRIPTOR);
     syncProjectBundle(singYamlPath, canonicalYaml);
 
     var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
-      throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
+      throw new IllegalStateException("Server not initialized. Run 'sail host init' first.");
     }
     var hostYaml = HostYaml.fromMap(YamlUtil.parseFile(hostYamlPath));
 
@@ -194,10 +194,10 @@ public final class ProjectCreateCommand implements Runnable {
         System.out.println(
             Ansi.AUTO.string(
                 "    @|yellow Server IP not configured.|@"
-                    + " Run: sudo sing host config set server-ip <your-server-ip>"));
+                    + " Run: sudo sail host config set server-ip <your-server-ip>"));
         System.out.println(
             Ansi.AUTO.string(
-                "    Then: sing project connect " + config.name() + " for SSH config snippet."));
+                "    Then: sail project connect " + config.name() + " for SSH config snippet."));
       }
 
       var ports = ContainerExec.queryServicePorts(shell, config.name());
@@ -252,7 +252,7 @@ public final class ProjectCreateCommand implements Runnable {
                 + "Provide the token via one of:\n"
                 + "  --git-token <token>\n"
                 + "  GITHUB_TOKEN environment variable\n\n"
-                + "Then re-run: sing project create <name>");
+                + "Then re-run: sail project create <name>");
       }
     }
 
@@ -286,7 +286,7 @@ public final class ProjectCreateCommand implements Runnable {
   }
 
   static Path defaultDescriptorPath(String name) {
-    return SingPaths.projectDir(name).resolve("sing.yaml");
+    return SingPaths.projectDir(name).resolve(SingPaths.PROJECT_DESCRIPTOR);
   }
 
   static Path resolveSingYamlPath(String name, String file) {
@@ -298,14 +298,27 @@ public final class ProjectCreateCommand implements Runnable {
       if (Files.exists(canonicalPath)) {
         return canonicalPath;
       }
-      var namedPath = Path.of(name, "sing.yaml");
+      var legacyCanonicalPath =
+          SingPaths.projectDir(name).resolve(SingPaths.LEGACY_PROJECT_DESCRIPTOR);
+      if (Files.exists(legacyCanonicalPath)) {
+        return legacyCanonicalPath;
+      }
+      var namedPath = Path.of(name, SingPaths.PROJECT_DESCRIPTOR);
       if (Files.exists(namedPath)) {
         return namedPath;
       }
+      var legacyNamedPath = Path.of(name, SingPaths.LEGACY_PROJECT_DESCRIPTOR);
+      if (Files.exists(legacyNamedPath)) {
+        return legacyNamedPath;
+      }
     }
-    var cwdPath = Path.of("sing.yaml");
+    var cwdPath = Path.of(SingPaths.PROJECT_DESCRIPTOR);
     if (Files.exists(cwdPath)) {
       return cwdPath;
+    }
+    var legacyCwdPath = Path.of(SingPaths.LEGACY_PROJECT_DESCRIPTOR);
+    if (Files.exists(legacyCwdPath)) {
+      return legacyCwdPath;
     }
     if (name != null) {
       return defaultDescriptorPath(name);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/** Root model for {@code sing.yaml} project descriptor. */
+/** Root model for {@code sail.yaml} project descriptor. */
 public record SingYaml(
     String name,
     String description,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,8 +14,8 @@ class ReleaseFetcherTest {
   @Test
   void buildDownloadUrlForBinary() {
     assertEquals(
-        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sing",
-        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sing"));
+        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sail",
+        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sail"));
   }
 
   @Test

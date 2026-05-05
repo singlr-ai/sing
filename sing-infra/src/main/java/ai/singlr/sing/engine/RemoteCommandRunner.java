@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -13,7 +13,7 @@ import java.util.Set;
 import picocli.CommandLine.Help.Ansi;
 
 /**
- * Executes sing commands on a remote host via SSH. Used in client mode when the binary detects it
+ * Executes SAIL commands on a remote host via SSH. Used in client mode when the binary detects it
  * is running on a Mac (or any machine without {@code /etc/sing/host.yaml}).
  *
  * <p>Commands are forwarded as-is to the host. SSH handles transport, auth, and TTY allocation.
@@ -33,7 +33,7 @@ public final class RemoteCommandRunner {
   }
 
   /**
-   * Executes a sing command. Returns the process exit code.
+   * Executes a SAIL command. Returns the process exit code.
    *
    * <p>Routes commands into three categories:
    *
@@ -122,7 +122,7 @@ public final class RemoteCommandRunner {
       cmd.add("-t");
     }
     cmd.add(config.host());
-    cmd.add("sing");
+    cmd.add("sail");
     cmd.addAll(List.of(args));
     return List.copyOf(cmd);
   }

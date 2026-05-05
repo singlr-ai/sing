@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -157,7 +157,7 @@ class ProjectResourcesSetCommandTest {
   }
 
   private Path writeProjectYaml() throws Exception {
-    var yamlPath = tempDir.resolve(PROJECT_NAME).resolve("sing.yaml");
+    var yamlPath = tempDir.resolve(PROJECT_NAME).resolve("sail.yaml");
     Files.createDirectories(yamlPath.getParent());
     Files.writeString(
         yamlPath,

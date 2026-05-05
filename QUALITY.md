@@ -1,6 +1,6 @@
 # Quality Gates
 
-`sing` treats quality gates as ratchets: each gate protects the best current baseline while pure logic is extracted from process-heavy boundaries and raised toward 100% coverage.
+`sail` treats quality gates as ratchets: each gate protects the best current baseline while pure logic is extracted from process-heavy boundaries and raised toward 100% coverage.
 
 ## Local Validation
 
@@ -13,7 +13,7 @@ mvn clean verify
 For a focused test loop, run the affected module and test classes first, then finish with full verification:
 
 ```bash
-mvn -pl sing-infra -am -Dtest=CliJsonTest,CliCommandTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl sail-infra -am -Dtest=CliJsonTest,CliCommandTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn clean verify
 ```
 

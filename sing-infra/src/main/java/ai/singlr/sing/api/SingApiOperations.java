@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -42,7 +42,7 @@ public final class SingApiOperations implements ApiOperations {
   private final WatcherLauncher watcherLauncher;
 
   public SingApiOperations() {
-    this(new ShellExecutor(false), "sing.yaml");
+    this(new ShellExecutor(false), SingPaths.PROJECT_DESCRIPTOR);
   }
 
   public SingApiOperations(ShellExec shell, String file) {
@@ -318,7 +318,7 @@ public final class SingApiOperations implements ApiOperations {
           throw new ApiException(
               ErrorCode.PROJECT_STOPPED,
               "Project '" + project + "' is stopped.",
-              "Start it with sing project start " + project + ".");
+              "Start it with sail project start " + project + ".");
       case ContainerState.NotCreated ignored ->
           throw new ApiException(
               ErrorCode.PROJECT_NOT_CREATED, "Project '" + project + "' does not exist.");
@@ -369,7 +369,7 @@ public final class SingApiOperations implements ApiOperations {
       throw new ApiException(
           ErrorCode.SPECS_NOT_CONFIGURED,
           "No specs_dir configured in the project agent block.",
-          "Add specs_dir to sing.yaml.");
+          "Add specs_dir to sail.yaml.");
     }
     NameValidator.requireSafePath(config.agent().specsDir(), "agent.specs_dir");
     NameValidator.requireValidSshUser(config.sshUser());

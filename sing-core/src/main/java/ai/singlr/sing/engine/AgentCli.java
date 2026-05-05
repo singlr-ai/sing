@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -48,7 +48,7 @@ public enum AgentCli {
     this.contextFileName = contextFileName;
   }
 
-  /** The name used in sing.yaml ({@code "claude-code"}, {@code "codex"}, {@code "gemini"}). */
+  /** The name used in sail.yaml ({@code "claude-code"}, {@code "codex"}, {@code "gemini"}). */
   public String yamlName() {
     return yamlName;
   }
@@ -141,6 +141,6 @@ public enum AgentCli {
         "Unknown agent CLI: '"
             + name
             + "'. Known agents: claude-code, codex, gemini."
-            + "\n  Check the 'install' list in your sing.yaml agent section.");
+            + "\n  Check the 'install' list in your sail.yaml agent section.");
   }
 }

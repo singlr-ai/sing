@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -41,8 +41,8 @@ public final class ProjectResourcesSetCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--cpu", description = "CPU core limit.")
@@ -90,7 +90,7 @@ public final class ProjectResourcesSetCommand implements Runnable {
 
     if (!dryRun && !rootChecker.getAsBoolean()) {
       throw new IllegalStateException(
-          "Root privileges required. Run with: sudo sing project resources set " + name);
+          "Root privileges required. Run with: sudo sail project resources set " + name);
     }
 
     var singYamlPath = SingPaths.resolveSingYaml(name, file);
@@ -100,13 +100,13 @@ public final class ProjectResourcesSetCommand implements Runnable {
               + singYamlPath.toAbsolutePath()
               + "\n  Ensure ~/.sing/projects/"
               + name
-              + "/sing.yaml exists.");
+              + "/sail.yaml exists.");
     }
 
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
     if (config.resources() == null) {
       throw new IllegalStateException(
-          "sing.yaml must have a resources section with cpu, memory, and disk.");
+          "sail.yaml must have a resources section with cpu, memory, and disk.");
     }
     if (!name.equals(config.name())) {
       throw new IllegalStateException(
@@ -183,7 +183,7 @@ public final class ProjectResourcesSetCommand implements Runnable {
           throw new IllegalStateException(
               "Project '"
                   + name
-                  + "' does not exist. Run 'sing project create "
+                  + "' does not exist. Run 'sail project create "
                   + name
                   + "' first.");
       case ContainerState.Error e ->
@@ -249,7 +249,7 @@ public final class ProjectResourcesSetCommand implements Runnable {
     if (descriptorChanged) {
       out.println(
           Ansi.AUTO.string(
-              "  @|green \u2713|@ Updated sing.yaml @|faint "
+              "  @|green \u2713|@ Updated sail.yaml @|faint "
                   + singYamlPath.toAbsolutePath()
                   + "|@"));
     }

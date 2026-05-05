@@ -15,10 +15,10 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            binary-name: sing-linux-amd64
+            binary-name: sail-linux-amd64
             checksum-cmd: sha256sum
           - os: macos-latest
-            binary-name: sing-darwin-arm64
+            binary-name: sail-darwin-arm64
             checksum-cmd: shasum -a 256
     runs-on: ${{ matrix.os }}
     steps:
@@ -37,10 +37,10 @@ jobs:
         run: mvn package -Pnative -DskipTests
 
       - name: Smoke test
-        run: ./sing-infra/target/sing -V
+        run: ./sing-infra/target/sail -V
 
       - name: Rename binary
-        run: mv sing-infra/target/sing sing-infra/target/${{ matrix.binary-name }}
+        run: mv sing-infra/target/sail sing-infra/target/${{ matrix.binary-name }}
 
       - name: Generate checksum
         run: ${{ matrix.checksum-cmd }} sing-infra/target/${{ matrix.binary-name }} | awk '{print $1}' > sing-infra/target/${{ matrix.binary-name }}.sha256
@@ -61,17 +61,29 @@ jobs:
 
       - name: Create legacy aliases for backward compatibility
         run: |
-          cp sing-linux-amd64/sing-linux-amd64 sing-linux-amd64/sing
-          cp sing-linux-amd64/sing-linux-amd64.sha256 sing-linux-amd64/sing.sha256
+          cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sail
+          cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sail.sha256
+          cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sing-linux-amd64
+          cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sing-linux-amd64.sha256
+          cp sail-linux-amd64/sail-linux-amd64 sail-linux-amd64/sing
+          cp sail-linux-amd64/sail-linux-amd64.sha256 sail-linux-amd64/sing.sha256
+          cp sail-darwin-arm64/sail-darwin-arm64 sail-darwin-arm64/sing-darwin-arm64
+          cp sail-darwin-arm64/sail-darwin-arm64.sha256 sail-darwin-arm64/sing-darwin-arm64.sha256
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            sing-linux-amd64/sing
-            sing-linux-amd64/sing.sha256
-            sing-linux-amd64/sing-linux-amd64
-            sing-linux-amd64/sing-linux-amd64.sha256
-            sing-darwin-arm64/sing-darwin-arm64
-            sing-darwin-arm64/sing-darwin-arm64.sha256
+            sail-linux-amd64/sail
+            sail-linux-amd64/sail.sha256
+            sail-linux-amd64/sail-linux-amd64
+            sail-linux-amd64/sail-linux-amd64.sha256
+            sail-linux-amd64/sing
+            sail-linux-amd64/sing.sha256
+            sail-linux-amd64/sing-linux-amd64
+            sail-linux-amd64/sing-linux-amd64.sha256
+            sail-darwin-arm64/sail-darwin-arm64
+            sail-darwin-arm64/sail-darwin-arm64.sha256
+            sail-darwin-arm64/sing-darwin-arm64
+            sail-darwin-arm64/sing-darwin-arm64.sha256
           generate_release_notes: true

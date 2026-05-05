@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -61,7 +61,7 @@ public record CodeReview(boolean enabled, String auditor) {
                 + auditor
                 + "'. Known agents: "
                 + String.join(", ", KNOWN_AGENTS)
-                + ".\n  Check the 'code_review.auditor' field in your sing.yaml.");
+                + ".\n  Check the 'code_review.auditor' field in your sail.yaml.");
       }
       if (installList == null || !installList.contains(auditor)) {
         throw new IllegalArgumentException(
@@ -70,7 +70,7 @@ public record CodeReview(boolean enabled, String auditor) {
                 + "' is not in the agent install list."
                 + "\n  Add '"
                 + auditor
-                + "' to 'agent.install' in your sing.yaml,"
+                + "' to 'agent.install' in your sail.yaml,"
                 + " or omit 'code_review.auditor' for auto-resolution.");
       }
       return auditor;

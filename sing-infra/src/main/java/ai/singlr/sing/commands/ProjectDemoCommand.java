@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -63,12 +63,12 @@ public final class ProjectDemoCommand implements Runnable {
     var out = System.out;
 
     if (!dryRun && !ConsoleHelper.isRoot()) {
-      throw new IllegalStateException("Root privileges required. Run with: sudo sing project demo");
+      throw new IllegalStateException("Root privileges required. Run with: sudo sail project demo");
     }
 
     var hostYamlPath = SingPaths.hostConfigPath();
     if (!dryRun && !Files.exists(hostYamlPath)) {
-      throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
+      throw new IllegalStateException("Server not initialized. Run 'sail host init' first.");
     }
 
     if (!dryRun) {
@@ -78,17 +78,17 @@ public final class ProjectDemoCommand implements Runnable {
       if (state instanceof ContainerState.Running) {
         throw new IllegalStateException(
             "Demo project is already running."
-                + "\n  Get a shell:    sudo sing project shell "
+                + "\n  Get a shell:    sudo sail project shell "
                 + DEMO_PROJECT
-                + "\n  Destroy first:  sudo sing project destroy "
+                + "\n  Destroy first:  sudo sail project destroy "
                 + DEMO_PROJECT);
       }
       if (state instanceof ContainerState.Stopped) {
         throw new IllegalStateException(
             "Demo project exists but is stopped."
-                + "\n  Start it:       sudo sing project start "
+                + "\n  Start it:       sudo sail project start "
                 + DEMO_PROJECT
-                + "\n  Destroy first:  sudo sing project destroy "
+                + "\n  Destroy first:  sudo sail project destroy "
                 + DEMO_PROJECT);
       }
     }
@@ -104,7 +104,7 @@ public final class ProjectDemoCommand implements Runnable {
     var resolvedYaml = resolveAutoDetected(yamlContent, out, ansi);
 
     var outputDir = Path.of(DEMO_PROJECT);
-    var singYamlPath = outputDir.resolve("sing.yaml");
+    var singYamlPath = outputDir.resolve(SingPaths.PROJECT_DESCRIPTOR);
     Files.createDirectories(outputDir);
     Files.writeString(singYamlPath, resolvedYaml);
     if (!json) {
@@ -178,11 +178,15 @@ public final class ProjectDemoCommand implements Runnable {
   }
 
   private String fetchDemoYaml(PrintStream out, Ansi ansi) throws Exception {
-    var projectPath = DEMO_PROJECT + "/sing.yaml";
+    var projectPath = DEMO_PROJECT + "/" + SingPaths.PROJECT_DESCRIPTOR;
     if (!json) {
       out.println(ansi.string("  @|bold Fetching|@ " + projectPath + " from " + DEMO_REPO + "..."));
     }
     var content = GitHubFetcher.fetchRawFile(DEMO_REPO, projectPath, null, DEMO_REF);
+    if (content == null) {
+      projectPath = DEMO_PROJECT + "/" + SingPaths.LEGACY_PROJECT_DESCRIPTOR;
+      content = GitHubFetcher.fetchRawFile(DEMO_REPO, projectPath, null, DEMO_REF);
+    }
     if (content == null) {
       throw new IllegalStateException(
           "Demo project not found at "

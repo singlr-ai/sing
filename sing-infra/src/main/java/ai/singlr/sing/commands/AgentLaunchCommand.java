@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -64,8 +64,8 @@ public final class AgentLaunchCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Spec private CommandSpec spec;
@@ -90,10 +90,10 @@ public final class AgentLaunchCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -126,7 +126,7 @@ public final class AgentLaunchCommand implements Runnable {
                 + nextSpec.id()
                 + ").\n\n"
                 + description
-                + "\n\nWhen complete, run `sing spec status "
+                + "\n\nWhen complete, run `sail spec status "
                 + name
                 + " "
                 + nextSpec.id()
@@ -141,7 +141,7 @@ public final class AgentLaunchCommand implements Runnable {
 
     if (background && task == null) {
       throw new IllegalArgumentException(
-          "--background requires --task or a specs_dir with pending specs in sing.yaml agent"
+          "--background requires --task or a specs_dir with pending specs in sail.yaml agent"
               + " config.");
     }
 
@@ -323,7 +323,7 @@ public final class AgentLaunchCommand implements Runnable {
           Banner.errorLine(
               "Failed to start guardrail watcher: "
                   + e.getMessage()
-                  + ". Run manually: sing agent watch "
+                  + ". Run manually: sail agent watch "
                   + name,
               Ansi.AUTO));
     }

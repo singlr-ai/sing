@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -43,8 +43,8 @@ public final class SpecListCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -68,10 +68,10 @@ public final class SpecListCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -85,7 +85,7 @@ public final class SpecListCommand implements Runnable {
 
     if (config.agent() == null || config.agent().specsDir() == null) {
       throw new IllegalStateException(
-          "No specs_dir configured in agent block. Add 'specs_dir: specs' to sing.yaml.");
+          "No specs_dir configured in agent block. Add it to sail.yaml.");
     }
 
     var sshUser = config.sshUser();

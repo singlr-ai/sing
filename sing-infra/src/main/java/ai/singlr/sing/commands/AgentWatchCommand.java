@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -51,8 +51,8 @@ public final class AgentWatchCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Spec private CommandSpec spec;
@@ -72,22 +72,22 @@ public final class AgentWatchCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
 
     var singYamlPath = SingPaths.resolveSingYaml(name, file);
     if (!Files.exists(singYamlPath)) {
-      throw new IllegalStateException("No sing.yaml found at " + file);
+      throw new IllegalStateException("No sail.yaml found at " + file);
     }
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
     if (config.agent() == null || config.agent().guardrails() == null) {
       throw new IllegalStateException(
-          "No guardrails configured. Add a guardrails block to the agent section in sing.yaml.");
+          "No guardrails configured. Add a guardrails block to the agent section in sail.yaml.");
     }
     var guardrails = config.agent().guardrails();
 
@@ -101,7 +101,7 @@ public final class AgentWatchCommand implements Runnable {
     var sessionInfo = agentSession.queryStatus(name);
     if (sessionInfo == null || !sessionInfo.running()) {
       throw new IllegalStateException(
-          "No agent session running. Launch one with: sing agent start "
+          "No agent session running. Launch one with: sail agent start "
               + name
               + " --background --task '...'");
     }
@@ -158,7 +158,7 @@ public final class AgentWatchCommand implements Runnable {
             "agent_exited",
             name,
             "Agent exited",
-            "Agent process is no longer running. Run: sing agent report " + name);
+            "Agent process is no longer running. Run: sail agent report " + name);
         return;
       }
 
@@ -240,7 +240,7 @@ public final class AgentWatchCommand implements Runnable {
             "session_done",
             name,
             "Watch complete",
-            "Agent session ended. Run: sing agent report " + name);
+            "Agent session ended. Run: sail agent report " + name);
         return;
       }
     }

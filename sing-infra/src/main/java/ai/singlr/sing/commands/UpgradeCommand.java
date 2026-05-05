@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -25,7 +25,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
     name = "upgrade",
-    description = "Upgrade sing to the latest version.",
+    description = "Upgrade SAIL to the latest version.",
     mixinStandardHelpOptions = true)
 public final class UpgradeCommand implements Runnable {
 
@@ -76,7 +76,7 @@ public final class UpgradeCommand implements Runnable {
       } else {
         System.out.println(
             Ansi.AUTO.string(
-                "  @|green \u2713|@ Already up to date (sing " + currentVersion + ")"));
+                "  @|green \u2713|@ Already up to date (sail " + currentVersion + ")"));
       }
       return;
     }
@@ -104,12 +104,12 @@ public final class UpgradeCommand implements Runnable {
 
     if (!json) {
       System.out.println(
-          Banner.stepLine(1, 3, "Downloading sing " + versionTag + "...", Ansi.AUTO));
+          Banner.stepLine(1, 3, "Downloading sail " + versionTag + "...", Ansi.AUTO));
     }
     byte[] binary;
     if (dryRun) {
       System.out.println(
-          "[dry-run] Download " + ReleaseFetcher.buildDownloadUrl(versionTag, "sing"));
+          "[dry-run] Download " + ReleaseFetcher.buildDownloadUrl(versionTag, "sail"));
       binary = new byte[0];
     } else {
       binary =
@@ -176,7 +176,7 @@ public final class UpgradeCommand implements Runnable {
     } else {
       System.out.println();
       System.out.println(
-          Ansi.AUTO.string("  @|bold,green \u2713 Upgraded to sing " + latestVersionStr + "|@"));
+          Ansi.AUTO.string("  @|bold,green \u2713 Upgraded to sail " + latestVersionStr + "|@"));
     }
   }
 
@@ -191,10 +191,10 @@ public final class UpgradeCommand implements Runnable {
       if (comparison < 0) {
         System.out.println(
             Ansi.AUTO.string("  @|bold Update available:|@ " + current + " \u2192 " + latest));
-        System.out.println(Ansi.AUTO.string("  @|faint Run 'sing upgrade' to install.|@"));
+        System.out.println(Ansi.AUTO.string("  @|faint Run 'sail upgrade' to install.|@"));
       } else {
         System.out.println(
-            Ansi.AUTO.string("  @|green \u2713|@ Already up to date (sing " + current + ")"));
+            Ansi.AUTO.string("  @|green \u2713|@ Already up to date (sail " + current + ")"));
       }
     }
   }
@@ -226,7 +226,7 @@ public final class UpgradeCommand implements Runnable {
     var process = new ProcessBuilder(args).inheritIO().start();
     var exitCode = process.waitFor();
     if (exitCode != 0) {
-      throw new IllegalStateException("sudo sing upgrade failed (exit code " + exitCode + ")");
+      throw new IllegalStateException("sudo sail upgrade failed (exit code " + exitCode + ")");
     }
   }
 }

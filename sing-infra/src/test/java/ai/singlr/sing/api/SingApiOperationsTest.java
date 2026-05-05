@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -96,7 +96,7 @@ class SingApiOperationsTest {
 
   @Test
   void healthReturnsOk() {
-    var operations = new SingApiOperations(new FakeShell(), "sing.yaml");
+    var operations = new SingApiOperations(new FakeShell(), "sail.yaml");
 
     assertEquals("ok", get(operations.health(), "status"));
   }
@@ -1091,7 +1091,7 @@ class SingApiOperationsTest {
   }
 
   private SingApiOperations operations(FakeShell shell) throws Exception {
-    var yaml = tempDir.resolve("sing.yaml");
+    var yaml = tempDir.resolve("sail.yaml");
     Files.writeString(yaml, baseYaml());
     return new SingApiOperations(shell, yaml.toString());
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -59,7 +59,7 @@ public final class ProjectPullCommand implements Runnable {
   @Option(
       names = {"-o", "--output"},
       description =
-          "Output path for the resolved sing.yaml (default: ~/.sing/projects/<name>/sing.yaml).")
+          "Output path for the resolved sail.yaml (default: ~/.sing/projects/<name>/sail.yaml).")
   private String output;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -105,11 +105,15 @@ public final class ProjectPullCommand implements Runnable {
       }
     }
 
-    var projectPath = name + "/sing.yaml";
+    var projectPath = name + "/" + SingPaths.PROJECT_DESCRIPTOR;
     if (!json) {
       System.out.println(Ansi.AUTO.string("  @|bold Fetching " + projectPath + "...|@"));
     }
     var projectContent = GitHubFetcher.fetchRawFile(repo, projectPath, token, ref);
+    if (projectContent == null) {
+      projectPath = name + "/" + SingPaths.LEGACY_PROJECT_DESCRIPTOR;
+      projectContent = GitHubFetcher.fetchRawFile(repo, projectPath, token, ref);
+    }
     if (projectContent == null) {
       var hint =
           (token == null || token.isBlank())
@@ -195,20 +199,20 @@ public final class ProjectPullCommand implements Runnable {
     System.out.println();
     var stateDir = SingPaths.projectDir(name);
     if (Files.exists(stateDir) && isCanonicalOutputPath(outputPath)) {
-      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project apply " + name));
+      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sail project apply " + name));
     } else if (Files.exists(stateDir)) {
       System.out.println(
           Ansi.AUTO.string(
               "  @|bold Next:|@ re-run without @|bold --output|@ to update "
                   + canonicalOutputPath.toAbsolutePath()
-                  + ", then run @|bold sing project apply "
+                  + ", then run @|bold sail project apply "
                   + name
                   + "|@"));
     } else if (isCanonicalOutputPath(outputPath)) {
-      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name));
+      System.out.println(Ansi.AUTO.string("  @|bold Next:|@ sail project create " + name));
     } else {
       System.out.println(
-          Ansi.AUTO.string("  @|bold Next:|@ sing project create " + name + " -f " + outputPath));
+          Ansi.AUTO.string("  @|bold Next:|@ sail project create " + name + " -f " + outputPath));
     }
   }
 
@@ -245,7 +249,7 @@ public final class ProjectPullCommand implements Runnable {
   }
 
   static Path defaultOutputPath(String name) {
-    return SingPaths.projectDir(name).resolve("sing.yaml");
+    return SingPaths.projectDir(name).resolve(SingPaths.PROJECT_DESCRIPTOR);
   }
 
   private boolean isCanonicalOutputPath(Path outputPath) {
@@ -310,7 +314,7 @@ public final class ProjectPullCommand implements Runnable {
               + "Provide the token via one of:\n"
               + "  --github-token <token>\n"
               + "  GITHUB_TOKEN environment variable\n\n"
-              + "Then re-run: sing project pull <name>");
+              + "Then re-run: sail project pull <name>");
     }
   }
 }

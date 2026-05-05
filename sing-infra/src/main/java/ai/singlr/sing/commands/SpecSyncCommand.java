@@ -49,8 +49,8 @@ public final class SpecSyncCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--remote", description = "Remote URL to add when initializing specs Git.")
@@ -100,10 +100,10 @@ public final class SpecSyncCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error error ->
           throw new IllegalStateException("Container error: " + error.message());
     }
@@ -116,7 +116,7 @@ public final class SpecSyncCommand implements Runnable {
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
     if (config.agent() == null || config.agent().specsDir() == null) {
       throw new IllegalStateException(
-          "No specs_dir configured in agent block. Add 'specs_dir: specs' to sing.yaml.");
+          "No specs_dir configured in agent block. Add it to sail.yaml.");
     }
     NameValidator.requireSafePath(config.agent().specsDir(), "agent.specs_dir");
     NameValidator.requireValidSshUser(config.sshUser());

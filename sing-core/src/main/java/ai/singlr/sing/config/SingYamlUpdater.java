@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Updates an existing {@code sing.yaml} by adding services or repos. Reads the current file, merges
+ * Updates an existing {@code sail.yaml} by adding services or repos. Reads the current file, merges
  * the new entry, and writes back via {@link SingYamlGenerator} to preserve the standard commented
  * format.
  *
@@ -27,7 +27,7 @@ public final class SingYamlUpdater {
   private SingYamlUpdater() {}
 
   /**
-   * Adds a service to the sing.yaml at the given path. If the services section doesn't exist, it is
+   * Adds a service to the sail.yaml at the given path. If the services section doesn't exist, it is
    * created. If the service name already exists, throws.
    */
   public static SingYaml addService(Path singYamlPath, String serviceName, SingYaml.Service service)
@@ -48,7 +48,7 @@ public final class SingYamlUpdater {
   }
 
   /**
-   * Removes a service from the sing.yaml at the given path. Throws if the service doesn't exist.
+   * Removes a service from the sail.yaml at the given path. Throws if the service doesn't exist.
    */
   public static SingYaml removeService(Path singYamlPath, String serviceName) throws IOException {
     var config = readConfig(singYamlPath);
@@ -66,7 +66,7 @@ public final class SingYamlUpdater {
   }
 
   /**
-   * Adds a repo to the sing.yaml at the given path. If the repos section doesn't exist, it is
+   * Adds a repo to the sail.yaml at the given path. If the repos section doesn't exist, it is
    * created. If a repo with the same path already exists, throws.
    */
   public static SingYaml addRepo(Path singYamlPath, SingYaml.Repo repo) throws IOException {
@@ -86,7 +86,7 @@ public final class SingYamlUpdater {
   }
 
   /**
-   * Updates the resources block in the sing.yaml at the given path. Any null argument preserves the
+   * Updates the resources block in the sail.yaml at the given path. Any null argument preserves the
    * existing value.
    */
   public static SingYaml updateResources(Path singYamlPath, Integer cpu, String memory, String disk)
@@ -104,7 +104,7 @@ public final class SingYamlUpdater {
   public static SingYaml.Resources mergeResources(
       SingYaml.Resources current, Integer cpu, String memory, String disk) {
     if (current == null) {
-      throw new IllegalStateException("sing.yaml must have a resources section");
+      throw new IllegalStateException("sail.yaml must have a resources section");
     }
     if (cpu != null && cpu < 1) {
       throw new IllegalArgumentException("resources.cpu must be >= 1");
@@ -125,7 +125,7 @@ public final class SingYamlUpdater {
 
   private static SingYaml readConfig(Path path) throws IOException {
     if (!Files.exists(path)) {
-      throw new IllegalStateException("sing.yaml not found: " + path.toAbsolutePath());
+      throw new IllegalStateException("sail.yaml not found: " + path.toAbsolutePath());
     }
     return SingYaml.fromMap(YamlUtil.parseFile(path));
   }
