@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail;
+
+import ai.singlr.sail.commands.AgentCommand;
+import ai.singlr.sail.commands.ApiCommand;
+import ai.singlr.sail.commands.ClientInitCommand;
+import ai.singlr.sail.commands.HostCommand;
+import ai.singlr.sail.commands.ProjectCommand;
+import ai.singlr.sail.commands.SpecCommand;
+import ai.singlr.sail.commands.UpgradeCommand;
+import ai.singlr.sail.engine.Banner;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Help.Ansi;
+
+@Command(
+    name = "sail",
+    description = "Isolated dev environments for AI agents.",
+    versionProvider = SailVersion.class,
+    mixinStandardHelpOptions = true,
+    subcommands = {
+      ClientInitCommand.class,
+      HostCommand.class,
+      ProjectCommand.class,
+      SpecCommand.class,
+      AgentCommand.class,
+      ApiCommand.class,
+      UpgradeCommand.class,
+    })
+public final class Sail implements Runnable {
+
+  @Override
+  public void run() {
+    Banner.printBranding(System.out, Ansi.AUTO);
+    System.out.println();
+    new picocli.CommandLine(this).usage(System.out);
+  }
+}

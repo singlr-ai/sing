@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail.api;
+
+public enum ErrorCode {
+  INVALID_REQUEST(422),
+  INVALID_JSON(400),
+  INVALID_MODE(422),
+  INVALID_TAIL(422),
+  MISSING_BEARER_TOKEN(401),
+  INVALID_BEARER_TOKEN(403),
+  UNSUPPORTED_MEDIA_TYPE(415),
+  REQUEST_TOO_LARGE(413),
+  NOT_FOUND(404),
+  CONFLICT(409),
+  METHOD_NOT_ALLOWED(405),
+  PROJECT_DESCRIPTOR_NOT_FOUND(404),
+  PROJECT_NOT_CREATED(404),
+  PROJECT_STOPPED(409),
+  CONTAINER_ERROR(500),
+  SPECS_NOT_CONFIGURED(422),
+  SPECS_READ_FAILED(500),
+  SPEC_NOT_FOUND(404),
+  SPEC_NOT_READY(409),
+  SPEC_READ_FAILED(500),
+  SPEC_STATUS_UPDATE_FAILED(500),
+  SPEC_SYNC_FAILED(500),
+  AGENT_ALREADY_RUNNING(409),
+  AGENT_STATUS_FAILED(500),
+  AGENT_LOG_FAILED(500),
+  AGENT_STOP_FAILED(500),
+  AGENT_REPORT_FAILED(500),
+  AGENT_LAUNCH_FAILED(500),
+  SNAPSHOT_FAILED(500),
+  BRANCH_CREATE_FAILED(500),
+  PROJECT_LOAD_FAILED(500),
+  COMMAND_FAILED(500),
+  INTERNAL(500);
+
+  private final int httpCode;
+
+  ErrorCode(int httpCode) {
+    this.httpCode = httpCode;
+  }
+
+  public int httpCode() {
+    return httpCode;
+  }
+
+  public String code() {
+    return name().toLowerCase();
+  }
+}
