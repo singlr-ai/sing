@@ -41,6 +41,8 @@ public final class ProjectProvisioner {
   private static final Duration INSTALL_TIMEOUT = Duration.ofMinutes(10);
 
   private static final Pattern VERSION_PATTERN = Pattern.compile("[0-9][0-9.]*");
+  private static final Pattern HOST_PATTERN =
+      Pattern.compile("^[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?$");
   private static final String MAVEN_PRIMARY_BASE_URL = "https://dlcdn.apache.org/maven/maven-3/";
   private static final String MAVEN_ARCHIVE_BASE_URL =
       "https://archive.apache.org/dist/maven/maven-3/";
@@ -600,14 +602,16 @@ public final class ProjectProvisioner {
     var knownHostsPath = "/etc/ssh/ssh_known_hosts";
     var sshHosts = extractSshHosts(config.repos());
     if (!sshHosts.isEmpty()) {
-      var hostList = String.join(" ", sshHosts);
-      execInContainer(
-          name,
-          List.of(
-              "bash",
-              "-c",
-              "ssh-keyscan -H " + hostList + " >> " + knownHostsPath + " 2>/dev/null"),
-          INSTALL_TIMEOUT);
+      var command =
+          new ArrayList<>(
+              List.of(
+                  "bash",
+                  "-c",
+                  "out=$1; shift; ssh-keyscan -H \"$@\" >> \"$out\" 2>/dev/null",
+                  "ssh-keyscan",
+                  knownHostsPath));
+      command.addAll(sshHosts);
+      execInContainer(name, command, INSTALL_TIMEOUT);
     }
 
     if ("token".equals(config.git().auth()) && gitTokens != null && !gitTokens.isEmpty()) {
@@ -1254,7 +1258,7 @@ public final class ProjectProvisioner {
         }
       }
     }
-    return List.copyOf(hosts);
+    return hosts.stream().map(ProjectProvisioner::requireSafeHost).toList();
   }
 
   /**
@@ -1320,7 +1324,32 @@ public final class ProjectProvisioner {
         }
       }
     }
-    return List.copyOf(hosts);
+    return hosts.stream().map(ProjectProvisioner::requireSafeHost).toList();
+  }
+
+  private static String requireSafeHost(String host) {
+    if (host == null
+        || host.length() > 253
+        || !HOST_PATTERN.matcher(host).matches()
+        || host.contains("..")
+        || host.endsWith(".")
+        || invalidPort(host)) {
+      throw new IllegalArgumentException("Invalid repository host: '" + host + "'.");
+    }
+    return host;
+  }
+
+  private static boolean invalidPort(String host) {
+    var colon = host.lastIndexOf(':');
+    if (colon < 0) {
+      return false;
+    }
+    try {
+      var port = Integer.parseInt(host.substring(colon + 1));
+      return port < 1 || port > 65535;
+    } catch (NumberFormatException e) {
+      return true;
+    }
   }
 
   /** Returns the SSH user from config, defaulting to {@code "dev"}. */

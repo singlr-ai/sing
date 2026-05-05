@@ -1046,6 +1046,9 @@ class ProjectProvisionerTest {
         cmds.stream()
             .anyMatch(c -> c.contains("ssh-keyscan") && c.contains("github.com gitlab.com")),
         "Should scan default hosts (github.com, gitlab.com) via ssh-keyscan");
+    assertFalse(
+        cmds.stream().anyMatch(c -> c.contains("ssh-keyscan -H github.com gitlab.com")),
+        "ssh-keyscan hosts must be passed as positional arguments, not interpolated into shell");
   }
 
   @Test
@@ -1254,6 +1257,20 @@ class ProjectProvisionerTest {
     assertTrue(hosts.contains("gitlab.com"), "Default gitlab.com");
     assertTrue(hosts.contains("bitbucket.org"), "SSH URL host");
     assertTrue(hosts.contains("gitlab.example.com"), "HTTPS URL host");
+  }
+
+  @Test
+  void extractSshHostsRejectsUnsafeHost() {
+    var repos = List.of(new SailYaml.Repo("https://github.com;touch/tmp/pwned", "app", null));
+
+    assertThrows(IllegalArgumentException.class, () -> ProjectProvisioner.extractSshHosts(repos));
+  }
+
+  @Test
+  void extractHttpsHostsRejectsUnsafeHost() {
+    var repos = List.of(new SailYaml.Repo("https://github.com;touch/tmp/pwned", "app", null));
+
+    assertThrows(IllegalArgumentException.class, () -> ProjectProvisioner.extractHttpsHosts(repos));
   }
 
   private static SailYaml configWithGitSshKey(String keyPath) {

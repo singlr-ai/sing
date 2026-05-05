@@ -80,15 +80,14 @@ HTTP_CODE=$(curl -fsSL -w '%{http_code}' "$DOWNLOAD_URL" -o "$TMPFILE" 2>/dev/nu
 info "Verifying checksum..."
 CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/${BINARY_NAME}.sha256"
 EXPECTED=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}' || true)
-if [ -n "$EXPECTED" ]; then
-  ACTUAL=$($CHECKSUM_CMD "$TMPFILE" | awk '{print $1}')
-  if [ "$EXPECTED" != "$ACTUAL" ]; then
-    fail "Checksum mismatch!\n  Expected: $EXPECTED\n  Actual:   $ACTUAL"
-  fi
-  ok "  Checksum verified."
-else
-  info "  Checksum not available — skipping verification."
+if [ -z "$EXPECTED" ]; then
+  fail "Checksum not available for $BINARY_NAME. Refusing to install unverifiable release asset."
 fi
+ACTUAL=$($CHECKSUM_CMD "$TMPFILE" | awk '{print $1}')
+if [ "$EXPECTED" != "$ACTUAL" ]; then
+  fail "Checksum mismatch!\n  Expected: $EXPECTED\n  Actual:   $ACTUAL"
+fi
+ok "  Checksum verified."
 
 # --- Validate binary format ---
 if [ "$ELF_CHECK" = true ]; then
