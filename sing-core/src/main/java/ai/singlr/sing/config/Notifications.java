@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * Webhook notification configuration for agent watch events. Parsed from the {@code notifications}
- * block inside {@code agent} in sing.yaml.
+ * block inside {@code agent} in sail.yaml.
  *
  * @param url the webhook endpoint URL (required, must be https:// or http:// with SSRF checks)
  * @param events which events to notify on (null or empty means all events)

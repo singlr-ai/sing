@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -1527,7 +1527,7 @@ class ProjectProvisionerTest {
 
   @Test
   void workspaceFilesSkippedWhenNoFilesDirectory() throws Exception {
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     java.nio.file.Files.writeString(singYaml, "name: test");
 
     var shell = allSuccessShell();
@@ -1547,7 +1547,7 @@ class ProjectProvisionerTest {
     java.nio.file.Files.createDirectories(filesDir.resolve("outline"));
     java.nio.file.Files.writeString(filesDir.resolve("outline/.env"), "KEY=VALUE");
     java.nio.file.Files.writeString(filesDir.resolve("setup.sh"), "#!/bin/bash");
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     java.nio.file.Files.writeString(singYaml, "name: test");
 
     var shell = allSuccessShell();
@@ -1587,7 +1587,7 @@ class ProjectProvisionerTest {
   @Test
   void workspaceFilesSkippedWhenFilesDirEmpty() throws Exception {
     java.nio.file.Files.createDirectories(tempDir.resolve("files"));
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     java.nio.file.Files.writeString(singYaml, "name: test");
 
     var shell = allSuccessShell();

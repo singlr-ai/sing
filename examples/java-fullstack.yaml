@@ -1,4 +1,4 @@
-# sing.yaml — Java fullstack project
+# sail.yaml — Java fullstack project
 # Helidon 4 backend + React frontend, with Postgres, Redis, and Meilisearch.
 # 4 CPU cores, 12GB RAM, 150GB disk.
 
@@ -68,7 +68,7 @@ processes:
 agent:
   type: claude-code
   auto_branch: true
-  branch_prefix: "sing/"
+  branch_prefix: "sail/"
   auto_snapshot: true
   install:
     - claude-code

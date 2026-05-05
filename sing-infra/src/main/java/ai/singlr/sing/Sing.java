@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -17,7 +17,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 
 @Command(
-    name = "sing",
+    name = "sail",
     description = "Isolated dev environments for AI agents.",
     versionProvider = SingVersion.class,
     mixinStandardHelpOptions = true,

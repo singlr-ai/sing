@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 

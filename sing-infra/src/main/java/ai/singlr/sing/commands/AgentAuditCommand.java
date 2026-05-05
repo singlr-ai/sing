@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -35,8 +35,8 @@ public final class AgentAuditCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -60,7 +60,7 @@ public final class AgentAuditCommand implements Runnable {
       throw new IllegalStateException(
           "Project descriptor not found: "
               + singYamlPath.toAbsolutePath()
-              + "\n  Create a sing.yaml in the current directory, or specify one with --file.");
+              + "\n  Create a sail.yaml in the current directory, or specify one with --file.");
     }
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
@@ -72,10 +72,10 @@ public final class AgentAuditCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -88,10 +88,10 @@ public final class AgentAuditCommand implements Runnable {
       throw new IllegalStateException(
           "No security audit script found at "
               + scriptPath
-              + "\n  Run 'sing agent context regen "
+              + "\n  Run 'sail agent context regen "
               + name
               + "' to generate it."
-              + "\n  Ensure security_audit.enabled is true in sing.yaml.");
+              + "\n  Ensure security_audit.enabled is true in sail.yaml.");
     }
 
     var auditCmd = ContainerExec.asDevUser(name, List.of("bash", scriptPath));

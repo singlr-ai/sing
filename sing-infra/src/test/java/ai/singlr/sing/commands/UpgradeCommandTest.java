@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -26,13 +26,13 @@ class UpgradeCommandTest {
   }
 
   @Test
-  void versionFlagOutputStartsWithSing() {
+  void versionFlagOutputStartsWithSail() {
     var version = SingVersion.version();
     assertNotNull(version);
     assertFalse(version.isBlank());
 
     var provider = new SingVersion();
     var lines = provider.getVersion();
-    assertTrue(lines[0].startsWith("sing "));
+    assertTrue(lines[0].startsWith("sail "));
   }
 }

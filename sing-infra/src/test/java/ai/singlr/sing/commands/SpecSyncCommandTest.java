@@ -171,7 +171,7 @@ class SpecSyncCommandTest {
   }
 
   private String yaml() throws IOException {
-    var path = tempDir.resolve("sing.yaml");
+    var path = tempDir.resolve("sail.yaml");
     Files.writeString(
         path,
         """

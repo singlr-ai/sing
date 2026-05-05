@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -23,10 +23,10 @@ class SingVersionTest {
   }
 
   @Test
-  void versionProviderReturnsSingPrefix() {
+  void versionProviderReturnsSailPrefix() {
     var provider = new SingVersion();
     var lines = provider.getVersion();
     assertEquals(1, lines.length);
-    assertTrue(lines[0].startsWith("sing "), "Expected 'sing X.Y.Z', got: " + lines[0]);
+    assertTrue(lines[0].startsWith("sail "), "Expected 'sail X.Y.Z', got: " + lines[0]);
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,12 +15,12 @@ class ApiResultIntegrationTest {
   @Test
   void exceptionExposesFailureStatusAndError() {
     var exception =
-        new ApiException(ErrorCode.PROJECT_STOPPED, "Stopped.", "Run sing project start.");
+        new ApiException(ErrorCode.PROJECT_STOPPED, "Stopped.", "Run sail project start.");
 
     assertEquals(409, exception.status());
     assertEquals(ErrorCode.PROJECT_STOPPED, exception.failure().errorCode());
     assertEquals("project_stopped", exception.error().code());
-    assertEquals("Run sing project start.", exception.error().action());
+    assertEquals("Run sail project start.", exception.error().action());
   }
 
   @Test

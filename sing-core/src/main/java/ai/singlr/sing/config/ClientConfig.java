@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -52,7 +52,7 @@ public record ClientConfig(String host) {
       throw new IOException(
           "Client config not found: "
               + path
-              + "\n  Create it with: sing init <server-ip-or-ssh-alias>");
+              + "\n  Create it with: sail init <server-ip-or-ssh-alias>");
     }
     return fromMap(YamlUtil.parseFile(path));
   }

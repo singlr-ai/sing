@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>ai.singlr</groupId>
-        <artifactId>sing</artifactId>
+        <artifactId>sail</artifactId>
         <version>0.11.8</version>
     </parent>
 

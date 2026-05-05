@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -62,8 +62,8 @@ public final class ConnectCommand implements Runnable {
     if (resolvedServerIp == null) {
       throw new IllegalStateException(
           "Server IP not configured. Fix with one of:\n"
-              + "  - sudo sing host config set server-ip <your-server-ip>\n"
-              + "  - Or pass: sing project connect "
+              + "  - sudo sail host config set server-ip <your-server-ip>\n"
+              + "  - Or pass: sail project connect "
               + name
               + " --server-ip <your-server-ip>");
     }
@@ -74,12 +74,12 @@ public final class ConnectCommand implements Runnable {
           case ContainerState.Running r -> r.ipv4();
           case ContainerState.Stopped ignored ->
               throw new IllegalStateException(
-                  "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+                  "Project '" + name + "' is stopped. Start it with: sail project start " + name);
           case ContainerState.NotCreated ignored ->
               throw new IllegalStateException(
                   "Project '"
                       + name
-                      + "' does not exist. Create it with: sing project create <name>");
+                      + "' does not exist. Create it with: sail project create <name>");
           case ContainerState.Error e ->
               throw new IllegalStateException("Container error: " + e.message());
         };

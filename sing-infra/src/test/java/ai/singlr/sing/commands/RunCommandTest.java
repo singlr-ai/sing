@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -100,7 +100,7 @@ class RunCommandTest {
 
   @Test
   void invalidProjectNameFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """
@@ -123,7 +123,7 @@ class RunCommandTest {
 
   @Test
   void containerNotRunningFails() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(
         yamlFile,
         """

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -56,7 +56,7 @@ public final class HostInitCommand implements Runnable {
   @Option(
       names = "--server-ip",
       description =
-          "Server's public IP address (for SSH config generation in 'sing project connect').")
+          "Server's public IP address (for SSH config generation in 'sail project connect').")
   private String serverIp;
 
   @Option(names = "--yes", description = "Skip confirmation prompts (for non-interactive use).")
@@ -88,7 +88,7 @@ public final class HostInitCommand implements Runnable {
     }
 
     if (!dryRun && !ConsoleHelper.isRoot()) {
-      throw new IllegalStateException("Root privileges required. Run with: sudo sing host init");
+      throw new IllegalStateException("Root privileges required. Run with: sudo sail host init");
     }
 
     var hostYamlPath = SingPaths.hostConfigPath();
@@ -149,7 +149,7 @@ public final class HostInitCommand implements Runnable {
         System.out.println(
             Ansi.AUTO.string(
                 "  @|yellow Server IP:|@ could not auto-detect."
-                    + " Pass --server-ip or run: sing host config set server-ip <ip>"));
+                    + " Pass --server-ip or run: sail host config set server-ip <ip>"));
       }
     } else if (!json) {
       System.out.println(Ansi.AUTO.string("  @|bold Server IP:|@ " + resolvedServerIp));

@@ -1,9 +1,9 @@
 # Sing Security Audit
 
 ## Scope
-This audit covers the current `sing` CLI and runtime trust boundaries:
+This audit covers the current `sail` CLI and runtime trust boundaries:
 
-- Engineer workstation invoking `sing` locally or through SSH.
+- Engineer workstation invoking `sail` locally or through SSH.
 - Bare-metal Ubuntu host running Incus and project containers.
 - Project containers running developer tooling and agent CLIs as the `dev` user.
 - Local API server used by Chorus through an SSH tunnel.
@@ -20,7 +20,7 @@ This audit covers the current `sing` CLI and runtime trust boundaries:
 ### Trust Boundaries
 - CLI arguments and YAML configuration cross from the engineer workstation into host and container command execution.
 - Spec content crosses from project data into agent prompts and dispatch flows.
-- Local API requests cross from Chorus into `sing` host operations through bearer-token authentication.
+- Local API requests cross from Chorus into `sail` host operations through bearer-token authentication.
 - Agent output crosses from untrusted model/tool execution into PR, handoff, report, and review workflows.
 
 ### Primary Risks
@@ -34,7 +34,7 @@ This audit covers the current `sing` CLI and runtime trust boundaries:
 ## Findings Fixed
 
 ### API bind address requires explicit remote opt-in
-`sing api` now refuses to bind to non-loopback addresses unless `--allow-remote` is supplied. This keeps the default local API posture local-first even when an operator mistypes `--host 0.0.0.0`.
+`sail api` now refuses to bind to non-loopback addresses unless `--allow-remote` is supplied. This keeps the default local API posture local-first even when an operator mistypes `--host 0.0.0.0`.
 
 ### API token file hardening
 The API token store now rejects non-regular token paths, reapplies owner-only permissions before reusing existing tokens, and creates new token files with restrictive POSIX permissions when the filesystem supports them.
@@ -60,7 +60,7 @@ Agent CLI install commands still run through shell because npm-based global inst
 Spec markdown is intentionally passed to coding agents. The security boundary is operational: agent dispatch requires explicit user action, tool permissions still apply in Chorus, and reviewer/handoff workflows must treat model output as untrusted.
 
 ## Verification
-- Focused regression suite: `mvn -pl sing-infra,sing-harness -am -Dtest=ApiTokenStoreTest,ApiRouterTest,ApiCommandTest,SpecWorkspaceTest,AgentSessionTest -Dsurefire.failIfNoSpecifiedTests=false test`
+- Focused regression suite: `mvn -pl sail-infra,sail-harness -am -Dtest=ApiTokenStoreTest,ApiRouterTest,ApiCommandTest,SpecWorkspaceTest,AgentSessionTest -Dsurefire.failIfNoSpecifiedTests=false test`
 - Full verification: `mvn clean verify`
 - CI dependency scan: `mvn install org.owasp:dependency-check-maven:12.1.8:aggregate -DskipTests -Djacoco.skip=true -Dformat=HTML -DfailBuildOnCVSS=7 -DskipTestScope=true -DnvdApiKey=${{ secrets.NVD_API_KEY }} -DdataDirectory=${{ runner.temp }}/dependency-check-data`
 - Native packaging attempted with `mvn package -Pnative -DskipTests`; local execution requires GraalVM and this container uses Temurin, so CI remains the authoritative native-image check.

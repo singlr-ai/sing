@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -26,8 +26,9 @@ import picocli.CommandLine.Help.Ansi;
  * <p>Rate-limited by {@link UpdateChecker}'s 24-hour cache — no network call when cache is fresh.
  * On any failure, silently falls back to the current binary. Never disrupts the actual command.
  *
- * <p>Skips for: dev builds, {@code SING_NO_UPDATE_CHECK=1}, {@code SING_AUTO_UPGRADED=1} (prevents
- * re-exec loop), {@code upgrade} subcommand (handles itself), {@code --version}/{@code --help}.
+ * <p>Skips for: dev builds, {@code SAIL_NO_UPDATE_CHECK=1}, {@code SAIL_AUTO_UPGRADED=1}, legacy
+ * {@code SING_NO_UPDATE_CHECK=1}, legacy {@code SING_AUTO_UPGRADED=1}, {@code upgrade} subcommand
+ * (handles itself), {@code --version}/{@code --help}.
  */
 public final class AutoUpgrader {
 
@@ -57,10 +58,12 @@ public final class AutoUpgrader {
     if ("dev".equals(SingVersion.version())) {
       return true;
     }
-    if ("1".equals(System.getenv("SING_NO_UPDATE_CHECK"))) {
+    if ("1".equals(System.getenv("SAIL_NO_UPDATE_CHECK"))
+        || "1".equals(System.getenv("SING_NO_UPDATE_CHECK"))) {
       return true;
     }
-    if ("1".equals(System.getenv("SING_AUTO_UPGRADED"))) {
+    if ("1".equals(System.getenv("SAIL_AUTO_UPGRADED"))
+        || "1".equals(System.getenv("SING_AUTO_UPGRADED"))) {
       return true;
     }
     for (var arg : args) {
@@ -90,7 +93,7 @@ public final class AutoUpgrader {
 
     System.err.println(
         Ansi.AUTO.string(
-            "  @|faint Updating sing "
+            "  @|faint Updating sail "
                 + SingVersion.version()
                 + " \u2192 "
                 + latestVersionStr
@@ -117,7 +120,7 @@ public final class AutoUpgrader {
 
     System.err.println(
         Ansi.AUTO.string(
-            "  @|bold,green \u2713|@ @|faint Updated to sing " + latestVersionStr + "|@\n"));
+            "  @|bold,green \u2713|@ @|faint Updated to sail " + latestVersionStr + "|@\n"));
 
     reExec(binaryPath, args);
   }
@@ -167,6 +170,7 @@ public final class AutoUpgrader {
     cmd.addAll(List.of(args));
     var pb = new ProcessBuilder(cmd);
     pb.environment().put("SING_AUTO_UPGRADED", "1");
+    pb.environment().put("SAIL_AUTO_UPGRADED", "1");
     pb.inheritIO();
     var exitCode = pb.start().waitFor();
     System.exit(exitCode);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -41,8 +41,8 @@ public final class ProjectPushCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml to push.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml to push.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(
@@ -92,14 +92,14 @@ public final class ProjectPushCommand implements Runnable {
       throw new IllegalStateException(
           "Project descriptor not found: "
               + singYamlPath.toAbsolutePath()
-              + "\n  Create a sing.yaml in the current directory, or specify one with --file.");
+              + "\n  Create a sail.yaml in the current directory, or specify one with --file.");
     }
 
     var config = SingYaml.fromMap(YamlUtil.parseMap(Files.readString(singYamlPath)));
     var content = SingYamlGenerator.generate(templatize(config));
 
     var token = resolveToken();
-    var remotePath = name + "/sing.yaml";
+    var remotePath = name + "/" + SingPaths.PROJECT_DESCRIPTOR;
     var commitMessage = Objects.requireNonNullElse(message, "Update " + remotePath);
 
     if (!json) {
@@ -246,7 +246,7 @@ public final class ProjectPushCommand implements Runnable {
               + "Provide the token via one of:\n"
               + "  --github-token <token>\n"
               + "  GITHUB_TOKEN environment variable\n\n"
-              + "Then re-run: sing project push <name>");
+              + "Then re-run: sail project push <name>");
     }
   }
 }

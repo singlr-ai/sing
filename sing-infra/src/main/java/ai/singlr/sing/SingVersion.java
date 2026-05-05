@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -11,7 +11,7 @@ import picocli.CommandLine.IVersionProvider;
 
 /**
  * Provides the CLI version from Maven-filtered {@code version.properties} on the classpath.
- * Implements picocli's {@link IVersionProvider} so {@code sing -V} reads the version automatically.
+ * Implements picocli's {@link IVersionProvider} so {@code sail -V} reads the version automatically.
  */
 public final class SingVersion implements IVersionProvider {
 
@@ -35,6 +35,6 @@ public final class SingVersion implements IVersionProvider {
 
   @Override
   public String[] getVersion() {
-    return new String[] {"sing " + VERSION};
+    return new String[] {"sail " + VERSION};
   }
 }

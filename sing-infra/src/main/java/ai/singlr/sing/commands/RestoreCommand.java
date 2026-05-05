@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -58,7 +58,7 @@ public final class RestoreCommand implements Runnable {
       case ContainerState.Stopped ignored -> {}
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -69,7 +69,7 @@ public final class RestoreCommand implements Runnable {
         throw new IllegalStateException(
             "No snapshots exist for '"
                 + name
-                + "'. Create one with: sing project snapshot create "
+                + "'. Create one with: sail project snapshot create "
                 + name);
       }
       label = snapshots.getLast().name();

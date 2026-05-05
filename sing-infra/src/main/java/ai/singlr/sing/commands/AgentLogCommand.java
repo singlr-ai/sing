@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -60,10 +60,10 @@ public final class AgentLogCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -95,7 +95,7 @@ public final class AgentLogCommand implements Runnable {
           }
           System.out.println(
               Ansi.AUTO.string(
-                  "  @|faint No agent log found. Launch an agent with: sing agent start "
+                  "  @|faint No agent log found. Launch an agent with: sail agent start "
                       + name
                       + " --task \"...\" --background|@"));
           return;

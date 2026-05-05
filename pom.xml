@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ai.singlr</groupId>
-    <artifactId>sing</artifactId>
+    <artifactId>sail</artifactId>
     <version>0.11.8</version>
     <packaging>pom</packaging>
 
@@ -17,8 +17,8 @@
 
     <developers>
         <developer>
-            <name>Singular</name>
-            <organization>Singular</organization>
+            <name>Standard Applied Intelligence Labs</name>
+            <organization>Standard Applied Intelligence Labs</organization>
             <organizationUrl>https://github.com/singlr-ai/sing</organizationUrl>
         </developer>
     </developers>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -60,7 +60,7 @@ class SingPathsTest {
   void resolveSingYamlFindsCanonicalFirst() throws Exception {
     var projectDir = HOME.resolve(".sing/projects/test-canonical");
     Files.createDirectories(projectDir);
-    var canonical = projectDir.resolve("sing.yaml");
+    var canonical = projectDir.resolve("sail.yaml");
     Files.writeString(canonical, "name: test");
     try {
       var result = SingPaths.resolveSingYaml("test-canonical", "nonexistent.yaml");
@@ -73,8 +73,24 @@ class SingPathsTest {
   }
 
   @Test
+  void resolveSingYamlFallsBackToLegacyCanonical() throws Exception {
+    var projectDir = HOME.resolve(".sing/projects/test-legacy-canonical");
+    Files.createDirectories(projectDir);
+    var legacy = projectDir.resolve("sing.yaml");
+    Files.writeString(legacy, "name: test");
+    try {
+      var result = SingPaths.resolveSingYaml("test-legacy-canonical", "nonexistent.yaml");
+
+      assertEquals(legacy, result);
+    } finally {
+      Files.deleteIfExists(legacy);
+      Files.deleteIfExists(projectDir);
+    }
+  }
+
+  @Test
   void resolveSingYamlFallsBackToExplicitFile() throws Exception {
-    var yamlFile = tempDir.resolve("sing.yaml");
+    var yamlFile = tempDir.resolve("sail.yaml");
     Files.writeString(yamlFile, "name: test");
 
     var result = SingPaths.resolveSingYaml("nonexistent-project", yamlFile.toString());
@@ -86,8 +102,22 @@ class SingPathsTest {
   void resolveSingYamlFallsBackToNamedDir() throws Exception {
     var projectDir = tempDir.resolve("my-project");
     Files.createDirectories(projectDir);
-    var namedYaml = projectDir.resolve("sing.yaml");
+    var namedYaml = projectDir.resolve("sail.yaml");
     Files.writeString(namedYaml, "name: my-project");
+
+    var result =
+        SingPaths.resolveSingYaml(
+            projectDir.toString(), tempDir.resolve("nonexistent.yaml").toString());
+
+    assertEquals(namedYaml, result);
+  }
+
+  @Test
+  void resolveSingYamlFallsBackToLegacyNamedDir() throws Exception {
+    var projectDir = tempDir.resolve("my-legacy-project");
+    Files.createDirectories(projectDir);
+    var namedYaml = projectDir.resolve("sing.yaml");
+    Files.writeString(namedYaml, "name: my-legacy-project");
 
     var result =
         SingPaths.resolveSingYaml(
@@ -100,14 +130,14 @@ class SingPathsTest {
   void resolveSingYamlReturnsCanonicalWhenNothingExists() {
     var result = SingPaths.resolveSingYaml("whatever", "/does/not/exist.yaml");
 
-    assertEquals(SingPaths.projectDir("whatever").resolve("sing.yaml"), result);
+    assertEquals(SingPaths.projectDir("whatever").resolve("sail.yaml"), result);
   }
 
   @Test
   void resolveSingYamlNullNameReturnsFilePath() {
-    var result = SingPaths.resolveSingYaml(null, "sing.yaml");
+    var result = SingPaths.resolveSingYaml(null, "sail.yaml");
 
-    assertEquals(Path.of("sing.yaml"), result);
+    assertEquals(Path.of("sail.yaml"), result);
   }
 
   @Test

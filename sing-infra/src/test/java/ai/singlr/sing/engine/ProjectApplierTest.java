@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -726,7 +726,7 @@ class ProjectApplierTest {
     Files.createDirectories(filesDir.resolve("outline"));
     Files.writeString(filesDir.resolve("outline/.env"), "KEY=VALUE");
     Files.writeString(filesDir.resolve("setup.sh"), "#!/bin/bash");
-    var singYaml = projectDir.resolve("sing.yaml");
+    var singYaml = projectDir.resolve("sail.yaml");
     Files.writeString(singYaml, "name: test");
 
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
@@ -762,7 +762,7 @@ class ProjectApplierTest {
 
   @Test
   void applyWorkspaceFilesReturnsEmptyWhenNoFilesDir() throws Exception {
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     Files.writeString(singYaml, "name: test");
 
     var shell = new ScriptedShellExecutor();
@@ -777,7 +777,7 @@ class ProjectApplierTest {
   @Test
   void applyWorkspaceFilesReturnsEmptyWhenFilesDirEmpty() throws Exception {
     Files.createDirectories(tempDir.resolve("files"));
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     Files.writeString(singYaml, "name: test");
 
     var shell = new ScriptedShellExecutor();
@@ -803,7 +803,7 @@ class ProjectApplierTest {
     var filesDir = tempDir.resolve("files");
     Files.createDirectories(filesDir);
     Files.writeString(filesDir.resolve("config.env"), "X=1");
-    var singYaml = tempDir.resolve("sing.yaml");
+    var singYaml = tempDir.resolve("sail.yaml");
     Files.writeString(singYaml, "name: test");
 
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));

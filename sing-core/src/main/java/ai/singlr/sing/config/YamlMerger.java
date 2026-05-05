@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deep-merges two YAML maps (parsed from {@code global.yaml} and a project {@code sing.yaml}).
+ * Deep-merges two YAML maps (parsed from {@code global.yaml} and a project {@code sail.yaml}).
  * Override wins for scalars, maps are merged recursively, and lists are unioned (deduplicated).
  * Neither input map is mutated.
  */

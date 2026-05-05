@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -36,8 +36,8 @@ public final class AgentReportCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Spec private CommandSpec spec;
@@ -64,7 +64,7 @@ public final class AgentReportCommand implements Runnable {
 
     var singYamlPath = SingPaths.resolveSingYaml(name, file);
     if (!Files.exists(singYamlPath)) {
-      throw new IllegalStateException("No sing.yaml found at " + file);
+      throw new IllegalStateException("No sail.yaml found at " + file);
     }
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 

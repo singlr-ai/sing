@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -308,10 +308,10 @@ public final class SpecSkillGenerator {
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
         - **pending**: ready to be picked up
-        - **in_progress**: agent is actively working on it (set by `sing spec dispatch`)
-        - **review**: PR created, waiting for human review (set by `sing`)
-        - **done**: PR merged, work complete (set by engineer via `sing`)
-        Status is managed by `sing`, not by the agent. Do not modify status directly during autonomous execution.
+        - **in_progress**: agent is actively working on it (set by `sail spec dispatch`)
+        - **review**: PR created, waiting for human review (set by `sail`)
+        - **done**: PR merged, work complete (set by engineer via `sail`)
+        Status is managed by `sail`, not by the agent. Do not modify status directly during autonomous execution.
 
         ### Important
         Specs live at `%1$s/` — an absolute path in the workspace root, NOT inside any repo.

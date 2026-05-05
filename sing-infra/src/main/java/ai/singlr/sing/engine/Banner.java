@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import picocli.CommandLine.Help.Ansi;
 
@@ -32,6 +33,7 @@ public final class Banner {
   private static final String CYAN_BOLD = "\033[1;36m";
   private static final String DIM = "\033[2m";
   private static final String RESET = "\033[0m";
+  private static final int ANIMATION_WIDTH = 64;
 
   /**
    * Replaces picocli's bold-cyan ANSI escape with 256-color amber for brand-consistent borders.
@@ -45,23 +47,65 @@ public final class Banner {
     return result;
   }
 
-  /** Prints the sing ASCII wordmark in Strike amber (#f59e0b) and version. */
+  /** Prints the SAIL ASCII wordmark and version. */
   public static void printBranding(PrintStream out, Ansi ansi) {
+    printIntroAnimation(out, ansi);
     var useColor = ansi != Ansi.OFF;
     var a = useColor ? AMBER : "";
     var d = useColor ? DIM : "";
     var r = useColor ? RESET : "";
     out.println();
-    out.println("  " + a + "███████╗ ██╗ ███╗   ██╗  ██████╗" + r + " ");
-    out.println("  " + a + "██╔════╝ ██║ ████╗  ██║ ██╔════╝" + r + " ");
-    out.println("  " + a + "███████╗ ██║ ██╔██╗ ██║ ██║  ███╗" + r);
-    out.println("  " + a + "╚════██║ ██║ ██║╚██╗██║ ██║   ██║" + r);
-    out.println("  " + a + "███████║ ██║ ██║ ╚████║ ╚██████╔╝" + r);
-    out.println("  " + a + "╚══════╝ ╚═╝ ╚═╝  ╚═══╝  ╚═════╝" + r + " ");
+    out.println("  " + a + "███████╗  █████╗  ██╗ ██╗" + r);
+    out.println("  " + a + "██╔════╝ ██╔══██╗ ██║ ██║" + r);
+    out.println("  " + a + "███████╗ ███████║ ██║ ██║" + r);
+    out.println("  " + a + "╚════██║ ██╔══██║ ██║ ██║" + r);
+    out.println("  " + a + "███████║ ██║  ██║ ██║ ███████╗" + r);
+    out.println("  " + a + "╚══════╝ ╚═╝  ╚═╝ ╚═╝ ╚══════╝" + r);
     out.println();
     out.println(
         "  " + d + "Isolated dev environments for AI agents  ·  v" + SingVersion.version() + r);
     out.println("  " + d + "https://github.com/singlr-ai/sing" + r);
+  }
+
+  static boolean shouldAnimateBranding(
+      Ansi ansi, Map<String, String> env, BooleanSupplier hasConsole) {
+    return ansi != Ansi.OFF
+        && hasConsole.getAsBoolean()
+        && !"1".equals(env.get("SAIL_NO_ANIMATION"))
+        && !"true".equalsIgnoreCase(env.get("CI"))
+        && !env.containsKey("NO_COLOR")
+        && !"dumb".equalsIgnoreCase(env.get("TERM"));
+  }
+
+  private static void printIntroAnimation(PrintStream out, Ansi ansi) {
+    if (!shouldAnimateBranding(ansi, System.getenv(), () -> System.console() != null)) {
+      return;
+    }
+
+    var frames =
+        List.of(
+            "      /|   setting course",
+            "     /_|   raising sail",
+            "    /__|   catching wind",
+            "   /___|   SAIL ready");
+    var useColor = ansi != Ansi.OFF;
+    var color = useColor ? AMBER : "";
+    var reset = useColor ? RESET : "";
+    for (var frame : frames) {
+      out.print("\r  " + color + frame + reset);
+      out.flush();
+      sleepAnimationFrame();
+    }
+    out.print("\r" + " ".repeat(ANIMATION_WIDTH) + "\r");
+    out.flush();
+  }
+
+  private static void sleepAnimationFrame() {
+    try {
+      Thread.sleep(90);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   /** Prints the host detection banner to stdout with auto ANSI detection. */
@@ -128,7 +172,7 @@ public final class Banner {
         amber(
             ansi,
             "  @|bold,red \u2717 Root privileges required.|@"
-                + " Run with: @|bold sudo sing host init|@"));
+                + " Run with: @|bold sudo sail host init|@"));
   }
 
   /** Returns a formatted provisioning step progress line. */
@@ -150,7 +194,7 @@ public final class Banner {
   public static void printUnsupported(HostDetector.HostInfo info, PrintStream out, Ansi ansi) {
     out.println(
         amber(ansi, "  @|bold,red \u2717 Unsupported operating system:|@ " + info.osPrettyName()));
-    out.println(amber(ansi, "    @|faint sing currently supports:|@ @|bold Ubuntu 24.04+|@"));
+    out.println(amber(ansi, "    @|faint SAIL currently supports:|@ @|bold Ubuntu 24.04+|@"));
   }
 
   /** Prints prerequisite check results — ✓ for present, ✗ for missing. */
@@ -442,7 +486,7 @@ public final class Banner {
 
   /**
    * Prints the SSH config snippet that the user should add to {@code ~/.ssh/config} on their Mac.
-   * This is the same output as {@code sing project connect} but printed inline after project
+   * This is the same output as {@code sail project connect} but printed inline after project
    * creation.
    */
   public static void printSshConfig(
@@ -469,7 +513,7 @@ public final class Banner {
     out.println(
         amber(ansi, "    @|bold \u2192 Zed:|@     zed ssh://dev@" + name + "/home/dev/workspace"));
     out.println(amber(ansi, "    @|bold \u2192 SSH:|@     ssh " + name));
-    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing project shell " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sail project shell " + name));
   }
 
   /** Prints resume information when a prior incomplete provisioning run is detected. */
@@ -493,8 +537,8 @@ public final class Banner {
 
   /** Prints the connect and shell hints after a container starts. */
   public static void printZedConnect(String name, String sshUser, PrintStream out, Ansi ansi) {
-    out.println(amber(ansi, "    @|bold \u2192 Connect:|@ sing project connect " + name));
-    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sing project shell " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Connect:|@ sail project connect " + name));
+    out.println(amber(ansi, "    @|bold \u2192 Shell:|@   sudo sail project shell " + name));
   }
 
   /**
@@ -788,7 +832,7 @@ public final class Banner {
     out.println(
         amber(
             ansi,
-            "    @|faint Use 'sing project stop <name>' to stop projects and free resources.|@"));
+            "    @|faint Use 'sail project stop <name>' to stop projects and free resources.|@"));
   }
 
   /** Prints agent session status with optional git activity and task progress. */
@@ -851,7 +895,7 @@ public final class Banner {
     }
     out.println(amber(ansi, "    @|bold Log:|@        " + info.logPath()));
     if (info.running()) {
-      out.println(amber(ansi, "    @|faint Tail output: sing agent log " + name + " --follow|@"));
+      out.println(amber(ansi, "    @|faint Tail output: sail agent log " + name + " --follow|@"));
     }
   }
 
@@ -877,8 +921,8 @@ public final class Banner {
     if (branch != null && !branch.isBlank()) {
       out.println(amber(ansi, "    @|bold Branch:|@  " + branch));
     }
-    out.println(amber(ansi, "    @|bold Log:|@     sing agent log " + name + " --follow"));
-    out.println(amber(ansi, "    @|bold Stop:|@    sing agent stop " + name));
+    out.println(amber(ansi, "    @|bold Log:|@     sail agent log " + name + " --follow"));
+    out.println(amber(ansi, "    @|bold Stop:|@    sail agent stop " + name));
   }
 
   /** Prints a list of other running projects (informational). */
@@ -992,7 +1036,7 @@ public final class Banner {
 
     out.println(amber(ansi, "  @|bold Next Steps:|@"));
     out.println(
-        amber(ansi, "    sing agent log " + name + " --tail 50    @|faint # see agent output|@"));
+        amber(ansi, "    sail agent log " + name + " --tail 50    @|faint # see agent output|@"));
     var remaining =
         report.specs().stream()
             .filter(s -> "pending".equals(s.status()) || "in_progress".equals(s.status()))
@@ -1001,7 +1045,7 @@ public final class Banner {
       out.println(
           amber(
               ansi,
-              "    sing spec dispatch "
+              "    sail spec dispatch "
                   + name
                   + "               @|faint # continue "
                   + remaining

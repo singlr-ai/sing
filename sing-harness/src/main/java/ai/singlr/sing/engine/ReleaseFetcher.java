@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,8 +58,8 @@ public final class ReleaseFetcher {
 
   /** Downloads the platform-specific binary for the given version tag (e.g. {@code "v0.9.2"}). */
   public static byte[] downloadBinary(String versionTag) throws IOException, InterruptedException {
-    var binaryName = "sing-" + PlatformDetector.platformSuffix();
-    return fetchBytes(DOWNLOAD_BASE + "/" + versionTag + "/" + binaryName, BINARY_TIMEOUT);
+    return fetchReleaseAsset(
+        versionTag, "sail-" + PlatformDetector.platformSuffix(), BINARY_TIMEOUT);
   }
 
   /** Downloads the latest binary. */
@@ -69,9 +70,8 @@ public final class ReleaseFetcher {
 
   /** Fetches the SHA-256 checksum for the platform-specific binary (hex string). */
   public static String fetchChecksum(String versionTag) throws IOException, InterruptedException {
-    var checksumName = "sing-" + PlatformDetector.platformSuffix() + ".sha256";
-    var content =
-        fetchText(DOWNLOAD_BASE + "/" + versionTag + "/" + checksumName, META_TIMEOUT).strip();
+    var checksumName = "sail-" + PlatformDetector.platformSuffix() + ".sha256";
+    var content = fetchReleaseAssetText(versionTag, checksumName, META_TIMEOUT).strip();
     return content.split("\\s+")[0];
   }
 
@@ -84,6 +84,39 @@ public final class ReleaseFetcher {
   /** Builds a full download URL for the given version tag and asset. */
   public static String buildDownloadUrl(String versionTag, String asset) {
     return DOWNLOAD_BASE + "/" + versionTag + "/" + asset;
+  }
+
+  static List<String> releaseAssetCandidates(String asset) {
+    if (!asset.startsWith("sail-")) {
+      return List.of(asset);
+    }
+    return List.of(asset, asset.replaceFirst("^sail-", "sing-"));
+  }
+
+  private static byte[] fetchReleaseAsset(String versionTag, String asset, Duration timeout)
+      throws IOException, InterruptedException {
+    IOException failure = null;
+    for (var candidate : releaseAssetCandidates(asset)) {
+      try {
+        return fetchBytes(buildDownloadUrl(versionTag, candidate), timeout);
+      } catch (IOException error) {
+        failure = error;
+      }
+    }
+    throw failure;
+  }
+
+  private static String fetchReleaseAssetText(String versionTag, String asset, Duration timeout)
+      throws IOException, InterruptedException {
+    IOException failure = null;
+    for (var candidate : releaseAssetCandidates(asset)) {
+      try {
+        return fetchText(buildDownloadUrl(versionTag, candidate), timeout);
+      } catch (IOException error) {
+        failure = error;
+      }
+    }
+    throw failure;
   }
 
   private static String fetchText(String url, Duration timeout)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -38,8 +38,8 @@ public final class ProjectRemoveServiceCommand implements Runnable {
 
   @Option(
       names = {"-f", "--file"},
-      description = "Path to sing.yaml project descriptor.",
-      defaultValue = "sing.yaml")
+      description = "Path to sail.yaml project descriptor.",
+      defaultValue = "sail.yaml")
   private String file;
 
   @Option(names = "--json", description = "Output in JSON format.")
@@ -65,7 +65,7 @@ public final class ProjectRemoveServiceCommand implements Runnable {
       throw new IllegalStateException(
           "Project descriptor not found: "
               + singYamlPath.toAbsolutePath()
-              + "\n  Create a sing.yaml in the current directory, or specify one with --file.");
+              + "\n  Create a sail.yaml in the current directory, or specify one with --file.");
     }
 
     var config = SingYaml.fromMap(YamlUtil.parseFile(singYamlPath));
@@ -82,10 +82,10 @@ public final class ProjectRemoveServiceCommand implements Runnable {
       case ContainerState.Running ignored -> {}
       case ContainerState.Stopped ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' is stopped. Start it with: sing project start " + name);
+              "Project '" + name + "' is stopped. Start it with: sail project start " + name);
       case ContainerState.NotCreated ignored ->
           throw new IllegalStateException(
-              "Project '" + name + "' does not exist. Run 'sing project create' first.");
+              "Project '" + name + "' does not exist. Run 'sail project create' first.");
       case ContainerState.Error e ->
           throw new IllegalStateException("Container error: " + e.message());
     }
@@ -112,6 +112,6 @@ public final class ProjectRemoveServiceCommand implements Runnable {
                 + serviceName
                 + "' removed from "
                 + name
-                + " and sing.yaml updated"));
+                + " and sail.yaml updated"));
   }
 }

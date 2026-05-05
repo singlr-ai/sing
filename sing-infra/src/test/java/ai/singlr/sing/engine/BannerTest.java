@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,6 +15,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine.Help.Ansi;
 
@@ -108,6 +109,22 @@ class BannerTest {
   }
 
   @Test
+  void brandingAnimationRequiresInteractiveAnsiOutput() {
+    assertTrue(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of(), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.OFF, Map.of(), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of(), () -> false));
+  }
+
+  @Test
+  void brandingAnimationHonorsEnvironmentOptOuts() {
+    assertFalse(
+        Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("SAIL_NO_ANIMATION", "1"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("CI", "true"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("NO_COLOR", "1"), () -> true));
+    assertFalse(Banner.shouldAnimateBranding(Ansi.AUTO, Map.of("TERM", "dumb"), () -> true));
+  }
+
+  @Test
   void bannerBordersAlign() {
     var output = renderBanner(SUPPORTED);
     var lines = output.split("\n");
@@ -150,7 +167,7 @@ class BannerTest {
     var output = out.toString(StandardCharsets.UTF_8);
 
     assertTrue(output.contains("Root privileges required"));
-    assertTrue(output.contains("sudo sing host init"));
+    assertTrue(output.contains("sudo sail host init"));
   }
 
   @Test
@@ -333,8 +350,8 @@ class BannerTest {
 
     assertTrue(output.contains("\u2713"));
     assertTrue(output.contains("acme-health"));
-    assertTrue(output.contains("sing project connect acme-health"));
-    assertTrue(output.contains("sing project shell acme-health"));
+    assertTrue(output.contains("sail project connect acme-health"));
+    assertTrue(output.contains("sail project shell acme-health"));
   }
 
   @Test
@@ -344,8 +361,8 @@ class BannerTest {
     var output = out.toString(StandardCharsets.UTF_8);
 
     assertTrue(output.contains("simple"));
-    assertTrue(output.contains("sing project connect simple"));
-    assertTrue(output.contains("sing project shell simple"));
+    assertTrue(output.contains("sail project connect simple"));
+    assertTrue(output.contains("sail project shell simple"));
   }
 
   @Test
@@ -819,7 +836,7 @@ class BannerTest {
     assertTrue(output.contains("Overcommit warning"));
     assertTrue(output.contains("CPU 12/6 threads"));
     assertTrue(output.contains("Memory 48GB/32GB"));
-    assertTrue(output.contains("sing project stop"));
+    assertTrue(output.contains("sail project stop"));
   }
 
   @Test
@@ -954,8 +971,8 @@ class BannerTest {
     assertTrue(output.contains("Update docs"));
     assertTrue(output.contains("18 commits"));
     assertTrue(output.contains("Not triggered"));
-    assertTrue(output.contains("sing agent log"));
-    assertTrue(output.contains("sing spec dispatch"));
+    assertTrue(output.contains("sail agent log"));
+    assertTrue(output.contains("sail spec dispatch"));
   }
 
   @Test

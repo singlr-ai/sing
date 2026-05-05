@@ -1,4 +1,4 @@
-# sing.yaml — Node.js API project
+# sail.yaml — Node.js API project
 # Express/Fastify backend with Postgres and Redis.
 # 2 CPU cores, 8GB RAM, 80GB disk.
 
@@ -48,7 +48,7 @@ processes:
 agent:
   type: claude-code
   auto_branch: true
-  branch_prefix: "sing/"
+  branch_prefix: "sail/"
   auto_snapshot: true
   install:
     - claude-code

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -313,7 +313,7 @@ class SingYamlUpdaterTest {
   }
 
   private java.nio.file.Path writeTempYaml(String content) throws Exception {
-    var path = tempDir.resolve("sing.yaml");
+    var path = tempDir.resolve("sail.yaml");
     Files.writeString(path, content);
     return path;
   }

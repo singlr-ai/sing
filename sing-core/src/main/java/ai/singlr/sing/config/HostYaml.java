@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Model for {@code /etc/sing/host.yaml} — server-side state written by {@code sing host init} and
+ * Model for {@code /etc/sing/host.yaml} — server-side state written by {@code sail host init} and
  * read by all other commands.
  */
 public record HostYaml(

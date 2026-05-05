@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,8 +14,8 @@ class ReleaseFetcherTest {
   @Test
   void buildDownloadUrlForBinary() {
     assertEquals(
-        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sing",
-        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sing"));
+        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sail",
+        ReleaseFetcher.buildDownloadUrl("v0.9.2", "sail"));
   }
 
   @Test
@@ -23,6 +23,20 @@ class ReleaseFetcherTest {
     assertEquals(
         "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sing.sha256",
         ReleaseFetcher.buildDownloadUrl("v0.9.2", "sing.sha256"));
+  }
+
+  @Test
+  void releaseAssetCandidatesIncludeLegacySingAssetForSailAsset() {
+    assertEquals(
+        java.util.List.of("sail-linux-amd64", "sing-linux-amd64"),
+        ReleaseFetcher.releaseAssetCandidates("sail-linux-amd64"));
+  }
+
+  @Test
+  void releaseAssetCandidatesDoNotRewriteLegacyAsset() {
+    assertEquals(
+        java.util.List.of("sing-linux-amd64"),
+        ReleaseFetcher.releaseAssetCandidates("sing-linux-amd64"));
   }
 
   @Test

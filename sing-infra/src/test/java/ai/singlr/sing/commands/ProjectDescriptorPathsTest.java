@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -22,21 +22,21 @@ class ProjectDescriptorPathsTest {
   @Test
   void pullDefaultOutputPathUsesCanonicalProjectDir() {
     assertEquals(
-        SingPaths.projectDir("acme-health").resolve("sing.yaml"),
+        SingPaths.projectDir("acme-health").resolve("sail.yaml"),
         ProjectPullCommand.defaultOutputPath("acme-health"));
   }
 
   @Test
   void initDefaultOutputPathUsesCanonicalProjectDir() {
     assertEquals(
-        SingPaths.projectDir("acme-health").resolve("sing.yaml"),
+        SingPaths.projectDir("acme-health").resolve("sail.yaml"),
         ProjectInitCommand.defaultOutputPath("acme-health"));
   }
 
   @Test
   void createDefaultDescriptorPathUsesCanonicalProjectDir() {
     assertEquals(
-        SingPaths.projectDir("acme-health").resolve("sing.yaml"),
+        SingPaths.projectDir("acme-health").resolve("sail.yaml"),
         ProjectCreateCommand.defaultDescriptorPath("acme-health"));
   }
 
@@ -45,16 +45,16 @@ class ProjectDescriptorPathsTest {
     var outputPath = ProjectInitCommand.defaultOutputPath("acme-health");
 
     assertEquals(
-        "sing project create acme-health",
+        "sail project create acme-health",
         ProjectInitCommand.nextCreateCommand("acme-health", outputPath));
   }
 
   @Test
   void initNextCreateCommandUsesFileFlagForCustomOutput() {
-    var outputPath = tempDir.resolve("custom").resolve("sing.yaml");
+    var outputPath = tempDir.resolve("custom").resolve("sail.yaml");
 
     assertEquals(
-        "sing project create acme-health -f " + outputPath,
+        "sail project create acme-health -f " + outputPath,
         ProjectInitCommand.nextCreateCommand("acme-health", outputPath));
   }
 
@@ -67,7 +67,7 @@ class ProjectDescriptorPathsTest {
             .description()[0];
 
     assertTrue(description.contains(".sing/projects"));
-    assertTrue(description.contains("sing.yaml"));
+    assertTrue(description.contains("sail.yaml"));
   }
 
   @Test
@@ -79,7 +79,7 @@ class ProjectDescriptorPathsTest {
             .description()[0];
 
     assertTrue(description.contains(".sing/projects"));
-    assertTrue(description.contains("sing.yaml"));
+    assertTrue(description.contains("sail.yaml"));
   }
 
   @Test
@@ -91,7 +91,7 @@ class ProjectDescriptorPathsTest {
             .description()[0];
 
     assertTrue(description.contains(".sing/projects"));
-    assertTrue(description.contains("sing.yaml"));
+    assertTrue(description.contains("sail.yaml"));
   }
 
   @Test
@@ -109,6 +109,21 @@ class ProjectDescriptorPathsTest {
   }
 
   @Test
+  void createResolveSingYamlPathFallsBackToLegacyCanonicalDescriptor() throws Exception {
+    var name = "project-legacy-path-test-" + System.nanoTime();
+    var projectDir = SingPaths.projectDir(name);
+    var legacyPath = projectDir.resolve("sing.yaml");
+    Files.createDirectories(projectDir);
+    Files.writeString(legacyPath, "name: " + name + "\n");
+    try {
+      assertEquals(legacyPath, ProjectCreateCommand.resolveSingYamlPath(name, null));
+    } finally {
+      Files.deleteIfExists(legacyPath);
+      Files.deleteIfExists(projectDir);
+    }
+  }
+
+  @Test
   void createResolveSingYamlPathReturnsCanonicalPathForMissingProject() {
     var name = "missing-project-" + System.nanoTime();
 
@@ -121,7 +136,7 @@ class ProjectDescriptorPathsTest {
   void syncProjectBundleCopiesDescriptorAndFilesToCanonicalLocation() throws Exception {
     var sourceDir = tempDir.resolve("source");
     var canonicalDir = tempDir.resolve("canonical");
-    var sourceYaml = sourceDir.resolve("sing.yaml");
+    var sourceYaml = sourceDir.resolve("sail.yaml");
     var sourceFilesDir = sourceDir.resolve("files");
     Files.createDirectories(sourceFilesDir.resolve("app"));
     Files.createDirectories(sourceFilesDir.resolve("scripts"));
@@ -129,7 +144,7 @@ class ProjectDescriptorPathsTest {
     Files.writeString(sourceFilesDir.resolve("app/.env"), "FOO=bar\n");
     Files.writeString(sourceFilesDir.resolve("scripts/start.sh"), "#!/bin/bash\necho ok\n");
 
-    var canonicalYaml = canonicalDir.resolve("sing.yaml");
+    var canonicalYaml = canonicalDir.resolve("sail.yaml");
     ProjectCreateCommand.syncProjectBundle(sourceYaml, canonicalYaml);
 
     assertEquals("name: acme-health\n", Files.readString(canonicalYaml));
@@ -142,13 +157,13 @@ class ProjectDescriptorPathsTest {
   void syncProjectBundleRemovesStaleCanonicalFilesWhenSourceHasNone() throws Exception {
     var sourceDir = tempDir.resolve("source");
     var canonicalDir = tempDir.resolve("canonical");
-    var sourceYaml = sourceDir.resolve("sing.yaml");
+    var sourceYaml = sourceDir.resolve("sail.yaml");
     Files.createDirectories(sourceDir);
     Files.createDirectories(canonicalDir.resolve("files"));
     Files.writeString(sourceYaml, "name: acme-health\n");
     Files.writeString(canonicalDir.resolve("files/old.env"), "STALE=true\n");
 
-    ProjectCreateCommand.syncProjectBundle(sourceYaml, canonicalDir.resolve("sing.yaml"));
+    ProjectCreateCommand.syncProjectBundle(sourceYaml, canonicalDir.resolve("sail.yaml"));
 
     assertFalse(Files.exists(canonicalDir.resolve("files")));
   }
@@ -160,12 +175,12 @@ class ProjectDescriptorPathsTest {
     var sourceFilesDir = sourceDir.resolve("files");
     Files.createDirectories(sourceFilesDir);
     Files.createDirectories(canonicalDir.resolve("files"));
-    Files.writeString(sourceDir.resolve("sing.yaml"), "name: acme-health\n");
+    Files.writeString(sourceDir.resolve("sail.yaml"), "name: acme-health\n");
     Files.writeString(sourceFilesDir.resolve("new.env"), "NEW=true\n");
     Files.writeString(canonicalDir.resolve("files/old.env"), "OLD=true\n");
 
     ProjectCreateCommand.syncProjectBundle(
-        sourceDir.resolve("sing.yaml"), canonicalDir.resolve("sing.yaml"));
+        sourceDir.resolve("sail.yaml"), canonicalDir.resolve("sail.yaml"));
 
     assertFalse(Files.exists(canonicalDir.resolve("files/old.env")));
     assertEquals("NEW=true\n", Files.readString(canonicalDir.resolve("files/new.env")));

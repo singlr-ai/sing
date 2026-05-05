@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -44,12 +44,12 @@ public final class HostUpdateCommand implements Runnable {
   private void execute() throws Exception {
     var hostYamlPath = SingPaths.hostConfigPath();
     if (!Files.exists(hostYamlPath)) {
-      throw new IllegalStateException("Server not initialized. Run 'sing host init' first.");
+      throw new IllegalStateException("Server not initialized. Run 'sail host init' first.");
     }
     var hostYaml = HostYaml.fromMap(YamlUtil.parseFile(hostYamlPath));
 
     if (!dryRun && !ConsoleHelper.isRoot()) {
-      throw new IllegalStateException("Root privileges required. Run with: sudo sing host update");
+      throw new IllegalStateException("Root privileges required. Run with: sudo sail host update");
     }
 
     if (!json) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Singular
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
  * SPDX-License-Identifier: MIT
  */
 
@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 /**
  * Resolves and lists workspace files from the {@code files/} directory convention. A {@code files/}
- * directory next to {@code sing.yaml} is pushed path-preserving into {@code ~/workspace/} inside
+ * directory next to {@code sail.yaml} is pushed path-preserving into {@code ~/workspace/} inside
  * the container during provisioning.
  */
 public final class WorkspaceFiles {
@@ -58,7 +58,7 @@ public final class WorkspaceFiles {
   }
 
   /**
-   * Resolves the {@code files/} directory next to the given {@code sing.yaml} path.
+   * Resolves the {@code files/} directory next to the given {@code sail.yaml} path.
    *
    * @return the files directory path, or {@code null} if it does not exist or is not a directory
    */
