@@ -99,11 +99,12 @@ class BannerTest {
   }
 
   @Test
-  void brandingContainsSingAsciiArt() {
+  void brandingContainsSailAsciiArt() {
     var out = new ByteArrayOutputStream();
     Banner.printBranding(new PrintStream(out), Ansi.OFF);
     var output = out.toString(StandardCharsets.UTF_8);
 
+    assertTrue(output.contains("/##\\"));
     assertTrue(output.contains("███████"));
     assertTrue(output.contains("singlr-ai/sing"));
   }

@@ -29,20 +29,20 @@ public final class Banner {
 
   private Banner() {}
 
-  private static final String AMBER = "\033[1;38;5;214m";
+  private static final String BRAND = "\033[1;38;2;252;73;38m";
   private static final String CYAN_BOLD = "\033[1;36m";
   private static final String DIM = "\033[2m";
   private static final String RESET = "\033[0m";
   private static final int ANIMATION_WIDTH = 64;
 
   /**
-   * Replaces picocli's bold-cyan ANSI escape with 256-color amber for brand-consistent borders.
+   * Replaces picocli's bold-cyan ANSI escape with the SAIL brand color for consistent borders.
    * Picocli only supports named colors, so we post-process its output.
    */
   static String amber(Ansi ansi, String markup) {
     var result = ansi.string(markup);
     if (ansi != Ansi.OFF) {
-      result = result.replace(CYAN_BOLD, AMBER);
+      result = result.replace(CYAN_BOLD, BRAND);
     }
     return result;
   }
@@ -51,16 +51,16 @@ public final class Banner {
   public static void printBranding(PrintStream out, Ansi ansi) {
     printIntroAnimation(out, ansi);
     var useColor = ansi != Ansi.OFF;
-    var a = useColor ? AMBER : "";
+    var a = useColor ? BRAND : "";
     var d = useColor ? DIM : "";
     var r = useColor ? RESET : "";
     out.println();
-    out.println("  " + a + "███████╗  █████╗  ██╗ ██╗" + r);
-    out.println("  " + a + "██╔════╝ ██╔══██╗ ██║ ██║" + r);
-    out.println("  " + a + "███████╗ ███████║ ██║ ██║" + r);
-    out.println("  " + a + "╚════██║ ██╔══██║ ██║ ██║" + r);
-    out.println("  " + a + "███████║ ██║  ██║ ██║ ███████╗" + r);
-    out.println("  " + a + "╚══════╝ ╚═╝  ╚═╝ ╚═╝ ╚══════╝" + r);
+    out.println("  " + a + "     /\\      ███████╗  █████╗  ██╗ ██╗" + r);
+    out.println("  " + a + "    /##\\     ██╔════╝ ██╔══██╗ ██║ ██║" + r);
+    out.println("  " + a + "   /####\\    ███████╗ ███████║ ██║ ██║" + r);
+    out.println("  " + a + "  /##/\\##\\   ╚════██║ ██╔══██║ ██║ ██║" + r);
+    out.println("  " + a + " /##/  \\##\\  ███████║ ██║  ██║ ██║ ███████╗" + r);
+    out.println("  " + a + "/__/    \\__\\ ╚══════╝ ╚═╝  ╚═╝ ╚═╝ ╚══════╝" + r);
     out.println();
     out.println(
         "  " + d + "Isolated dev environments for AI agents  ·  v" + SailVersion.version() + r);
@@ -89,7 +89,7 @@ public final class Banner {
             "    /__|   catching wind",
             "   /___|   SAIL ready");
     var useColor = ansi != Ansi.OFF;
-    var color = useColor ? AMBER : "";
+    var color = useColor ? BRAND : "";
     var reset = useColor ? RESET : "";
     for (var frame : frames) {
       out.print("\r  " + color + frame + reset);
