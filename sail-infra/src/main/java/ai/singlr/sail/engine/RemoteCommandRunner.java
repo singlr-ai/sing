@@ -5,11 +5,13 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.Sail;
 import ai.singlr.sail.config.ClientConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import picocli.CommandLine;
 import picocli.CommandLine.Help.Ansi;
 
 /**
@@ -73,13 +75,7 @@ public final class RemoteCommandRunner {
 
   private int executeLocal(String[] args) {
     try {
-      var cmd = new ArrayList<String>();
-      cmd.add(SailPaths.binaryPath().toString());
-      cmd.addAll(List.of(args));
-      var pb = new ProcessBuilder(cmd);
-      pb.inheritIO();
-      pb.environment().put("SAIL_CLIENT_LOCAL", "1");
-      return pb.start().waitFor();
+      return new CommandLine(new Sail()).execute(args);
     } catch (Exception e) {
       System.err.println(
           Banner.errorLine("Failed to run local command: " + e.getMessage(), Ansi.AUTO));

@@ -83,6 +83,15 @@ class RemoteCommandRunnerTest {
   }
 
   @Test
+  void localVersionCommandExecutesWithoutForking() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var exitCode = runner.execute(new String[] {"-V"});
+
+    assertEquals(0, exitCode);
+  }
+
+  @Test
   void isHostOnlyCommandRecognizesHostSubcommands() {
     assertTrue(RemoteCommandRunner.isHostOnlyCommand("host"));
     assertFalse(RemoteCommandRunner.isHostOnlyCommand("project"));

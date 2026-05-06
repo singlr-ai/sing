@@ -8,6 +8,7 @@ package ai.singlr.sail.commands;
 import ai.singlr.sail.SailVersion;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
+import ai.singlr.sail.engine.PlatformDetector;
 import ai.singlr.sail.engine.ReleaseFetcher;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.SemVer;
@@ -148,10 +149,8 @@ public final class UpgradeCommand implements Runnable {
       }
     }
 
-    if (!dryRun && binary.length > 4) {
-      if (binary[0] != 0x7f || binary[1] != 'E' || binary[2] != 'L' || binary[3] != 'F') {
-        throw new IOException("Downloaded file is not a valid ELF binary.");
-      }
+    if (!dryRun && !PlatformDetector.isValidBinary(binary)) {
+      throw new IOException("Downloaded file is not a valid binary for this platform.");
     }
 
     if (!json) {
