@@ -16,6 +16,9 @@ import ai.singlr.sail.engine.SpecIndexMigrator;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -108,8 +111,10 @@ public final class ProjectMigrateCommand implements Runnable {
     }
     if (name != null && !name.isBlank()) {
       NameValidator.requireValidProjectName(name);
+      importLegacyState(List.of(name));
       return List.of(name);
     }
+    importLegacyState(List.of());
     var projects = managedProjects();
     if (projects.isEmpty()) {
       throw new IllegalStateException("No projects found.");
@@ -130,6 +135,103 @@ public final class ProjectMigrateCommand implements Runnable {
           .sorted(Comparator.naturalOrder())
           .toList();
     }
+  }
+
+  private static void importLegacyState(List<String> projects) throws Exception {
+    importLegacyHostConfig();
+    importLegacyProjects(
+        legacyProjectsDir(),
+        SailPaths.projectsDir(),
+        projects,
+        SailPaths.PROJECT_DESCRIPTOR,
+        "sing.yaml");
+  }
+
+  private static void importLegacyHostConfig() throws Exception {
+    var source = legacySailDir().resolve("host.yaml");
+    var target = SailPaths.hostConfigPath();
+    if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS) || Files.exists(target)) {
+      return;
+    }
+    Files.createDirectories(target.getParent());
+    Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
+  }
+
+  static List<String> importLegacyProjects(
+      Path legacyProjectsDir,
+      Path projectsDir,
+      List<String> requestedProjects,
+      String descriptor,
+      String legacyDescriptor)
+      throws Exception {
+    if (!Files.isDirectory(legacyProjectsDir, LinkOption.NOFOLLOW_LINKS)) {
+      return List.of();
+    }
+    var requested = requestedProjects == null ? List.<String>of() : requestedProjects;
+    var projects =
+        requested.isEmpty() ? legacyProjects(legacyProjectsDir, legacyDescriptor) : requested;
+    var imported = new ArrayList<String>();
+    for (var project : projects) {
+      NameValidator.requireValidProjectName(project);
+      var legacyProjectDir = legacyProjectsDir.resolve(project);
+      if (!Files.isDirectory(legacyProjectDir, LinkOption.NOFOLLOW_LINKS)
+          || !Files.isRegularFile(
+              legacyProjectDir.resolve(legacyDescriptor), LinkOption.NOFOLLOW_LINKS)) {
+        continue;
+      }
+      var projectDir = projectsDir.resolve(project);
+      if (Files.isRegularFile(projectDir.resolve(descriptor), LinkOption.NOFOLLOW_LINKS)) {
+        continue;
+      }
+      copyLegacyProject(legacyProjectDir, projectDir, descriptor, legacyDescriptor);
+      imported.add(project);
+    }
+    return imported.stream().sorted(Comparator.naturalOrder()).toList();
+  }
+
+  private static List<String> legacyProjects(Path legacyProjectsDir, String legacyDescriptor)
+      throws Exception {
+    try (var paths = Files.list(legacyProjectsDir)) {
+      return paths
+          .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+          .filter(
+              path ->
+                  Files.isRegularFile(path.resolve(legacyDescriptor), LinkOption.NOFOLLOW_LINKS))
+          .map(path -> path.getFileName().toString())
+          .sorted(Comparator.naturalOrder())
+          .toList();
+    }
+  }
+
+  private static void copyLegacyProject(
+      Path legacyProjectDir, Path projectDir, String descriptor, String legacyDescriptor)
+      throws Exception {
+    try (var paths = Files.walk(legacyProjectDir)) {
+      for (var source : paths.sorted(Comparator.naturalOrder()).toList()) {
+        var relative = legacyProjectDir.relativize(source);
+        var target =
+            relative.toString().equals(legacyDescriptor)
+                ? projectDir.resolve(descriptor)
+                : projectDir.resolve(relative);
+        if (Files.isSymbolicLink(source) || Files.exists(target)) {
+          continue;
+        }
+        if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+          Files.createDirectories(target);
+        } else if (Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+          Files.createDirectories(target.getParent());
+          Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
+        }
+      }
+    }
+  }
+
+  private static Path legacySailDir() {
+    return Path.of(System.getProperty("user.home"), ".sing");
+  }
+
+  private static Path legacyProjectsDir() {
+    return legacySailDir().resolve("projects");
   }
 
   private String descriptorFile(String project) {
