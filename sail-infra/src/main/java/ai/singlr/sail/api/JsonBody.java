@@ -9,6 +9,7 @@ import ai.singlr.sail.config.YamlUtil;
 import com.sun.net.httpserver.HttpExchange;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -23,7 +24,8 @@ public final class JsonBody {
     return new DispatchRequest(
         optionalString(map, "spec_id"),
         optionalString(map, "mode"),
-        Boolean.TRUE.equals(map.get("dry_run")));
+        Boolean.TRUE.equals(map.get("dry_run")),
+        optionalStringList(map, "repo", "repos"));
   }
 
   public static SpecSyncRequest readSpecSyncRequest(HttpExchange exchange) throws IOException {
@@ -62,5 +64,26 @@ public final class JsonBody {
   private static String optionalString(Map<String, Object> map, String key) {
     var value = map.get(key);
     return value == null ? null : Objects.toString(value);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static List<String> optionalStringList(
+      Map<String, Object> map, String single, String many) {
+    var one = map.get(single);
+    var list = map.get(many);
+    if (one != null && list != null) {
+      throw new ApiException(
+          ErrorCode.INVALID_JSON, "Request body may define repo or repos, not both.");
+    }
+    if (one != null) {
+      return List.of(Objects.toString(one));
+    }
+    if (list == null) {
+      return List.of();
+    }
+    if (list instanceof List<?> values) {
+      return values.stream().map(Objects::toString).toList();
+    }
+    return List.of(Objects.toString(list));
   }
 }

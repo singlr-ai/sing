@@ -79,7 +79,13 @@ public final class SpecWorkspace {
     }
     var updated =
         new Spec(
-            spec.id(), spec.title(), newStatus, spec.assignee(), spec.dependsOn(), spec.branch());
+            spec.id(),
+            spec.title(),
+            newStatus,
+            spec.assignee(),
+            spec.dependsOn(),
+            spec.repos(),
+            spec.branch());
     writeMetadata(updated);
     return updated;
   }

@@ -455,7 +455,7 @@ public final class AgentContextGenerator {
         ```
         %s/
         ├── oauth-flow/
-        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, branch
+        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, repo/repos, branch
         │   ├── spec.md          # Detailed specification
         │   └── plan.md          # Optional implementation plan
         └── search-api/
@@ -473,8 +473,13 @@ public final class AgentContextGenerator {
         status: in_progress
         assignee: claude-code
         depends_on: []
+        repo: app
         branch: feat/oauth-flow
         ```
+
+        Use `repo: <path>` for a single target repository and `repos: [api, web]` for cross-repo
+        work. The values must match `repos[].path` in `sail.yaml`. If a multi-repository
+        project omits repo targeting, `sail spec dispatch` will not auto-create a branch.
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
@@ -483,7 +488,7 @@ public final class AgentContextGenerator {
         ### Interactive Mode
         When the engineer asks you to brainstorm or write a spec:
         1. Create a directory under `%1$s/` named after the spec id
-        2. Write `%1$s/<id>/spec.yaml` with metadata and status `pending`
+        2. Write `%1$s/<id>/spec.yaml` with metadata, repo targeting, and status `pending`
         3. Write `%1$s/<id>/spec.md` with the detailed specification
 
         ### Dependencies
@@ -569,7 +574,8 @@ public final class AgentContextGenerator {
 
           ### Multi-Repository Work
           This project has multiple repositories. When working on a task:
-          - Determine which repos the task touches from the task description
+          - Use the spec's `repo` or `repos` metadata as the source of truth for affected repos
+          - If repo metadata is missing, infer the affected repos from the task and update the spec before dispatch
           - Create a feature branch with the same name in each affected repo
           - Commit and push changes in all affected repos
           - Create a pull request in each affected repo, linking them in the descriptions

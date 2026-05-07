@@ -15,6 +15,7 @@ import ai.singlr.sail.engine.AgentSession;
 import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
+import ai.singlr.sail.engine.DispatchRepos;
 import ai.singlr.sail.engine.GitSpecSync;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
@@ -199,12 +200,14 @@ public final class SailApiOperations implements ApiOperations {
       return new DispatchResponse(project, false, "no_pending_specs", null, null, "", false);
     }
 
+    var targetRepos = DispatchRepos.resolve(loaded.config(), nextSpec, request.repos());
+    var taskSpec = withTargetRepos(nextSpec, targetRepos);
     updateStatus(workspace, nextSpec.id(), "in_progress");
     var specBody = Objects.requireNonNullElse(readSpecBody(workspace, nextSpec.id()), "");
-    var task = buildTaskPrompt(nextSpec, specBody.isBlank() ? nextSpec.title() : specBody);
+    var task = buildTaskPrompt(taskSpec, specBody.isBlank() ? nextSpec.title() : specBody);
     var branch = branchName(loaded.config(), nextSpec);
     var snapshot = createSnapshotIfNeeded(project, loaded.config());
-    var branchCreated = createBranchIfNeeded(project, loaded.config(), branch);
+    var branchCreated = createBranchIfNeeded(project, loaded.config(), targetRepos, branch);
 
     if (!request.dryRun()) {
       launchAgent(project, loaded.config(), task, branch, request.mode());
@@ -215,7 +218,7 @@ public final class SailApiOperations implements ApiOperations {
         project,
         true,
         null,
-        dispatchedSpecView(nextSpec, branch),
+        dispatchedSpecView(taskSpec, branch),
         agentStatusView(loaded.config(), request.mode(), status),
         snapshot,
         branchCreated);
@@ -400,6 +403,7 @@ public final class SailApiOperations implements ApiOperations {
         spec.status(),
         spec.assignee(),
         spec.dependsOn(),
+        spec.repos(),
         spec.branch(),
         SpecDirectory.isReady(specs, spec),
         SpecDirectory.isBlocked(specs, spec),
@@ -440,11 +444,38 @@ public final class SailApiOperations implements ApiOperations {
         spec.id(),
         spec.title(),
         "in_progress",
+        spec.repos(),
         branch != null && !branch.isBlank() ? branch : null);
   }
 
+  private static Spec withTargetRepos(Spec spec, List<SailYaml.Repo> targetRepos) {
+    return new Spec(
+        spec.id(),
+        spec.title(),
+        spec.status(),
+        spec.assignee(),
+        spec.dependsOn(),
+        targetRepos.stream().map(SailYaml.Repo::path).toList(),
+        spec.branch());
+  }
+
   private static String buildTaskPrompt(Spec spec, String description) {
-    return "Your current spec: \"" + spec.title() + "\" (id: " + spec.id() + ").\n\n" + description;
+    var targetRepos =
+        spec.repos().isEmpty()
+            ? ""
+            : "\nTarget repo"
+                + (spec.repos().size() == 1 ? "" : "s")
+                + ": "
+                + String.join(", ", spec.repos())
+                + "\n";
+    return "Your current spec: \""
+        + spec.title()
+        + "\" (id: "
+        + spec.id()
+        + ")."
+        + targetRepos
+        + "\n"
+        + description;
   }
 
   private static String branchName(SailYaml config, Spec spec) {
@@ -472,28 +503,31 @@ public final class SailApiOperations implements ApiOperations {
     }
   }
 
-  private boolean createBranchIfNeeded(String project, SailYaml config, String branch) {
-    if (branch == null
-        || branch.isBlank()
-        || config.repos() == null
-        || config.repos().size() != 1) {
+  private boolean createBranchIfNeeded(
+      String project, SailYaml config, List<SailYaml.Repo> targetRepos, String branch) {
+    if (branch == null || branch.isBlank() || targetRepos.isEmpty()) {
       return false;
     }
-    var repoDir = "/home/" + config.sshUser() + "/workspace/" + config.repos().getFirst().path();
-    var repoExists =
-        exec(ContainerExec.asDevUser(project, List.of("test", "-d", repoDir + "/.git")));
-    if (!repoExists.ok()) {
-      return false;
+    var created = false;
+    for (var repo : targetRepos) {
+      var repoDir = "/home/" + config.sshUser() + "/workspace/" + repo.path();
+      var repoExists =
+          exec(ContainerExec.asDevUser(project, List.of("test", "-d", repoDir + "/.git")));
+      if (!repoExists.ok()) {
+        continue;
+      }
+      var result =
+          exec(
+              ContainerExec.asDevUser(
+                  project, List.of("git", "-C", repoDir, "checkout", "-b", branch)));
+      if (!result.ok()) {
+        throw new ApiException(
+            ErrorCode.BRANCH_CREATE_FAILED,
+            "Failed to create branch '" + branch + "' in repo '" + repo.path() + "'.");
+      }
+      created = true;
     }
-    var result =
-        exec(
-            ContainerExec.asDevUser(
-                project, List.of("git", "-C", repoDir, "checkout", "-b", branch)));
-    if (!result.ok()) {
-      throw new ApiException(
-          ErrorCode.BRANCH_CREATE_FAILED, "Failed to create branch '" + branch + "'.");
-    }
-    return true;
+    return created;
   }
 
   private void launchAgent(

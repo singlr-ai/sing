@@ -15,6 +15,7 @@ import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
+import ai.singlr.sail.engine.DispatchRepos;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
@@ -54,6 +55,12 @@ public final class DispatchCommand implements Runnable {
 
   @Option(names = "--background", description = "Run agent in background.", defaultValue = "true")
   private boolean background;
+
+  @Option(
+      names = "--repo",
+      split = ",",
+      description = "Repository path(s) to branch for this spec.")
+  private List<String> repoOverrides;
 
   @Option(names = "--dry-run", description = "Print commands instead of executing them.")
   private boolean dryRun;
@@ -137,11 +144,13 @@ public final class DispatchCommand implements Runnable {
       return;
     }
 
+    var targetRepos = DispatchRepos.resolve(config, nextSpec, repoOverrides);
+    var taskSpec = withTargetRepos(nextSpec, targetRepos);
     specWorkspace.updateStatus(nextSpec.id(), "in_progress");
 
     var specBody = Objects.requireNonNullElse(specWorkspace.readSpecBody(nextSpec.id()), "");
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
-    var task = buildTaskPrompt(nextSpec, description, config.agent().specsDir());
+    var task = buildTaskPrompt(taskSpec, description, config.agent().specsDir());
 
     if (json) {
       System.out.println(
@@ -192,15 +201,16 @@ public final class DispatchCommand implements Runnable {
     if (config.agent().autoBranch()) {
       var prefix = config.agent().branchPrefix() != null ? config.agent().branchPrefix() : "sail/";
       branchName = nextSpec.branch() != null ? nextSpec.branch() : prefix + nextSpec.id();
-      var created = false;
-      if (config.repos() != null && config.repos().size() == 1) {
-        var repoDir = workDir + "/" + config.repos().getFirst().path();
+      var created = 0;
+      for (var repo : targetRepos) {
+        var repoDir = workDir + "/" + repo.path();
         var repoExists =
             shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", repoDir + "/.git")));
         if (repoExists.ok()) {
           if (!json) {
             System.out.println(
-                Ansi.AUTO.string("  @|bold Creating branch:|@ " + branchName + "..."));
+                Ansi.AUTO.string(
+                    "  @|bold Creating branch:|@ " + branchName + " in " + repo.path() + "..."));
           }
           var branchCmd =
               ContainerExec.asDevUser(
@@ -211,13 +221,14 @@ public final class DispatchCommand implements Runnable {
                 "Failed to create branch '" + branchName + "': " + result.stderr());
           }
           if (!json) {
-            System.out.println(Ansi.AUTO.string("  @|green \u2713|@ Branch " + branchName));
+            System.out.println(
+                Ansi.AUTO.string("  @|green \u2713|@ Branch " + branchName + " in " + repo.path()));
             System.out.println();
           }
-          created = true;
+          created++;
         }
       }
-      if (!created && !json) {
+      if (created == 0 && !json) {
         System.out.println(
             Ansi.AUTO.string("  @|faint Branch:|@ " + branchName + " (create manually in repo)"));
         System.out.println();
@@ -280,7 +291,33 @@ public final class DispatchCommand implements Runnable {
   }
 
   static String buildTaskPrompt(Spec spec, String description, String specsDir) {
-    return "Your current spec: \"" + spec.title() + "\" (id: " + spec.id() + ").\n\n" + description;
+    var targetRepos =
+        spec.repos().isEmpty()
+            ? ""
+            : "\nTarget repo"
+                + (spec.repos().size() == 1 ? "" : "s")
+                + ": "
+                + String.join(", ", spec.repos())
+                + "\n";
+    return "Your current spec: \""
+        + spec.title()
+        + "\" (id: "
+        + spec.id()
+        + ")."
+        + targetRepos
+        + "\n"
+        + description;
+  }
+
+  private static Spec withTargetRepos(Spec spec, List<SailYaml.Repo> targetRepos) {
+    return new Spec(
+        spec.id(),
+        spec.title(),
+        spec.status(),
+        spec.assignee(),
+        spec.dependsOn(),
+        targetRepos.stream().map(SailYaml.Repo::path).toList(),
+        spec.branch());
   }
 
   private void printNoSpecs() {

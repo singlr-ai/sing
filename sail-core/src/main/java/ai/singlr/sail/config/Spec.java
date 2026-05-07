@@ -21,6 +21,7 @@ import java.util.Objects;
  * @param status lifecycle state: pending, in_progress, review, done
  * @param assignee engineer responsible (nullable, matches git identity)
  * @param dependsOn IDs of specs that must be done first
+ * @param repos repository paths this spec should branch and work in
  * @param branch git branch for this spec's work (nullable)
  */
 public record Spec(
@@ -29,7 +30,18 @@ public record Spec(
     String status,
     String assignee,
     List<String> dependsOn,
+    List<String> repos,
     String branch) {
+
+  public Spec(
+      String id,
+      String title,
+      String status,
+      String assignee,
+      List<String> dependsOn,
+      String branch) {
+    this(id, title, status, assignee, dependsOn, List.of(), branch);
+  }
 
   @SuppressWarnings("unchecked")
   public static Spec fromMap(Map<String, Object> map) {
@@ -42,6 +54,7 @@ public record Spec(
     var status = Objects.requireNonNullElse((String) map.get("status"), "pending");
     var assignee = (String) map.get("assignee");
     var dependsOn = (List<String>) map.get("depends_on");
+    var repos = reposFromMap(map);
     var branch = (String) map.get("branch");
     return new Spec(
         id,
@@ -49,6 +62,7 @@ public record Spec(
         status,
         assignee,
         dependsOn != null ? List.copyOf(dependsOn) : List.of(),
+        repos,
         branch);
   }
 
@@ -65,9 +79,34 @@ public record Spec(
     if (!dependsOn.isEmpty()) {
       map.put("depends_on", dependsOn);
     }
+    if (repos.size() == 1) {
+      map.put("repo", repos.getFirst());
+    } else if (!repos.isEmpty()) {
+      map.put("repos", repos);
+    }
     if (branch != null) {
       map.put("branch", branch);
     }
     return map;
+  }
+
+  private static List<String> reposFromMap(Map<String, Object> map) {
+    var repo = (String) map.get("repo");
+    var repos = (List<String>) map.get("repos");
+    if (repo != null && repos != null) {
+      throw new IllegalArgumentException("spec may define repo or repos, not both");
+    }
+    if (repo != null) {
+      return validatedRepos(List.of(repo));
+    }
+    if (repos != null) {
+      return validatedRepos(repos);
+    }
+    return List.of();
+  }
+
+  private static List<String> validatedRepos(List<String> repos) {
+    repos.forEach(repo -> NameValidator.requireSafePath(repo, "spec.repo"));
+    return List.copyOf(repos);
   }
 }

@@ -50,6 +50,9 @@ public final class SpecCreateCommand implements Runnable {
   @Option(names = "--branch", description = "Branch name.")
   private String branch;
 
+  @Option(names = "--repo", split = ",", description = "Repository path(s) this spec targets.")
+  private List<String> repos;
+
   @Option(names = "--depends-on", split = ",", description = "Comma-separated dependency ids.")
   private List<String> dependsOn;
 
@@ -80,6 +83,8 @@ public final class SpecCreateCommand implements Runnable {
     NameValidator.requireValidSpecId(resolvedSpecId);
     var resolvedDependsOn = dependsOn != null ? List.copyOf(dependsOn) : List.<String>of();
     resolvedDependsOn.forEach(NameValidator::requireValidSpecId);
+    var resolvedRepos = repos != null ? List.copyOf(repos) : List.<String>of();
+    resolvedRepos.forEach(repo -> NameValidator.requireSafePath(repo, "spec.repo"));
 
     var shell = new ShellExecutor(false);
     var mgr = new ContainerManager(shell);
@@ -110,7 +115,15 @@ public final class SpecCreateCommand implements Runnable {
     var workspace =
         new SpecWorkspace(
             shell, name, "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir());
-    var spec = new Spec(resolvedSpecId, title.strip(), status, assignee, resolvedDependsOn, branch);
+    var spec =
+        new Spec(
+            resolvedSpecId,
+            title.strip(),
+            status,
+            assignee,
+            resolvedDependsOn,
+            resolvedRepos,
+            branch);
     workspace.createSpec(spec, SpecScaffold.markdownTemplate(title));
 
     if (json) {
