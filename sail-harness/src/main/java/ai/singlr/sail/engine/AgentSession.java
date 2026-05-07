@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlUtil;
 import java.io.IOException;
 import java.time.Instant;
@@ -159,6 +160,14 @@ public final class AgentSession {
       AgentCli agentCli) {
     return buildBackgroundLaunchCommand(
         containerName, sshUser, workDir, fullPermissions, agentCli, null, null);
+  }
+
+  public static String launchWorkDir(String sshUser, List<SailYaml.Repo> targetRepos) {
+    var workspace = "/home/" + sshUser + "/workspace";
+    if (targetRepos.size() == 1) {
+      return workspace + "/" + targetRepos.getFirst().path();
+    }
+    return workspace;
   }
 
   public static List<String> buildBackgroundLaunchCommand(

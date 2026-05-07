@@ -109,7 +109,7 @@ class AgentCliTest {
     var cmd = AgentCli.CODEX.headlessCommand(TASK, true);
 
     assertTrue(cmd.contains("codex exec"));
-    assertTrue(cmd.contains("--full-auto"));
+    assertTrue(cmd.contains("--dangerously-bypass-approvals-and-sandbox"));
     assertTrue(cmd.contains("\"$(cat " + TASK + ")\""));
     assertFalse(cmd.contains("--print"));
   }
@@ -155,7 +155,9 @@ class AgentCliTest {
 
   @Test
   void interactiveCommandCodexWithPermissions() {
-    assertEquals("codex --full-auto", AgentCli.CODEX.interactiveCommand(true));
+    assertEquals(
+        "codex --dangerously-bypass-approvals-and-sandbox",
+        AgentCli.CODEX.interactiveCommand(true));
   }
 
   @Test

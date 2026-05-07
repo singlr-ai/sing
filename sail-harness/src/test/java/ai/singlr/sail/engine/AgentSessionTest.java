@@ -7,6 +7,8 @@ package ai.singlr.sail.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.SailYaml;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AgentSessionTest {
@@ -199,7 +201,7 @@ class AgentSessionTest {
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX);
 
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("codex exec --full-auto"));
+    assertTrue(joined.contains("codex exec --dangerously-bypass-approvals-and-sandbox"));
   }
 
   @Test
@@ -209,7 +211,8 @@ class AgentSessionTest {
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX, "gpt-5.5", "high");
 
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("codex exec --full-auto --model gpt-5.5"));
+    assertTrue(
+        joined.contains("codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-5.5"));
     assertTrue(joined.contains("model_reasoning_effort='\"high\"'"));
   }
 
@@ -296,8 +299,23 @@ class AgentSessionTest {
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX);
 
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("codex exec --full-auto"));
+    assertTrue(joined.contains("codex exec --dangerously-bypass-approvals-and-sandbox"));
     assertFalse(joined.contains("claude"));
+  }
+
+  @Test
+  void launchWorkDirUsesSingleTargetRepo() {
+    var repo = new SailYaml.Repo("https://github.com/org/chorus.git", "chorus", null);
+
+    assertEquals("/home/dev/workspace/chorus", AgentSession.launchWorkDir("dev", List.of(repo)));
+  }
+
+  @Test
+  void launchWorkDirUsesWorkspaceForMultipleTargets() {
+    var first = new SailYaml.Repo("https://github.com/org/chorus.git", "chorus", null);
+    var second = new SailYaml.Repo("https://github.com/org/sing.git", "sing", null);
+
+    assertEquals("/home/dev/workspace", AgentSession.launchWorkDir("dev", List.of(first, second)));
   }
 
   @Test
