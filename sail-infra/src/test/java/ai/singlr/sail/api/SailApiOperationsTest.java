@@ -92,6 +92,8 @@ class SailApiOperationsTest {
       title: Add auth
       status: pending
       agent: codex
+      model: gpt-5.5
+      reasoning_effort: high
       """;
 
   private static final String DONE_SPEC_YAML =
@@ -584,17 +586,22 @@ class SailApiOperationsTest {
             .on("mkdir -p /home/dev/workspace/specs", "")
             .on("printf '%s'", "")
             .on("mkdir -p /home/dev/.sail", "")
-            .on("codex exec --full-auto", "");
+            .on("codex exec --full-auto --model gpt-5.5", "");
     var operations = operations(baseYaml(), shell);
 
     var result = operations.dispatch("acme", request("auth"));
 
     assertEquals(true, get(result, "dispatched"));
     assertTrue(get(result, "spec").toString().contains("agent=codex"));
+    assertTrue(get(result, "spec").toString().contains("model=gpt-5.5"));
+    assertTrue(get(result, "spec").toString().contains("reasoning_effort=high"));
     assertTrue(get(result, "agent").toString().contains("type=codex"));
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(command -> command.contains("codex exec --full-auto")));
+            .anyMatch(
+                command ->
+                    command.contains("codex exec --full-auto --model gpt-5.5")
+                        && command.contains("model_reasoning_effort='\"high\"'")));
     assertFalse(
         shell.invocations().stream().anyMatch(command -> command.contains("claude --print")));
   }

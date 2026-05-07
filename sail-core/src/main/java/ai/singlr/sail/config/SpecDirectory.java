@@ -108,6 +108,8 @@ public final class SpecDirectory {
                         spec.dependsOn(),
                         spec.repos(),
                         spec.agent(),
+                        spec.model(),
+                        spec.reasoningEffort(),
                         spec.branch())
                     : spec)
         .toList();

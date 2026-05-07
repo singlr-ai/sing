@@ -86,6 +86,8 @@ public final class SpecWorkspace {
             spec.dependsOn(),
             spec.repos(),
             spec.agent(),
+            spec.model(),
+            spec.reasoningEffort(),
             spec.branch());
     writeMetadata(updated);
     return updated;

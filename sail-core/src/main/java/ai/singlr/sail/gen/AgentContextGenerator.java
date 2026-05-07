@@ -475,6 +475,8 @@ public final class AgentContextGenerator {
         depends_on: []
         repo: app
         agent: codex
+        model: gpt-5.5
+        reasoning_effort: high
         branch: feat/oauth-flow
         ```
 
@@ -485,6 +487,10 @@ public final class AgentContextGenerator {
         Use `agent: codex`, `agent: claude-code`, or `agent: gemini` when a spec should run on
         a specific installed agent. If omitted, `sail spec dispatch` uses `agent.type` from
         `sail.yaml`.
+
+        Use `model` and `reasoning_effort` when the selected agent supports those controls. Codex
+        supports both; unsupported combinations fail during dispatch instead of silently falling
+        back.
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`

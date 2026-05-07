@@ -203,6 +203,32 @@ class AgentSessionTest {
   }
 
   @Test
+  void buildBackgroundLaunchCommandCodexModelOptions() {
+    var cmd =
+        AgentSession.buildBackgroundLaunchCommand(
+            "acme", "dev", "/home/dev/workspace", true, AgentCli.CODEX, "gpt-5.5", "high");
+
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("codex exec --full-auto --model gpt-5.5"));
+    assertTrue(joined.contains("model_reasoning_effort='\"high\"'"));
+  }
+
+  @Test
+  void buildBackgroundLaunchCommandRejectsUnsupportedModelOptions() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            AgentSession.buildBackgroundLaunchCommand(
+                "acme",
+                "dev",
+                "/home/dev/workspace",
+                true,
+                AgentCli.CLAUDE_CODE,
+                "gpt-5.5",
+                "high"));
+  }
+
+  @Test
   void buildBackgroundLaunchCommandGeminiUsesYolo() {
     var cmd =
         AgentSession.buildBackgroundLaunchCommand(

@@ -101,12 +101,15 @@ depends_on:
   - oauth-flow
 repo: webapp
 agent: codex
+model: gpt-5.5
+reasoning_effort: high
 branch: feat/payment-integration
 ```
 
 `repo`/`repos` routes work to the right repository in multi-repo projects. `agent` routes a spec
 to a specific installed agent (`claude-code`, `codex`, or `gemini`); if omitted, dispatch uses
-`agent.type` from `sail.yaml`.
+`agent.type` from `sail.yaml`. `model` and `reasoning_effort` tune agents that support those
+controls; unsupported combinations fail fast.
 
 ### Lifecycle
 
@@ -269,8 +272,9 @@ agent:
 ```
 
 Claude, Codex, or Gemini can execute a spec. Set `agent: codex` in `spec.yaml` to override the
-project default for that unit of work. The hooks fire at spec completion, not session stop — so
-reviews always see complete, coherent work.
+project default for that unit of work. For Codex, `model` and `reasoning_effort` map to
+`codex exec --model ... --config model_reasoning_effort=...`. The hooks fire at spec completion,
+not session stop — so reviews always see complete, coherent work.
 
 ## Example `sail.yaml`
 

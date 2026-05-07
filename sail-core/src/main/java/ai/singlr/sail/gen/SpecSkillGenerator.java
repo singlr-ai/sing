@@ -244,6 +244,8 @@ public final class SpecSkillGenerator {
            depends_on: []
            repo: <repo-path>
            agent: <claude-code|codex|gemini>
+           model: <model-id>
+           reasoning_effort: <none|low|medium|high|xhigh>
            ```
         4. Write `%1$s/<id>/spec.md` using the spec template
         5. Confirm: "Created spec `<id>` — fill in the details in `%1$s/<id>/spec.md`"
@@ -261,6 +263,10 @@ public final class SpecSkillGenerator {
         Ask which agent should execute the spec when the project has multiple installed agents. \
         Use `agent: codex`, `agent: claude-code`, or `agent: gemini`. If omitted, Sail uses \
         `agent.type` from `sail.yaml`.
+
+        Ask which model and reasoning effort to use when the selected agent supports them. \
+        For Codex, use `model: gpt-5.5` and `reasoning_effort: high` when the engineer wants \
+        GPT-5.5 with high reasoning.
         """
         .formatted(specsDir);
   }
@@ -314,6 +320,8 @@ public final class SpecSkillGenerator {
         depends_on: []
         repo: app
         agent: codex
+        model: gpt-5.5
+        reasoning_effort: high
         branch: feat/oauth-flow
         ```
 
@@ -338,6 +346,8 @@ public final class SpecSkillGenerator {
         - **repo** (optional): single target repository path from `sail.yaml` `repos[].path`
         - **repos** (optional): list of target repository paths for cross-repo work
         - **agent** (optional): agent CLI for this spec (`claude-code`, `codex`, or `gemini`)
+        - **model** (optional): model id for agents that support model selection
+        - **reasoning_effort** (optional): `none`, `low`, `medium`, `high`, or `xhigh`
         - **branch** (optional): git branch name for this spec's work
 
         In multi-repo projects, always include `repo` or `repos` before dispatch so Sail can \
@@ -346,6 +356,9 @@ public final class SpecSkillGenerator {
 
         In multi-agent projects, include `agent` when a spec should run on a non-default agent. \
         If omitted, dispatch uses `agent.type` from `sail.yaml`.
+
+        Include `model` and `reasoning_effort` only for agents that support them. Sail passes \
+        these to Codex and rejects unsupported combinations for other agents.
 
         ### Directory Structure
         ```

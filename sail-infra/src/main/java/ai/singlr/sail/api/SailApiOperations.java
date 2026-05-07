@@ -211,7 +211,7 @@ public final class SailApiOperations implements ApiOperations {
     var branchCreated = createBranchIfNeeded(project, loaded.config(), targetRepos, branch);
 
     if (!request.dryRun()) {
-      launchAgent(project, loaded.config(), task, branch, request.mode(), agentType);
+      launchAgent(project, loaded.config(), task, branch, request.mode(), taskSpec, agentType);
     }
 
     var status = request.dryRun() ? null : querySession(agentSession, project);
@@ -406,6 +406,8 @@ public final class SailApiOperations implements ApiOperations {
         spec.dependsOn(),
         spec.repos(),
         spec.agent(),
+        spec.model(),
+        spec.reasoningEffort(),
         spec.branch(),
         SpecDirectory.isReady(specs, spec),
         SpecDirectory.isBlocked(specs, spec),
@@ -448,6 +450,8 @@ public final class SailApiOperations implements ApiOperations {
         "in_progress",
         spec.repos(),
         spec.agent(),
+        spec.model(),
+        spec.reasoningEffort(),
         branch != null && !branch.isBlank() ? branch : null);
   }
 
@@ -460,6 +464,8 @@ public final class SailApiOperations implements ApiOperations {
         spec.dependsOn(),
         targetRepos.stream().map(SailYaml.Repo::path).toList(),
         spec.agent(),
+        spec.model(),
+        spec.reasoningEffort(),
         spec.branch());
   }
 
@@ -473,6 +479,11 @@ public final class SailApiOperations implements ApiOperations {
                 + String.join(", ", spec.repos())
                 + "\n";
     var targetAgent = spec.agent() == null ? "" : "\nTarget agent: " + spec.agent() + "\n";
+    var targetModel = spec.model() == null ? "" : "\nTarget model: " + spec.model() + "\n";
+    var targetReasoning =
+        spec.reasoningEffort() == null
+            ? ""
+            : "\nTarget reasoning effort: " + spec.reasoningEffort() + "\n";
     return "Your current spec: \""
         + spec.title()
         + "\" (id: "
@@ -480,6 +491,8 @@ public final class SailApiOperations implements ApiOperations {
         + ")."
         + targetRepos
         + targetAgent
+        + targetModel
+        + targetReasoning
         + "\n"
         + description;
   }
@@ -537,7 +550,13 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   private void launchAgent(
-      String project, SailYaml config, String task, String branch, String mode, String agentType) {
+      String project,
+      SailYaml config,
+      String task,
+      String branch,
+      String mode,
+      Spec spec,
+      String agentType) {
     try {
       var session = new AgentSession(shell);
       session.ensureDirectory(project);
@@ -548,9 +567,21 @@ public final class SailApiOperations implements ApiOperations {
       var command =
           mode.equals("background")
               ? AgentSession.buildBackgroundLaunchCommand(
-                  project, config.sshUser(), workDir, true, agentCli)
+                  project,
+                  config.sshUser(),
+                  workDir,
+                  true,
+                  agentCli,
+                  spec.model(),
+                  spec.reasoningEffort())
               : AgentSession.buildForegroundTaskCommand(
-                  project, config.sshUser(), workDir, true, agentCli);
+                  project,
+                  config.sshUser(),
+                  workDir,
+                  true,
+                  agentCli,
+                  spec.model(),
+                  spec.reasoningEffort());
       var result = exec(command);
       if (!result.ok()) {
         throw new ApiException(ErrorCode.AGENT_LAUNCH_FAILED, "Failed to launch agent.");

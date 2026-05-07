@@ -57,6 +57,14 @@ public final class SpecCreateCommand implements Runnable {
   @Option(names = "--agent", description = "Agent CLI for this spec (claude-code, codex, gemini).")
   private String agent;
 
+  @Option(names = "--model", description = "Model id for this spec.")
+  private String model;
+
+  @Option(
+      names = "--reasoning-effort",
+      description = "Reasoning effort for this spec (none, low, medium, high, xhigh).")
+  private String reasoningEffort;
+
   @Option(names = "--depends-on", split = ",", description = "Comma-separated dependency ids.")
   private List<String> dependsOn;
 
@@ -92,6 +100,18 @@ public final class SpecCreateCommand implements Runnable {
     if (agent != null) {
       AgentCli.fromYamlName(agent);
     }
+    var routingMetadata = new LinkedHashMap<String, Object>();
+    routingMetadata.put("id", resolvedSpecId);
+    if (agent != null) {
+      routingMetadata.put("agent", agent);
+    }
+    if (model != null) {
+      routingMetadata.put("model", model);
+    }
+    if (reasoningEffort != null) {
+      routingMetadata.put("reasoning_effort", reasoningEffort);
+    }
+    var routingProbe = Spec.fromMap(routingMetadata);
 
     var shell = new ShellExecutor(false);
     var mgr = new ContainerManager(shell);
@@ -131,6 +151,8 @@ public final class SpecCreateCommand implements Runnable {
             resolvedDependsOn,
             resolvedRepos,
             agent,
+            routingProbe.model(),
+            routingProbe.reasoningEffort(),
             branch);
     workspace.createSpec(spec, SpecScaffold.markdownTemplate(title));
 

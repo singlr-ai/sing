@@ -157,8 +157,20 @@ public final class AgentSession {
       String workDir,
       boolean fullPermissions,
       AgentCli agentCli) {
+    return buildBackgroundLaunchCommand(
+        containerName, sshUser, workDir, fullPermissions, agentCli, null, null);
+  }
+
+  public static List<String> buildBackgroundLaunchCommand(
+      String containerName,
+      String sshUser,
+      String workDir,
+      boolean fullPermissions,
+      AgentCli agentCli,
+      String model,
+      String reasoningEffort) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
-    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
+    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
     var script =
         "mkdir -p \"$1\" && cd \"$2\" && bash -l -c \"$3\" > \"$4\" 2>&1 & echo $! > \"$5\"";
     return ContainerExec.asDevUser(
@@ -178,8 +190,20 @@ public final class AgentSession {
       String workDir,
       boolean fullPermissions,
       AgentCli agentCli) {
+    return buildForegroundTaskCommand(
+        containerName, sshUser, workDir, fullPermissions, agentCli, null, null);
+  }
+
+  public static List<String> buildForegroundTaskCommand(
+      String containerName,
+      String sshUser,
+      String workDir,
+      boolean fullPermissions,
+      AgentCli agentCli,
+      String model,
+      String reasoningEffort) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
-    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions);
+    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
     var script = "cd \"$1\" && bash -l -c \"$2\"";
     return ContainerExec.asDevUser(
         containerName, List.of("bash", "-l", "-c", script, "bash", workDir, agentCmd));
