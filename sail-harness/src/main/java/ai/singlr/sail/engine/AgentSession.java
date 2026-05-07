@@ -26,6 +26,7 @@ public final class AgentSession {
   private static final String LOG_FILE = SAIL_DIR + "/agent.log";
   private static final String SESSION_FILE = SAIL_DIR + "/agent-session.json";
   private static final String TASK_FILE = SAIL_DIR + "/agent-task.txt";
+  private static final String SYSTEMD_UNIT = "sail-agent.service";
 
   private final ShellExec shell;
 
@@ -88,16 +89,15 @@ public final class AgentSession {
       throws IOException, InterruptedException, TimeoutException {
     var pidCmd = ContainerExec.asDevUser(containerName, List.of("cat", PID_FILE));
     var pidResult = shell.exec(pidCmd);
-    if (!pidResult.ok() || pidResult.stdout().isBlank()) {
+    var parsedPid = pidResult.ok() ? parsePid(pidResult.stdout()) : null;
+    if (parsedPid == null) {
+      parsedPid = querySystemdPid(containerName);
+    }
+    if (parsedPid == null) {
       return null;
     }
 
-    var pid = 0;
-    try {
-      pid = Integer.parseInt(pidResult.stdout().trim());
-    } catch (NumberFormatException e) {
-      return null;
-    }
+    var pid = parsedPid;
 
     var aliveCmd =
         ContainerExec.asDevUser(containerName, List.of("kill", "-0", String.valueOf(pid)));
@@ -179,19 +179,24 @@ public final class AgentSession {
       String model,
       String reasoningEffort) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
-    var agentCmd =
-        "exec " + cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
+    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
     var script =
         """
         mkdir -p "$1"
         rm -f "$5"
         : > "$4"
         systemctl --user reset-failed sail-agent.service >/dev/null 2>&1 || true
-        systemd-run --user --unit sail-agent bash -lc 'cd "$1" && echo $$ > "$4" && exec bash -l -c "$2" > "$3" 2>&1' bash "$2" "$3" "$4" "$5"
+        systemd-run --user --unit sail-agent bash -lc 'printf "%s\\n" "$$" > "$4"; cd "$1" && exec bash -l -c "$2" > "$3" 2>&1' bash "$2" "$3" "$4" "$5"
         for i in $(seq 1 25); do
           test -s "$5" && exit 0
+          pid="$(systemctl --user show sail-agent.service --property=MainPID --value 2>/dev/null || true)"
+          case "$pid" in
+            ''|0|*[!0-9]*) ;;
+            *) printf '%s\\n' "$pid" > "$5"; exit 0 ;;
+          esac
           sleep 0.2
         done
+        systemctl --user status sail-agent.service --no-pager || true
         exit 1
         """;
     return ContainerExec.asDevUser(
@@ -233,5 +238,24 @@ public final class AgentSession {
   /** Returns the path to the agent log file inside the container. */
   public static String logPath() {
     return LOG_FILE;
+  }
+
+  private Integer querySystemdPid(String containerName)
+      throws IOException, InterruptedException, TimeoutException {
+    var cmd =
+        ContainerExec.asDevUser(
+            containerName,
+            List.of("systemctl", "--user", "show", SYSTEMD_UNIT, "--property=MainPID", "--value"));
+    var result = shell.exec(cmd);
+    return result.ok() ? parsePid(result.stdout()) : null;
+  }
+
+  private static Integer parsePid(String value) {
+    try {
+      var pid = Integer.parseInt(value.trim());
+      return pid > 0 ? pid : null;
+    } catch (NumberFormatException e) {
+      return null;
+    }
   }
 }

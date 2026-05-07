@@ -203,7 +203,7 @@ public final class DispatchCommand implements Runnable {
       branchName = nextSpec.branch() != null ? nextSpec.branch() : prefix + nextSpec.id();
       var created = 0;
       for (var repo : targetRepos) {
-        var repoDir = workDir + "/" + repo.path();
+        var repoDir = branchRepoDir(workDir, targetRepos, repo);
         var repoExists =
             shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", repoDir + "/.git")));
         if (repoExists.ok()) {
@@ -258,7 +258,10 @@ public final class DispatchCommand implements Runnable {
         var pb = new ProcessBuilder(sshCmd);
         pb.inheritIO();
         var process = pb.start();
-        process.waitFor();
+        var exitCode = process.waitFor();
+        if (exitCode != 0) {
+          throw new IOException("Failed to launch background agent; see output above.");
+        }
       }
       Banner.printAgentLaunched(name, task, branchName, System.out, Ansi.AUTO);
       if (!dryRun) {
@@ -350,6 +353,10 @@ public final class DispatchCommand implements Runnable {
     } else {
       System.out.println(Ansi.AUTO.string("  @|faint No pending specs found for " + name + ".|@"));
     }
+  }
+
+  static String branchRepoDir(String workDir, List<SailYaml.Repo> targetRepos, SailYaml.Repo repo) {
+    return targetRepos.size() == 1 ? workDir : workDir + "/" + repo.path();
   }
 
   private void launchWatcherIfGuardrails(SailYaml config) {

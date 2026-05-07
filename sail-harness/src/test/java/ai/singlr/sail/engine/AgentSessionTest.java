@@ -72,12 +72,37 @@ class AgentSessionTest {
 
   @Test
   void queryStatusWhenNoPidFile() throws Exception {
-    var shell = new ScriptedShellExecutor().onFail("cat /home/dev/.sail/agent.pid", "No such file");
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail("cat /home/dev/.sail/agent.pid", "No such file")
+            .onOk("systemctl --user show sail-agent.service --property=MainPID --value", "0\n");
     var session = new AgentSession(shell);
 
     var info = session.queryStatus("acme-health");
 
     assertNull(info);
+  }
+
+  @Test
+  void queryStatusFallsBackToSystemdMainPid() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onFail("cat /home/dev/.sail/agent.pid", "No such file")
+            .onOk("systemctl --user show sail-agent.service --property=MainPID --value", "54321\n")
+            .onOk("kill -0 54321", "")
+            .onOk(
+                "cat /home/dev/.sail/agent-session.json",
+                """
+                {"task":"polish ui","started_at":"2026-05-07T03:00:00Z","branch":"feat/ui","log_path":"/home/dev/.sail/agent.log"}
+                """);
+    var session = new AgentSession(shell);
+
+    var info = session.queryStatus("acme-health");
+
+    assertNotNull(info);
+    assertTrue(info.running());
+    assertEquals(54321, info.pid());
+    assertEquals("polish ui", info.task());
   }
 
   @Test
@@ -180,7 +205,7 @@ class AgentSessionTest {
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CLAUDE_CODE);
 
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("exec claude --print --dangerously-skip-permissions"));
+    assertTrue(joined.contains("claude --print --dangerously-skip-permissions"));
   }
 
   @Test
@@ -215,6 +240,7 @@ class AgentSessionTest {
     assertTrue(
         joined.contains("codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-5.5"));
     assertTrue(joined.contains("model_reasoning_effort='\"high\"'"));
+    assertFalse(joined.contains("exec codex exec"));
   }
 
   @Test
@@ -263,6 +289,7 @@ class AgentSessionTest {
 
     var script = cmd.get(cmd.indexOf("-lc") + 1);
     assertTrue(script.contains("systemd-run --user --unit sail-agent"));
+    assertTrue(script.contains("systemctl --user show sail-agent.service"));
     assertTrue(script.contains("cd \"$1\""));
     assertFalse(script.contains(workDir));
     assertTrue(cmd.contains(workDir));

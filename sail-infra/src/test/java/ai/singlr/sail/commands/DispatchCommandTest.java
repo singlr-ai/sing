@@ -8,6 +8,7 @@ package ai.singlr.sail.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.Sail;
+import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -186,5 +187,25 @@ class DispatchCommandTest {
     assertTrue(help.contains("--repo"));
     assertTrue(help.contains("--dry-run"));
     assertTrue(help.contains("--json"));
+  }
+
+  @Test
+  void branchRepoDirUsesSingleTargetWorkDirDirectly() {
+    var repo = new SailYaml.Repo("https://github.com/org/chorus.git", "chorus", null);
+
+    var repoDir = DispatchCommand.branchRepoDir("/home/dev/workspace/chorus", List.of(repo), repo);
+
+    assertEquals("/home/dev/workspace/chorus", repoDir);
+  }
+
+  @Test
+  void branchRepoDirAppendsRepoPathForMultiRepoDispatch() {
+    var sing = new SailYaml.Repo("https://github.com/org/sing.git", "sing", null);
+    var chorus = new SailYaml.Repo("https://github.com/org/chorus.git", "chorus", null);
+
+    var repoDir =
+        DispatchCommand.branchRepoDir("/home/dev/workspace", List.of(sing, chorus), chorus);
+
+    assertEquals("/home/dev/workspace/chorus", repoDir);
   }
 }
