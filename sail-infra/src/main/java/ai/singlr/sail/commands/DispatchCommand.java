@@ -172,7 +172,7 @@ public final class DispatchCommand implements Runnable {
       System.out.println();
     }
 
-    var agentType = config.agent().type();
+    var agentType = taskSpec.agent() != null ? taskSpec.agent() : config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
     var workDir = "/home/" + sshUser + "/workspace";
     var fullPermissions = true;
@@ -242,7 +242,13 @@ public final class DispatchCommand implements Runnable {
     if (background) {
       var sshCmd =
           AgentSession.buildBackgroundLaunchCommand(
-              name, sshUser, workDir, fullPermissions, agentCli);
+              name,
+              sshUser,
+              workDir,
+              fullPermissions,
+              agentCli,
+              taskSpec.model(),
+              taskSpec.reasoningEffort());
       if (!json) {
         System.out.println(Ansi.AUTO.string("  @|bold Launching agent in background...|@"));
         System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
@@ -261,7 +267,13 @@ public final class DispatchCommand implements Runnable {
     } else {
       var sshCmd =
           AgentSession.buildForegroundTaskCommand(
-              name, sshUser, workDir, fullPermissions, agentCli);
+              name,
+              sshUser,
+              workDir,
+              fullPermissions,
+              agentCli,
+              taskSpec.model(),
+              taskSpec.reasoningEffort());
       if (!json) {
         System.out.println(Ansi.AUTO.string("  @|bold Launching agent with spec...|@"));
         System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
@@ -299,12 +311,21 @@ public final class DispatchCommand implements Runnable {
                 + ": "
                 + String.join(", ", spec.repos())
                 + "\n";
+    var targetAgent = spec.agent() == null ? "" : "\nTarget agent: " + spec.agent() + "\n";
+    var targetModel = spec.model() == null ? "" : "\nTarget model: " + spec.model() + "\n";
+    var targetReasoning =
+        spec.reasoningEffort() == null
+            ? ""
+            : "\nTarget reasoning effort: " + spec.reasoningEffort() + "\n";
     return "Your current spec: \""
         + spec.title()
         + "\" (id: "
         + spec.id()
         + ")."
         + targetRepos
+        + targetAgent
+        + targetModel
+        + targetReasoning
         + "\n"
         + description;
   }
@@ -317,6 +338,9 @@ public final class DispatchCommand implements Runnable {
         spec.assignee(),
         spec.dependsOn(),
         targetRepos.stream().map(SailYaml.Repo::path).toList(),
+        spec.agent(),
+        spec.model(),
+        spec.reasoningEffort(),
         spec.branch());
   }
 

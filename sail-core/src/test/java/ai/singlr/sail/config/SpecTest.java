@@ -106,6 +106,42 @@ class SpecTest {
   }
 
   @Test
+  void parsesAgent() {
+    var spec = Spec.fromMap(Map.of("id", "auth", "agent", "codex"));
+
+    assertEquals("codex", spec.agent());
+  }
+
+  @Test
+  void rejectsUnknownAgent() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Spec.fromMap(Map.of("id", "auth", "agent", "unknown-agent")));
+  }
+
+  @Test
+  void parsesModelAndReasoningEffort() {
+    var spec = Spec.fromMap(Map.of("id", "auth", "model", "gpt-5.5", "reasoning_effort", "high"));
+
+    assertEquals("gpt-5.5", spec.model());
+    assertEquals("high", spec.reasoningEffort());
+  }
+
+  @Test
+  void rejectsUnsafeModel() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Spec.fromMap(Map.of("id", "auth", "model", "gpt-5.5; rm -rf /")));
+  }
+
+  @Test
+  void rejectsUnknownReasoningEffort() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Spec.fromMap(Map.of("id", "auth", "reasoning_effort", "huge")));
+  }
+
+  @Test
   void toMapWritesSingleRepoAsRepo() {
     var spec =
         new Spec(
@@ -164,6 +200,9 @@ class SpecTest {
     assertEquals(spec.assignee(), parsed.assignee());
     assertEquals(spec.dependsOn(), parsed.dependsOn());
     assertEquals(spec.repos(), parsed.repos());
+    assertEquals(spec.agent(), parsed.agent());
+    assertEquals(spec.model(), parsed.model());
+    assertEquals(spec.reasoningEffort(), parsed.reasoningEffort());
     assertEquals(spec.branch(), parsed.branch());
   }
 

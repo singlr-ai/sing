@@ -455,7 +455,7 @@ public final class AgentContextGenerator {
         ```
         %s/
         ├── oauth-flow/
-        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, repo/repos, branch
+        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, repo/repos, agent, branch
         │   ├── spec.md          # Detailed specification
         │   └── plan.md          # Optional implementation plan
         └── search-api/
@@ -474,12 +474,23 @@ public final class AgentContextGenerator {
         assignee: claude-code
         depends_on: []
         repo: app
+        agent: codex
+        model: gpt-5.5
+        reasoning_effort: high
         branch: feat/oauth-flow
         ```
 
         Use `repo: <path>` for a single target repository and `repos: [api, web]` for cross-repo
         work. The values must match `repos[].path` in `sail.yaml`. If a multi-repository
         project omits repo targeting, `sail spec dispatch` will not auto-create a branch.
+
+        Use `agent: codex`, `agent: claude-code`, or `agent: gemini` when a spec should run on
+        a specific installed agent. If omitted, `sail spec dispatch` uses `agent.type` from
+        `sail.yaml`.
+
+        Use `model` and `reasoning_effort` when the selected agent supports those controls. Codex
+        supports both; unsupported combinations fail during dispatch instead of silently falling
+        back.
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`

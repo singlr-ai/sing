@@ -95,17 +95,24 @@ public enum AgentCli {
    * @param fullPermissions whether to auto-approve all actions
    */
   public String headlessCommand(String taskFile, boolean fullPermissions) {
+    return headlessCommand(taskFile, fullPermissions, null, null);
+  }
+
+  public String headlessCommand(
+      String taskFile, boolean fullPermissions, String model, String reasoningEffort) {
     var task = "\"$(cat " + taskFile + ")\"";
     return switch (this) {
       case CLAUDE_CODE -> {
+        requireNoModelOptions(model, reasoningEffort);
         var perm = fullPermissions ? " --dangerously-skip-permissions" : "";
         yield binaryName + " --print" + perm + " -p " + task;
       }
       case CODEX -> {
         var perm = fullPermissions ? " --full-auto" : "";
-        yield binaryName + " exec" + perm + " " + task;
+        yield binaryName + " exec" + perm + codexModelOptions(model, reasoningEffort) + " " + task;
       }
       case GEMINI -> {
+        requireNoModelOptions(model, reasoningEffort);
         var perm = fullPermissions ? " --yolo" : "";
         yield binaryName + perm + " -p " + task;
       }
@@ -142,5 +149,23 @@ public enum AgentCli {
             + name
             + "'. Known agents: claude-code, codex, gemini."
             + "\n  Check the 'install' list in your sail.yaml agent section.");
+  }
+
+  private static String codexModelOptions(String model, String reasoningEffort) {
+    var options = new StringBuilder();
+    if (model != null) {
+      options.append(" --model ").append(model);
+    }
+    if (reasoningEffort != null) {
+      options.append(" --config model_reasoning_effort='\"").append(reasoningEffort).append("\"'");
+    }
+    return options.toString();
+  }
+
+  private void requireNoModelOptions(String model, String reasoningEffort) {
+    if (model != null || reasoningEffort != null) {
+      throw new IllegalArgumentException(
+          yamlName + " does not support spec-level model or reasoning_effort options yet.");
+    }
   }
 }

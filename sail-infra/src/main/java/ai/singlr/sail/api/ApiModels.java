@@ -102,6 +102,9 @@ record SpecView(
     String assignee,
     List<String> dependsOn,
     List<String> repos,
+    String agent,
+    String model,
+    String reasoningEffort,
     String branch,
     boolean ready,
     boolean blocked,
@@ -114,7 +117,14 @@ record SpecView(
 }
 
 record DispatchedSpecView(
-    String id, String title, String status, List<String> repos, String branch) {
+    String id,
+    String title,
+    String status,
+    List<String> repos,
+    String agent,
+    String model,
+    String reasoningEffort,
+    String branch) {
   public DispatchedSpecView {
     repos = repos == null ? List.of() : List.copyOf(repos);
   }

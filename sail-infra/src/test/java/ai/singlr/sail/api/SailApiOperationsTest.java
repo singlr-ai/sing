@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,16 @@ class SailApiOperationsTest {
       title: Add auth
       status: pending
       branch: feat/custom
+      """;
+
+  private static final String AUTH_CODEX_SPEC_YAML =
+      """
+      id: auth
+      title: Add auth
+      status: pending
+      agent: codex
+      model: gpt-5.5
+      reasoning_effort: high
       """;
 
   private static final String DONE_SPEC_YAML =
@@ -562,6 +573,37 @@ class SailApiOperationsTest {
 
     assertEquals(true, get(result, "dispatched"));
     assertTrue(get(result, "agent").toString().contains("mode=background"));
+  }
+
+  @Test
+  void dispatchUsesSpecAgentWhenPresent() throws Exception {
+    var shell =
+        shell()
+            .on("incus list ^acme$", RUNNING_JSON)
+            .on("cat /home/dev/.sail/agent.pid", new ShellExec.Result(1, "", "missing"))
+            .withCodexSpec()
+            .on("cat /home/dev/workspace/specs/auth/spec.md", "Do auth")
+            .on("mkdir -p /home/dev/workspace/specs", "")
+            .on("printf '%s'", "")
+            .on("mkdir -p /home/dev/.sail", "")
+            .on("codex exec --full-auto --model gpt-5.5", "");
+    var operations = operations(baseYaml(), shell);
+
+    var result = operations.dispatch("acme", request("auth"));
+
+    assertEquals(true, get(result, "dispatched"));
+    assertTrue(get(result, "spec").toString().contains("agent=codex"));
+    assertTrue(get(result, "spec").toString().contains("model=gpt-5.5"));
+    assertTrue(get(result, "spec").toString().contains("reasoning_effort=high"));
+    assertTrue(get(result, "agent").toString().contains("type=codex"));
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(
+                command ->
+                    command.contains("codex exec --full-auto --model gpt-5.5")
+                        && command.contains("model_reasoning_effort='\"high\"'")));
+    assertFalse(
+        shell.invocations().stream().anyMatch(command -> command.contains("claude --print")));
   }
 
   @Test
@@ -1103,6 +1145,7 @@ class SailApiOperationsTest {
   private static final class FakeShell implements ShellExec {
     private final Map<String, Result> scripts = new LinkedHashMap<>();
     private final Map<String, Exception> failures = new LinkedHashMap<>();
+    private final List<String> invocations = new ArrayList<>();
 
     FakeShell on(String pattern, String stdout) {
       return on(pattern, new Result(0, stdout, ""));
@@ -1134,6 +1177,13 @@ class SailApiOperationsTest {
           .on("cat /home/dev/workspace/specs/auth/spec.yaml", AUTH_BRANCH_SPEC_YAML);
     }
 
+    FakeShell withCodexSpec() {
+      return on(
+              "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
+              "/home/dev/workspace/specs/auth/spec.yaml\n")
+          .on("cat /home/dev/workspace/specs/auth/spec.yaml", AUTH_CODEX_SPEC_YAML);
+    }
+
     FakeShell withDoneSpec() {
       return on(
               "find /home/dev/workspace/specs -mindepth 2 -maxdepth 2 -name spec.yaml -print",
@@ -1144,6 +1194,7 @@ class SailApiOperationsTest {
     @Override
     public Result exec(List<String> command) throws IOException {
       var joined = String.join(" ", command);
+      invocations.add(joined);
       for (var entry : failures.entrySet()) {
         if (joined.contains(entry.getKey())) {
           throw (IOException) entry.getValue();
@@ -1165,6 +1216,10 @@ class SailApiOperationsTest {
     @Override
     public boolean isDryRun() {
       return false;
+    }
+
+    List<String> invocations() {
+      return List.copyOf(invocations);
     }
   }
 }

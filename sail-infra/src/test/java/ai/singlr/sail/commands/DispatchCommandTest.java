@@ -138,6 +138,29 @@ class DispatchCommandTest {
   }
 
   @Test
+  void buildTaskPromptIncludesTargetAgent() {
+    var spec =
+        new Spec(
+            "ui",
+            "Polish UI",
+            "pending",
+            null,
+            List.of(),
+            List.of("chorus"),
+            "codex",
+            "gpt-5.5",
+            "high",
+            null);
+
+    var prompt = DispatchCommand.buildTaskPrompt(spec, "Details", "specs");
+
+    assertTrue(prompt.contains("Target repo: chorus"));
+    assertTrue(prompt.contains("Target agent: codex"));
+    assertTrue(prompt.contains("Target model: gpt-5.5"));
+    assertTrue(prompt.contains("Target reasoning effort: high"));
+  }
+
+  @Test
   void dispatchCommandRegisteredInSing() {
     var cmd = new CommandLine(new Sail());
     var sw = new StringWriter();
