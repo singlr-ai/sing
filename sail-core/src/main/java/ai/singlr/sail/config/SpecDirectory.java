@@ -106,6 +106,7 @@ public final class SpecDirectory {
                         newStatus,
                         spec.assignee(),
                         spec.dependsOn(),
+                        spec.repos(),
                         spec.branch())
                     : spec)
         .toList();

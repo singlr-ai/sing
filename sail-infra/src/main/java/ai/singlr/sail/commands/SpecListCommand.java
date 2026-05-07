@@ -168,8 +168,11 @@ public final class SpecListCommand implements Runnable {
           spec.dependsOn().isEmpty()
               ? ""
               : " @|faint \u2190 " + String.join(", ", spec.dependsOn()) + "|@";
+      var repos =
+          spec.repos().isEmpty() ? "" : " @|faint [" + String.join(", ", spec.repos()) + "]|@";
       System.out.println(
-          ansi.string(prefix + "@|bold " + spec.id() + "|@  " + spec.title() + deps + suffix));
+          ansi.string(
+              prefix + "@|bold " + spec.id() + "|@  " + spec.title() + repos + deps + suffix));
     }
     System.out.println();
   }

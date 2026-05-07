@@ -242,6 +242,7 @@ public final class SpecSkillGenerator {
            title: "<title>"
            status: pending
            depends_on: []
+           repo: <repo-path>
            ```
         4. Write `%1$s/<id>/spec.md` using the spec template
         5. Confirm: "Created spec `<id>` — fill in the details in `%1$s/<id>/spec.md`"
@@ -251,6 +252,10 @@ public final class SpecSkillGenerator {
 
         Ask the engineer if this spec depends on any existing specs, and set `depends_on` \
         accordingly.
+
+        Ask which repository the spec targets when the project has multiple repos. Use \
+        `repo: <path>` for one repo and `repos: [repo-a, repo-b]` for cross-repo work. \
+        Values must match `repos[].path` in `sail.yaml`.
         """
         .formatted(specsDir);
   }
@@ -302,6 +307,7 @@ public final class SpecSkillGenerator {
         status: in_progress
         assignee: claude-code
         depends_on: []
+        repo: app
         branch: feat/oauth-flow
         ```
 
@@ -323,7 +329,13 @@ public final class SpecSkillGenerator {
         - **status** (required): one of pending, in_progress, review, done
         - **assignee** (optional): agent type or engineer name
         - **depends_on** (optional): list of spec ids that must be done first
+        - **repo** (optional): single target repository path from `sail.yaml` `repos[].path`
+        - **repos** (optional): list of target repository paths for cross-repo work
         - **branch** (optional): git branch name for this spec's work
+
+        In multi-repo projects, always include `repo` or `repos` before dispatch so Sail can \
+        create the branch in the right repository. If omitted, dispatch only auto-branches when \
+        the project has exactly one configured repo.
 
         ### Directory Structure
         ```

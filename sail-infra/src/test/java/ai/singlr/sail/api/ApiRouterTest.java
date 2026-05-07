@@ -94,6 +94,66 @@ class ApiRouterTest {
   }
 
   @Test
+  void dispatchParsesSingleRepoTarget() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/projects/acme/dispatch",
+              "token",
+              "{\"spec_id\": \"auth\", \"repo\": \"chorus\"}");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"repos\": [\"chorus\"]"));
+    }
+  }
+
+  @Test
+  void dispatchParsesMultipleRepoTargets() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/projects/acme/dispatch",
+              "token",
+              "{\"spec_id\": \"auth\", \"repos\": [\"sing\", \"chorus\"]}");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"repos\": [\"sing\", \"chorus\"]"));
+    }
+  }
+
+  @Test
+  void dispatchParsesScalarReposTarget() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/projects/acme/dispatch",
+              "token",
+              "{\"spec_id\": \"auth\", \"repos\": \"chorus\"}");
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"repos\": [\"chorus\"]"));
+    }
+  }
+
+  @Test
+  void dispatchRejectsRepoAndReposTogether() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/projects/acme/dispatch",
+              "token",
+              "{\"spec_id\": \"auth\", \"repo\": \"sing\", \"repos\": [\"chorus\"]}");
+
+      assertEquals(400, response.statusCode());
+      assertTrue(response.body().contains("invalid_json"));
+    }
+  }
+
+  @Test
   void specSyncRejectsExtraPathSegments() throws Exception {
     try (var server = server()) {
       var response = get(server, "/v1/projects/acme/spec-sync/extra", "token");
@@ -406,6 +466,7 @@ class ApiRouterTest {
                   "pending",
                   null,
                   java.util.List.of(),
+                  java.util.List.of(),
                   null,
                   true,
                   false,
@@ -448,7 +509,8 @@ class ApiRouterTest {
               project,
               true,
               null,
-              new DispatchedSpecView(request.specId(), "Spec", "in_progress", null),
+              new DispatchedSpecView(
+                  request.specId(), "Spec", "in_progress", request.repos(), null),
               null,
               "",
               false));

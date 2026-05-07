@@ -46,9 +46,14 @@ record SpecSyncStatusView(
     boolean repository,
     String message) {}
 
-record DispatchRequest(String specId, String mode, boolean dryRun) {
+record DispatchRequest(String specId, String mode, boolean dryRun, List<String> repos) {
+  DispatchRequest(String specId, String mode, boolean dryRun) {
+    this(specId, mode, dryRun, List.of());
+  }
+
   DispatchRequest {
     mode = mode == null || mode.isBlank() ? "background" : mode;
+    repos = repos == null ? List.of() : List.copyOf(repos);
   }
 }
 
@@ -96,17 +101,24 @@ record SpecView(
     String status,
     String assignee,
     List<String> dependsOn,
+    List<String> repos,
     String branch,
     boolean ready,
     boolean blocked,
     List<String> unmetDependencies) {
   public SpecView {
     dependsOn = dependsOn == null ? List.of() : List.copyOf(dependsOn);
+    repos = repos == null ? List.of() : List.copyOf(repos);
     unmetDependencies = unmetDependencies == null ? List.of() : List.copyOf(unmetDependencies);
   }
 }
 
-record DispatchedSpecView(String id, String title, String status, String branch) {}
+record DispatchedSpecView(
+    String id, String title, String status, List<String> repos, String branch) {
+  public DispatchedSpecView {
+    repos = repos == null ? List.of() : List.copyOf(repos);
+  }
+}
 
 record AgentStatusView(
     String type,

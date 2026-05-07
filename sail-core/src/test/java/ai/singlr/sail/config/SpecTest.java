@@ -23,6 +23,7 @@ class SpecTest {
             "status", "in_progress",
             "assignee", "alice",
             "depends_on", List.of("setup-db"),
+            "repo", "chorus",
             "branch", "feat/oauth");
 
     var spec = Spec.fromMap(map);
@@ -32,6 +33,7 @@ class SpecTest {
     assertEquals("in_progress", spec.status());
     assertEquals("alice", spec.assignee());
     assertEquals(List.of("setup-db"), spec.dependsOn());
+    assertEquals(List.of("chorus"), spec.repos());
     assertEquals("feat/oauth", spec.branch());
   }
 
@@ -54,6 +56,13 @@ class SpecTest {
     var spec = Spec.fromMap(Map.of("id", "task1"));
 
     assertTrue(spec.dependsOn().isEmpty());
+  }
+
+  @Test
+  void defaultsReposToEmptyList() {
+    var spec = Spec.fromMap(Map.of("id", "task1"));
+
+    assertTrue(spec.repos().isEmpty());
   }
 
   @Test
@@ -97,6 +106,38 @@ class SpecTest {
   }
 
   @Test
+  void toMapWritesSingleRepoAsRepo() {
+    var spec =
+        new Spec(
+            "auth",
+            "Implement Auth",
+            "done",
+            "bob",
+            List.of("setup"),
+            List.of("chorus"),
+            "feat/auth");
+
+    var map = spec.toMap();
+
+    assertEquals("chorus", map.get("repo"));
+    assertFalse(map.containsKey("repos"));
+  }
+
+  @Test
+  void parsesMultipleRepos() {
+    var spec = Spec.fromMap(Map.of("id", "auth", "repos", List.of("sing", "chorus")));
+
+    assertEquals(List.of("sing", "chorus"), spec.repos());
+  }
+
+  @Test
+  void rejectsRepoAndReposTogether() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Spec.fromMap(Map.of("id", "auth", "repo", "sing", "repos", List.of("chorus"))));
+  }
+
+  @Test
   void toMapOmitsNullAndEmptyFields() {
     var spec = new Spec("auth", "", "pending", null, List.of(), null);
 
@@ -122,6 +163,7 @@ class SpecTest {
     assertEquals(spec.status(), parsed.status());
     assertEquals(spec.assignee(), parsed.assignee());
     assertEquals(spec.dependsOn(), parsed.dependsOn());
+    assertEquals(spec.repos(), parsed.repos());
     assertEquals(spec.branch(), parsed.branch());
   }
 
