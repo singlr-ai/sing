@@ -179,12 +179,24 @@ public final class AgentSession {
       String model,
       String reasoningEffort) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
-    var agentCmd = cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
+    var agentCmd =
+        "exec " + cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort);
     var script =
-        "mkdir -p \"$1\" && cd \"$2\" && bash -l -c \"$3\" > \"$4\" 2>&1 & echo $! > \"$5\"";
+        """
+        mkdir -p "$1"
+        rm -f "$5"
+        : > "$4"
+        systemctl --user reset-failed sail-agent.service >/dev/null 2>&1 || true
+        systemd-run --user --unit sail-agent bash -lc 'cd "$1" && echo $$ > "$4" && exec bash -l -c "$2" > "$3" 2>&1' bash "$2" "$3" "$4" "$5"
+        for i in $(seq 1 25); do
+          test -s "$5" && exit 0
+          sleep 0.2
+        done
+        exit 1
+        """;
     return ContainerExec.asDevUser(
         containerName,
-        List.of("bash", "-c", script, "bash", SAIL_DIR, workDir, agentCmd, LOG_FILE, PID_FILE));
+        List.of("bash", "-lc", script, "bash", SAIL_DIR, workDir, agentCmd, LOG_FILE, PID_FILE));
   }
 
   /**
