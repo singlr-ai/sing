@@ -211,7 +211,8 @@ public final class SailApiOperations implements ApiOperations {
     var branchCreated = createBranchIfNeeded(project, loaded.config(), targetRepos, branch);
 
     if (!request.dryRun()) {
-      launchAgent(project, loaded.config(), task, branch, request.mode(), taskSpec, agentType);
+      launchAgent(
+          project, loaded.config(), targetRepos, task, branch, request.mode(), taskSpec, agentType);
     }
 
     var status = request.dryRun() ? null : querySession(agentSession, project);
@@ -552,6 +553,7 @@ public final class SailApiOperations implements ApiOperations {
   private void launchAgent(
       String project,
       SailYaml config,
+      List<SailYaml.Repo> targetRepos,
       String task,
       String branch,
       String mode,
@@ -563,7 +565,7 @@ public final class SailApiOperations implements ApiOperations {
       session.writeTaskFile(project, task);
       session.writeSession(project, task, Objects.requireNonNullElse(branch, ""));
       var agentCli = AgentCli.fromYamlName(agentType);
-      var workDir = "/home/" + config.sshUser() + "/workspace";
+      var workDir = AgentSession.launchWorkDir(config.sshUser(), targetRepos);
       var command =
           mode.equals("background")
               ? AgentSession.buildBackgroundLaunchCommand(

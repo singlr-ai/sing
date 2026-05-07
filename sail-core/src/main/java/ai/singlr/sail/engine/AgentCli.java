@@ -108,7 +108,7 @@ public enum AgentCli {
         yield binaryName + " --print" + perm + " -p " + task;
       }
       case CODEX -> {
-        var perm = fullPermissions ? " --full-auto" : "";
+        var perm = fullPermissions ? " --dangerously-bypass-approvals-and-sandbox" : "";
         yield binaryName + " exec" + perm + codexModelOptions(model, reasoningEffort) + " " + task;
       }
       case GEMINI -> {
@@ -128,7 +128,8 @@ public enum AgentCli {
     return switch (this) {
       case CLAUDE_CODE ->
           fullPermissions ? binaryName + " --dangerously-skip-permissions" : binaryName;
-      case CODEX -> fullPermissions ? binaryName + " --full-auto" : binaryName;
+      case CODEX ->
+          fullPermissions ? binaryName + " --dangerously-bypass-approvals-and-sandbox" : binaryName;
       case GEMINI -> fullPermissions ? binaryName + " --yolo" : binaryName;
     };
   }

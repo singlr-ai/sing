@@ -174,7 +174,7 @@ public final class DispatchCommand implements Runnable {
 
     var agentType = taskSpec.agent() != null ? taskSpec.agent() : config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
-    var workDir = "/home/" + sshUser + "/workspace";
+    var workDir = AgentSession.launchWorkDir(sshUser, targetRepos);
     var fullPermissions = true;
 
     String branchName = null;

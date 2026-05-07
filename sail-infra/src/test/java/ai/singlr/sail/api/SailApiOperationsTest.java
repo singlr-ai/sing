@@ -586,7 +586,7 @@ class SailApiOperationsTest {
             .on("mkdir -p /home/dev/workspace/specs", "")
             .on("printf '%s'", "")
             .on("mkdir -p /home/dev/.sail", "")
-            .on("codex exec --full-auto --model gpt-5.5", "");
+            .on("codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-5.5", "");
     var operations = operations(baseYaml(), shell);
 
     var result = operations.dispatch("acme", request("auth"));
@@ -600,7 +600,8 @@ class SailApiOperationsTest {
         shell.invocations().stream()
             .anyMatch(
                 command ->
-                    command.contains("codex exec --full-auto --model gpt-5.5")
+                    command.contains(
+                            "codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-5.5")
                         && command.contains("model_reasoning_effort='\"high\"'")));
     assertFalse(
         shell.invocations().stream().anyMatch(command -> command.contains("claude --print")));
