@@ -165,6 +165,7 @@ class AgentSessionTest {
     assertTrue(cmd.contains("acme"));
     var joined = String.join(" ", cmd);
     assertFalse(joined.contains("nohup"));
+    assertTrue(joined.contains("systemd-run --user --unit sail-agent"));
     assertTrue(joined.contains("claude --print"));
     assertTrue(joined.contains("agent.log"));
     assertTrue(joined.contains("agent.pid"));
@@ -179,7 +180,7 @@ class AgentSessionTest {
             "acme", "dev", "/home/dev/workspace", true, AgentCli.CLAUDE_CODE);
 
     var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("--dangerously-skip-permissions"));
+    assertTrue(joined.contains("exec claude --print --dangerously-skip-permissions"));
   }
 
   @Test
@@ -260,8 +261,9 @@ class AgentSessionTest {
         AgentSession.buildBackgroundLaunchCommand(
             "acme", "dev", workDir, false, AgentCli.CLAUDE_CODE);
 
-    var script = cmd.get(cmd.indexOf("-c") + 1);
-    assertTrue(script.contains("cd \"$2\""));
+    var script = cmd.get(cmd.indexOf("-lc") + 1);
+    assertTrue(script.contains("systemd-run --user --unit sail-agent"));
+    assertTrue(script.contains("cd \"$1\""));
     assertFalse(script.contains(workDir));
     assertTrue(cmd.contains(workDir));
   }
