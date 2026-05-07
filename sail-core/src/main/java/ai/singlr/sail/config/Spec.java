@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.config;
 
+import ai.singlr.sail.engine.AgentCli;
 import ai.singlr.sail.engine.NameValidator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.Objects;
  * @param assignee engineer responsible (nullable, matches git identity)
  * @param dependsOn IDs of specs that must be done first
  * @param repos repository paths this spec should branch and work in
+ * @param agent agent CLI this spec should run with (nullable)
  * @param branch git branch for this spec's work (nullable)
  */
 public record Spec(
@@ -31,6 +33,7 @@ public record Spec(
     String assignee,
     List<String> dependsOn,
     List<String> repos,
+    String agent,
     String branch) {
 
   public Spec(
@@ -40,7 +43,18 @@ public record Spec(
       String assignee,
       List<String> dependsOn,
       String branch) {
-    this(id, title, status, assignee, dependsOn, List.of(), branch);
+    this(id, title, status, assignee, dependsOn, List.of(), null, branch);
+  }
+
+  public Spec(
+      String id,
+      String title,
+      String status,
+      String assignee,
+      List<String> dependsOn,
+      List<String> repos,
+      String branch) {
+    this(id, title, status, assignee, dependsOn, repos, null, branch);
   }
 
   @SuppressWarnings("unchecked")
@@ -55,6 +69,7 @@ public record Spec(
     var assignee = (String) map.get("assignee");
     var dependsOn = (List<String>) map.get("depends_on");
     var repos = reposFromMap(map);
+    var agent = validatedAgent((String) map.get("agent"));
     var branch = (String) map.get("branch");
     return new Spec(
         id,
@@ -63,6 +78,7 @@ public record Spec(
         assignee,
         dependsOn != null ? List.copyOf(dependsOn) : List.of(),
         repos,
+        agent,
         branch);
   }
 
@@ -83,6 +99,9 @@ public record Spec(
       map.put("repo", repos.getFirst());
     } else if (!repos.isEmpty()) {
       map.put("repos", repos);
+    }
+    if (agent != null) {
+      map.put("agent", agent);
     }
     if (branch != null) {
       map.put("branch", branch);
@@ -108,5 +127,13 @@ public record Spec(
   private static List<String> validatedRepos(List<String> repos) {
     repos.forEach(repo -> NameValidator.requireSafePath(repo, "spec.repo"));
     return List.copyOf(repos);
+  }
+
+  private static String validatedAgent(String agent) {
+    if (agent == null || agent.isBlank()) {
+      return null;
+    }
+    AgentCli.fromYamlName(agent);
+    return agent;
   }
 }

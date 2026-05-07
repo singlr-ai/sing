@@ -106,6 +106,20 @@ class SpecTest {
   }
 
   @Test
+  void parsesAgent() {
+    var spec = Spec.fromMap(Map.of("id", "auth", "agent", "codex"));
+
+    assertEquals("codex", spec.agent());
+  }
+
+  @Test
+  void rejectsUnknownAgent() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Spec.fromMap(Map.of("id", "auth", "agent", "unknown-agent")));
+  }
+
+  @Test
   void toMapWritesSingleRepoAsRepo() {
     var spec =
         new Spec(
@@ -164,6 +178,7 @@ class SpecTest {
     assertEquals(spec.assignee(), parsed.assignee());
     assertEquals(spec.dependsOn(), parsed.dependsOn());
     assertEquals(spec.repos(), parsed.repos());
+    assertEquals(spec.agent(), parsed.agent());
     assertEquals(spec.branch(), parsed.branch());
   }
 

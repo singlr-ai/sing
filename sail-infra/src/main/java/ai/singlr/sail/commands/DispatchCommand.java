@@ -172,7 +172,7 @@ public final class DispatchCommand implements Runnable {
       System.out.println();
     }
 
-    var agentType = config.agent().type();
+    var agentType = taskSpec.agent() != null ? taskSpec.agent() : config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
     var workDir = "/home/" + sshUser + "/workspace";
     var fullPermissions = true;
@@ -299,12 +299,14 @@ public final class DispatchCommand implements Runnable {
                 + ": "
                 + String.join(", ", spec.repos())
                 + "\n";
+    var targetAgent = spec.agent() == null ? "" : "\nTarget agent: " + spec.agent() + "\n";
     return "Your current spec: \""
         + spec.title()
         + "\" (id: "
         + spec.id()
         + ")."
         + targetRepos
+        + targetAgent
         + "\n"
         + description;
   }
@@ -317,6 +319,7 @@ public final class DispatchCommand implements Runnable {
         spec.assignee(),
         spec.dependsOn(),
         targetRepos.stream().map(SailYaml.Repo::path).toList(),
+        spec.agent(),
         spec.branch());
   }
 

@@ -468,6 +468,7 @@ class ApiRouterTest {
                   java.util.List.of(),
                   java.util.List.of(),
                   null,
+                  null,
                   true,
                   false,
                   java.util.List.of()),
@@ -510,7 +511,7 @@ class ApiRouterTest {
               true,
               null,
               new DispatchedSpecView(
-                  request.specId(), "Spec", "in_progress", request.repos(), null),
+                  request.specId(), "Spec", "in_progress", request.repos(), null, null),
               null,
               "",
               false));
