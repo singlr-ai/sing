@@ -341,7 +341,9 @@ public final class RunCommand implements Runnable {
     }
 
     System.out.println(Ansi.AUTO.string("  @|bold Launching agent in background...|@"));
-    System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+    if (dryRun) {
+      System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+    }
     System.out.println();
 
     if (dryRun) {

@@ -10,6 +10,8 @@ import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
 import java.io.PrintStream;
 import java.text.NumberFormat;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -780,6 +782,61 @@ public final class Banner {
   }
 
   /**
+   * Strips the boilerplate prelude that {@code DispatchCommand.buildTaskPrompt} prepends to spec
+   * dispatches and returns just the human-readable spec title. For ad-hoc tasks that do not start
+   * with the dispatch prelude, the raw text is returned (truncated to 60 chars). Visible for tests.
+   */
+  static String prettifyTask(String raw) {
+    if (raw == null) {
+      return "";
+    }
+    var trimmed = raw.strip();
+    if (trimmed.isEmpty()) {
+      return "";
+    }
+    if (trimmed.startsWith("Your current spec: \"")) {
+      var openQuote = trimmed.indexOf('"');
+      var closeQuote = trimmed.indexOf('"', openQuote + 1);
+      if (openQuote >= 0 && closeQuote > openQuote) {
+        return trimmed.substring(openQuote + 1, closeQuote);
+      }
+    }
+    return trimmed.length() > 60 ? trimmed.substring(0, 60) + "..." : trimmed;
+  }
+
+  /**
+   * Formats the elapsed time between an ISO 8601 timestamp and {@code now} as a short
+   * human-readable duration: {@code 12s}, {@code 4m 31s}, {@code 2h 14m}, or {@code 3d 5h}. Returns
+   * an empty string when the timestamp is missing or unparseable. Visible for tests.
+   */
+  static String formatElapsed(String startedAtIso, Instant now) {
+    if (startedAtIso == null || startedAtIso.isBlank() || now == null) {
+      return "";
+    }
+    Instant start;
+    try {
+      start = Instant.parse(startedAtIso);
+    } catch (Exception e) {
+      return "";
+    }
+    var d = Duration.between(start, now);
+    if (d.isNegative()) {
+      d = Duration.ZERO;
+    }
+    var total = d.getSeconds();
+    if (total < 60) {
+      return total + "s";
+    }
+    if (total < 3600) {
+      return (total / 60) + "m " + (total % 60) + "s";
+    }
+    if (total < 86400) {
+      return (total / 3600) + "h " + ((total % 3600) / 60) + "m";
+    }
+    return (total / 86400) + "d " + ((total % 86400) / 3600) + "h";
+  }
+
+  /**
    * Formats an ISO 8601 timestamp to a shorter display form. Extracts the date and time portion,
    * truncating fractional seconds and timezone.
    */
@@ -858,22 +915,20 @@ public final class Banner {
                 + "|@"));
     out.println(amber(ansi, "    @|bold PID:|@        " + info.pid()));
     if (!info.task().isBlank()) {
-      var taskPreview =
-          info.task().length() > 60 ? info.task().substring(0, 60) + "..." : info.task();
-      out.println(amber(ansi, "    @|bold Task:|@       " + taskPreview));
+      out.println(amber(ansi, "    @|bold Task:|@       " + prettifyTask(info.task())));
     }
     if (!info.startedAt().isBlank()) {
       out.println(amber(ansi, "    @|bold Started:|@    " + formatTimestamp(info.startedAt())));
+      var elapsed = formatElapsed(info.startedAt(), Instant.now());
+      if (!elapsed.isEmpty()) {
+        out.println(amber(ansi, "    @|bold Elapsed:|@    " + elapsed));
+      }
     }
     if (!info.branch().isBlank()) {
       out.println(amber(ansi, "    @|bold Branch:|@     " + info.branch()));
     }
     if (commitCount > 0) {
       out.println(amber(ansi, "    @|bold Commits:|@    " + commitCount + " since launch"));
-    }
-    if (lastCommitMinutesAgo >= 0) {
-      out.println(
-          amber(ansi, "    @|bold Last commit:|@ " + lastCommitMinutesAgo + " minutes ago"));
     }
     if (taskCounts != null) {
       var total = taskCounts.values().stream().mapToInt(Integer::intValue).sum();
@@ -915,8 +970,7 @@ public final class Banner {
       String name, String task, String branch, PrintStream out, Ansi ansi) {
     out.println(amber(ansi, "  @|green \u2713|@ Agent launched in background"));
     if (task != null) {
-      var taskPreview = task.length() > 60 ? task.substring(0, 60) + "..." : task;
-      out.println(amber(ansi, "    @|bold Task:|@    " + taskPreview));
+      out.println(amber(ansi, "    @|bold Task:|@    " + prettifyTask(task)));
     }
     if (branch != null && !branch.isBlank()) {
       out.println(amber(ansi, "    @|bold Branch:|@  " + branch));

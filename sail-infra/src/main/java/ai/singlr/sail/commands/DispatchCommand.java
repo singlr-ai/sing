@@ -262,7 +262,9 @@ public final class DispatchCommand implements Runnable {
               agentType);
       if (!json) {
         System.out.println(Ansi.AUTO.string("  @|bold Launching agent in background...|@"));
-        System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+        if (dryRun) {
+          System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+        }
         System.out.println();
       }
       if (!dryRun) {
@@ -292,7 +294,9 @@ public final class DispatchCommand implements Runnable {
               agentType);
       if (!json) {
         System.out.println(Ansi.AUTO.string("  @|bold Launching agent with spec...|@"));
-        System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+        if (dryRun) {
+          System.out.println(Ansi.AUTO.string("  @|faint " + String.join(" ", sshCmd) + "|@"));
+        }
         System.out.println();
       }
       if (!dryRun) {

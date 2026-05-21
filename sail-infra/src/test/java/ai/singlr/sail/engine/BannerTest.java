@@ -1009,4 +1009,94 @@ class BannerTest {
     Banner.printHostDetection(info, new PrintStream(out), Ansi.OFF);
     return out.toString(StandardCharsets.UTF_8);
   }
+
+  @Test
+  void prettifyTaskExtractsSpecTitleFromDispatchPrelude() {
+    var raw =
+        "Your current spec: \"Bring cron module to 95% / 80% (and clients to 90%)\""
+            + " (id: cron-coverage).\nTarget repo: manatee\nTarget agent: claude-code\n\nFull"
+            + " description on next line";
+
+    assertEquals("Bring cron module to 95% / 80% (and clients to 90%)", Banner.prettifyTask(raw));
+  }
+
+  @Test
+  void prettifyTaskHandlesAdHocPrompt() {
+    var raw = "Please refactor the auth module";
+    assertEquals(raw, Banner.prettifyTask(raw));
+  }
+
+  @Test
+  void prettifyTaskTruncatesLongAdHocPrompts() {
+    var raw = "x".repeat(200);
+    var out = Banner.prettifyTask(raw);
+
+    assertEquals(63, out.length());
+    assertTrue(out.endsWith("..."));
+  }
+
+  @Test
+  void prettifyTaskHandlesEmptyAndNull() {
+    assertEquals("", Banner.prettifyTask(null));
+    assertEquals("", Banner.prettifyTask(""));
+    assertEquals("", Banner.prettifyTask("   "));
+  }
+
+  @Test
+  void prettifyTaskFallsBackWhenPreludeIsMalformed() {
+    var raw = "Your current spec: \"unterminated";
+    var out = Banner.prettifyTask(raw);
+
+    assertTrue(out.startsWith("Your current spec:"));
+  }
+
+  @Test
+  void formatElapsedShowsSecondsUnderAMinute() {
+    var start = java.time.Instant.parse("2026-05-21T12:00:00Z");
+    var now = start.plusSeconds(42);
+
+    assertEquals("42s", Banner.formatElapsed(start.toString(), now));
+  }
+
+  @Test
+  void formatElapsedShowsMinutesAndSecondsUnderAnHour() {
+    var start = java.time.Instant.parse("2026-05-21T12:00:00Z");
+    var now = start.plusSeconds(12 * 60 + 30);
+
+    assertEquals("12m 30s", Banner.formatElapsed(start.toString(), now));
+  }
+
+  @Test
+  void formatElapsedShowsHoursAndMinutesUnderADay() {
+    var start = java.time.Instant.parse("2026-05-21T12:00:00Z");
+    var now = start.plusSeconds(2 * 3600 + 14 * 60 + 5);
+
+    assertEquals("2h 14m", Banner.formatElapsed(start.toString(), now));
+  }
+
+  @Test
+  void formatElapsedShowsDaysAndHoursOverADay() {
+    var start = java.time.Instant.parse("2026-05-21T12:00:00Z");
+    var now = start.plusSeconds(3L * 86400 + 5 * 3600);
+
+    assertEquals("3d 5h", Banner.formatElapsed(start.toString(), now));
+  }
+
+  @Test
+  void formatElapsedClampsNegativeDurationsToZero() {
+    var now = java.time.Instant.parse("2026-05-21T12:00:00Z");
+    var start = now.plusSeconds(60);
+
+    assertEquals("0s", Banner.formatElapsed(start.toString(), now));
+  }
+
+  @Test
+  void formatElapsedReturnsEmptyOnInvalidInput() {
+    var now = java.time.Instant.parse("2026-05-21T12:00:00Z");
+
+    assertEquals("", Banner.formatElapsed(null, now));
+    assertEquals("", Banner.formatElapsed("", now));
+    assertEquals("", Banner.formatElapsed("not-a-date", now));
+    assertEquals("", Banner.formatElapsed(now.toString(), null));
+  }
 }
