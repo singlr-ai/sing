@@ -17,6 +17,7 @@ import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.DispatchRepos;
 import ai.singlr.sail.engine.GitSpecSync;
+import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExec;
@@ -30,7 +31,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -226,23 +229,91 @@ public final class SailApiOperations implements ApiOperations {
     var task = buildTaskPrompt(taskSpec, specBody.isBlank() ? nextSpec.title() : specBody);
     var agentType = taskSpec.agent() != null ? taskSpec.agent() : loaded.config().agent().type();
     var branch = branchName(loaded.config(), nextSpec);
+    publishDispatched(project, nextSpec.id(), agentType, branch, request.mode());
     var snapshot = createSnapshotIfNeeded(project, loaded.config());
+    if (!snapshot.isEmpty()) {
+      publishSnapshotCreated(project, snapshot);
+    }
     var branchCreated = createBranchIfNeeded(project, loaded.config(), targetRepos, branch);
 
     if (!request.dryRun()) {
       launchAgent(
           project, loaded.config(), targetRepos, task, branch, request.mode(), taskSpec, agentType);
+      var status = querySession(agentSession, project);
+      if (status != null && status.running()) {
+        publishAgentSessionStarted(project, nextSpec.id(), agentType, status.pid());
+      }
+      return new DispatchResponse(
+          project,
+          true,
+          null,
+          dispatchedSpecView(taskSpec, branch),
+          agentStatusView(agentType, request.mode(), status),
+          snapshot,
+          branchCreated);
     }
 
-    var status = request.dryRun() ? null : querySession(agentSession, project);
     return new DispatchResponse(
         project,
         true,
         null,
         dispatchedSpecView(taskSpec, branch),
-        agentStatusView(agentType, request.mode(), status),
+        agentStatusView(agentType, request.mode(), null),
         snapshot,
         branchCreated);
+  }
+
+  private void publishDispatched(
+      String project, String specId, String agentType, String branch, String mode) {
+    if (eventBus == null) {
+      return;
+    }
+    var data = new LinkedHashMap<String, Object>();
+    if (branch != null && !branch.isBlank()) {
+      data.put("branch", branch);
+    }
+    data.put("mode", mode);
+    eventBus.publish(
+        Event.of(
+            project,
+            specId,
+            Event.WellKnownTypes.SPEC_DISPATCHED,
+            Event.SAIL_AGENT,
+            HostInfo.hostname(),
+            data));
+  }
+
+  private void publishSnapshotCreated(String project, String label) {
+    if (eventBus == null) {
+      return;
+    }
+    eventBus.publish(
+        Event.of(
+            project,
+            null,
+            Event.WellKnownTypes.SNAPSHOT_CREATED,
+            Event.SAIL_AGENT,
+            HostInfo.hostname(),
+            Map.of("label", label)));
+  }
+
+  private void publishAgentSessionStarted(
+      String project, String specId, String agentType, Integer pid) {
+    if (eventBus == null) {
+      return;
+    }
+    var data = new LinkedHashMap<String, Object>();
+    if (pid != null) {
+      data.put("pid", pid);
+    }
+    eventBus.publish(
+        Event.of(
+            project,
+            specId,
+            Event.WellKnownTypes.AGENT_SESSION_STARTED,
+            agentType,
+            HostInfo.hostname(),
+            data));
   }
 
   private AgentStatusResponse agentStatusValue(String project) {

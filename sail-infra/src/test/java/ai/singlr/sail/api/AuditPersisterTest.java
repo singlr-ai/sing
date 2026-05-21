@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,7 +39,7 @@ class AuditPersisterTest {
     persister.onEvent(Event.of("p", null, "t", "a", "h").withId(1L));
     persister.onEvent(Event.of("p", null, "t", "a", "h").withId(2L));
     var lines = Files.readString(path).split("\n");
-    assertEquals(2, java.util.Arrays.stream(lines).filter(l -> !l.isBlank()).count());
+    assertEquals(2, Arrays.stream(lines).filter(l -> !l.isBlank()).count());
   }
 
   @Test

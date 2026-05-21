@@ -7,6 +7,7 @@ package ai.singlr.sail.api;
 
 import ai.singlr.sail.engine.GitSpecSync;
 import java.util.List;
+import java.util.Map;
 
 record HealthResponse(String status) {}
 
@@ -147,12 +148,11 @@ record BoardSummaryView(
 
 record ErrorResponse(ApiError error) {}
 
-record EventPublishResponse(long id, java.util.Map<String, Object> event) {}
+record EventPublishResponse(long id, Map<String, Object> event) {}
 
-record RecentEventsResponse(
-    int limit, int returned, java.util.List<java.util.Map<String, Object>> events) {}
+record RecentEventsResponse(int limit, int returned, List<Map<String, Object>> events) {}
 
 record EventBusStatsResponse(
-    long published, long rejectedSubscribers, java.util.List<SubscriberStatsView> subscribers) {}
+    long published, long rejectedSubscribers, List<SubscriberStatsView> subscribers) {}
 
 record SubscriberStatsView(String name, int capacity, int depth, long dropped) {}

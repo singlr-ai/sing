@@ -18,6 +18,7 @@ public final class SailApiServer implements AutoCloseable {
   private final EventBus eventBus;
   private final AuditPersister auditPersister;
   private final EventBus.Subscription persisterSubscription;
+  private final SseHandler sseHandler;
 
   public SailApiServer(String host, int port, ApiOperations operations, String token)
       throws IOException {
@@ -42,7 +43,14 @@ public final class SailApiServer implements AutoCloseable {
         eventBus != null && auditPersister != null ? eventBus.subscribe(auditPersister) : null;
     server = HttpServer.create(new InetSocketAddress(host, port), 32);
     executor = Executors.newVirtualThreadPerTaskExecutor();
-    server.createContext("/", new ApiRouter(operations, new BearerAuth(token)));
+    var auth = new BearerAuth(token);
+    server.createContext("/", new ApiRouter(operations, auth));
+    if (eventBus != null) {
+      sseHandler = new SseHandler(eventBus, auth);
+      server.createContext("/v1/events/stream", sseHandler);
+    } else {
+      sseHandler = null;
+    }
     server.setExecutor(executor);
   }
 
@@ -62,6 +70,11 @@ public final class SailApiServer implements AutoCloseable {
   /** Returns the audit persister, or {@code null} when the server was constructed without one. */
   public AuditPersister auditPersister() {
     return auditPersister;
+  }
+
+  /** Returns the SSE handler, or {@code null} when no bus was configured. */
+  public SseHandler sseHandler() {
+    return sseHandler;
   }
 
   @Override

@@ -32,7 +32,6 @@ public final class EventBus implements AutoCloseable {
   private final AtomicLong sequence = new AtomicLong();
   private final LongAdder published = new LongAdder();
   private final BoundedVirtualExecutor drainExecutor;
-  private final java.util.concurrent.ExecutorService dedicatedDrainPool;
   private volatile boolean closed;
 
   /** Constructs a bus with up to 256 concurrent subscriber drain threads. */
@@ -46,7 +45,6 @@ public final class EventBus implements AutoCloseable {
    */
   public EventBus(int maxSubscribers) {
     this.drainExecutor = new BoundedVirtualExecutor(maxSubscribers);
-    this.dedicatedDrainPool = null;
   }
 
   /** Publishes an event to all matching subscribers. Stamps an {@link Event#id()}. */
@@ -118,9 +116,6 @@ public final class EventBus implements AutoCloseable {
     }
     subscriptions.clear();
     drainExecutor.close();
-    if (dedicatedDrainPool != null) {
-      dedicatedDrainPool.close();
-    }
   }
 
   /** Handle returned by {@link #subscribe}. Close to unregister and stop the drain thread. */

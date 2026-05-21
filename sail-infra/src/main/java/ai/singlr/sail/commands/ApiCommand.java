@@ -11,6 +11,7 @@ import ai.singlr.sail.api.EventBus;
 import ai.singlr.sail.api.SailApiOperations;
 import ai.singlr.sail.api.SailApiServer;
 import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.engine.ShellExecutor;
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -58,10 +59,7 @@ public final class ApiCommand implements Runnable {
             SailPaths.sailDir().resolve("events.jsonl"), AuditPersister.DEFAULT_RECENT_CAPACITY);
     var operations =
         new SailApiOperations(
-            new ai.singlr.sail.engine.ShellExecutor(false),
-            SailPaths.PROJECT_DESCRIPTOR,
-            bus,
-            persister);
+            new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR, bus, persister);
     try (var server = new SailApiServer(host, port, operations, resolvedToken, bus, persister)) {
       server.start();
       System.out.println(

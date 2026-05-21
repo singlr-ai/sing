@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 
@@ -224,7 +225,7 @@ class EventBusTest {
   }
 
   private static EventSubscriber subscriber(
-      String name, Predicate<Event> filter, java.util.function.Consumer<Event> sink) {
+      String name, Predicate<Event> filter, Consumer<Event> sink) {
     return new EventSubscriber() {
       @Override
       public String name() {
