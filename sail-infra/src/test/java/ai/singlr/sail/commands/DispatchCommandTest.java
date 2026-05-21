@@ -187,6 +187,32 @@ class DispatchCommandTest {
     assertTrue(help.contains("--repo"));
     assertTrue(help.contains("--dry-run"));
     assertTrue(help.contains("--json"));
+    assertTrue(help.contains("--restart"));
+  }
+
+  @Test
+  void restartWithoutSpecIsRejected() throws Exception {
+    var yaml =
+        """
+        name: test-project
+        resources:
+          cpu: 2
+          memory: 4GB
+          disk: 20GB
+        agent:
+          type: claude-code
+          specs_dir: specs
+        """;
+    var yamlPath = tempDir.resolve("sail.yaml");
+    Files.writeString(yamlPath, yaml);
+
+    var cmd = new CommandLine(new Sail());
+
+    var exitCode =
+        cmd.execute("spec", "dispatch", "test-project", "--restart", "-f", yamlPath.toString());
+
+    assertNotEquals(0, exitCode);
+    assertTrue(capturedErr.toString().contains("--restart requires --spec"));
   }
 
   @Test

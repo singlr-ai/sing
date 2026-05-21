@@ -7,6 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecAuditEvent;
 import ai.singlr.sail.config.SpecDirectory;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.AgentCli;
@@ -16,10 +17,12 @@ import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.DispatchRepos;
+import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SnapshotManager;
+import ai.singlr.sail.engine.SpecAudit;
 import ai.singlr.sail.engine.SpecWorkspace;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -74,6 +77,13 @@ public final class DispatchCommand implements Runnable {
   private Boolean snapshot;
 
   @Option(
+      names = "--restart",
+      description =
+          "Re-dispatch a spec whose status is not 'pending'. Requires --spec. Resets status to"
+              + " pending and records a 'restarted' audit event before dispatching.")
+  private boolean restart;
+
+  @Option(
       names = {"-f", "--file"},
       description = "Path to sail.yaml project descriptor.",
       defaultValue = "sail.yaml")
@@ -88,6 +98,10 @@ public final class DispatchCommand implements Runnable {
 
   private void execute() throws Exception {
     NameValidator.requireValidProjectName(name);
+    if (restart && specId == null) {
+      throw new IllegalArgumentException(
+          "--restart requires --spec to identify which spec to restart.");
+    }
 
     if (!json) {
       Banner.printBranding(System.out, Ansi.AUTO);
@@ -124,6 +138,8 @@ public final class DispatchCommand implements Runnable {
     var sshUser = config.sshUser();
     var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
     var specWorkspace = new SpecWorkspace(shell, name, specsDir);
+    var specAudit = new SpecAudit(shell, name, specsDir);
+    var host = HostInfo.hostname();
 
     var specs = specWorkspace.readSpecs();
     if (specs.isEmpty()) {
@@ -143,15 +159,17 @@ public final class DispatchCommand implements Runnable {
               + name);
     }
 
-    var nextSpec = resolveSpec(specs);
+    var nextSpec = resolveSpec(specId, restart, specs, specWorkspace, specAudit, host);
     if (nextSpec == null) {
       printNoSpecs();
       return;
     }
 
+    var agentType = nextSpec.agent() != null ? nextSpec.agent() : config.agent().type();
     var targetRepos = DispatchRepos.resolve(config, nextSpec, repoOverrides);
     var taskSpec = withTargetRepos(nextSpec, targetRepos);
     specWorkspace.updateStatus(nextSpec.id(), "in_progress");
+    specAudit.append(nextSpec.id(), SpecAuditEvent.dispatched(agentType, host, null));
 
     var specBody = Objects.requireNonNullElse(specWorkspace.readSpecBody(nextSpec.id()), "");
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
@@ -177,7 +195,6 @@ public final class DispatchCommand implements Runnable {
       System.out.println();
     }
 
-    var agentType = taskSpec.agent() != null ? taskSpec.agent() : config.agent().type();
     var agentCli = AgentCli.fromYamlName(agentType);
     var workDir = AgentSession.launchWorkDir(sshUser, targetRepos);
     var fullPermissions = true;
@@ -287,14 +304,47 @@ public final class DispatchCommand implements Runnable {
     }
   }
 
-  private Spec resolveSpec(List<Spec> specs) {
-    if (specId != null) {
-      return specs.stream()
-          .filter(s -> s.id().equals(specId))
-          .findFirst()
-          .orElseThrow(() -> new IllegalArgumentException("Spec '" + specId + "' not found"));
+  /**
+   * Picks the spec to dispatch. Enforces that {@code --spec} only targets pending specs unless
+   * {@code --restart} is set, in which case the spec's status is reset to {@code pending} and a
+   * {@code restarted} audit event is appended.
+   *
+   * @return the spec to dispatch, or {@code null} when no {@code --spec} is given and no pending
+   *     spec is ready
+   */
+  static Spec resolveSpec(
+      String specId,
+      boolean restart,
+      List<Spec> specs,
+      SpecWorkspace workspace,
+      SpecAudit audit,
+      String host)
+      throws Exception {
+    if (specId == null) {
+      return SpecDirectory.nextReady(specs);
     }
-    return SpecDirectory.nextReady(specs);
+    var found = SpecDirectory.findById(specs, specId);
+    if (found == null) {
+      throw new IllegalArgumentException("Spec '" + specId + "' not found");
+    }
+    if ("pending".equals(found.status())) {
+      return found;
+    }
+    if (!restart) {
+      throw new IllegalStateException(
+          "Spec '"
+              + specId
+              + "' is not pending (current status: "
+              + found.status()
+              + "). A spec is dispatched only when pending. To dispatch it again, pass --restart"
+              + " (this resets status to pending and records the restart in audit.jsonl).");
+    }
+    workspace.updateStatus(specId, "pending");
+    audit.append(
+        specId,
+        SpecAuditEvent.restarted(
+            SpecAuditEvent.SAIL_AGENT, host, "restarted from " + found.status()));
+    return found;
   }
 
   static String buildTaskPrompt(Spec spec, String description, String specsDir) {

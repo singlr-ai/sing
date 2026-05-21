@@ -28,43 +28,43 @@ public final class ScriptedShellExecutor implements ShellExec {
   private final List<String> invocations = new ArrayList<>();
   private final Result defaultResult;
 
-  ScriptedShellExecutor() {
+  public ScriptedShellExecutor() {
     this(new Result(1, "", "command not found"));
   }
 
-  ScriptedShellExecutor(Result defaultResult) {
+  public ScriptedShellExecutor(Result defaultResult) {
     this.defaultResult = defaultResult;
   }
 
   /** Register a response for commands containing the given pattern. */
-  ScriptedShellExecutor on(String pattern, Result result) {
+  public ScriptedShellExecutor on(String pattern, Result result) {
     scripts.put(pattern, result);
     return this;
   }
 
   /** Shorthand: command containing pattern succeeds with given stdout. */
-  ScriptedShellExecutor onOk(String pattern, String stdout) {
+  public ScriptedShellExecutor onOk(String pattern, String stdout) {
     return on(pattern, new Result(0, stdout, ""));
   }
 
   /** Shorthand: command containing pattern succeeds with empty output. */
-  ScriptedShellExecutor onOk(String pattern) {
+  public ScriptedShellExecutor onOk(String pattern) {
     return on(pattern, new Result(0, "", ""));
   }
 
   /** Shorthand: command containing pattern fails with given stderr. */
-  ScriptedShellExecutor onFail(String pattern, String stderr) {
+  public ScriptedShellExecutor onFail(String pattern, String stderr) {
     return on(pattern, new Result(1, "", stderr));
   }
 
   /** Shorthand: command containing pattern fails once, then falls through to default on reuse. */
-  ScriptedShellExecutor onceOnFail(String pattern, String stderr) {
+  public ScriptedShellExecutor onceOnFail(String pattern, String stderr) {
     consumable.add(pattern);
     return on(pattern, new Result(1, "", stderr));
   }
 
   /** Returns an unmodifiable list of all commands that were executed, in order. */
-  List<String> invocations() {
+  public List<String> invocations() {
     return Collections.unmodifiableList(invocations);
   }
 

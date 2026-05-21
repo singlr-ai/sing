@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import ai.singlr.sail.config.SailYaml;
+import ai.singlr.sail.config.SpecAuditEvent;
 import ai.singlr.sail.config.SpecDirectory;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
@@ -14,6 +15,7 @@ import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
+import ai.singlr.sail.engine.SpecAudit;
 import ai.singlr.sail.engine.SpecWorkspace;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -84,6 +86,7 @@ public final class SpecShowCommand implements Runnable {
 
     var specsDir = "/home/" + config.sshUser() + "/workspace/" + config.agent().specsDir();
     var workspace = new SpecWorkspace(shell, name, specsDir);
+    var audit = new SpecAudit(shell, name, specsDir);
     var specs = workspace.readSpecs();
     var spec = SpecDirectory.findById(specs, specId);
     if (spec == null) {
@@ -91,11 +94,14 @@ public final class SpecShowCommand implements Runnable {
     }
 
     var content = workspace.readSpecBody(specId);
+    var auditEvents = audit.read(specId);
     if (json) {
       var map = new LinkedHashMap<String, Object>();
       map.put("name", name);
       map.put("spec", toJsonSpec(specs, spec));
       map.put("spec_path", workspace.specMarkdownPath(specId));
+      map.put("audit_path", audit.auditPath(specId));
+      map.put("audit", auditEvents.stream().map(SpecAuditEvent::toMap).toList());
       map.put("content_available", content != null);
       if (content != null) {
         map.put("content", content);
@@ -116,12 +122,41 @@ public final class SpecShowCommand implements Runnable {
           Ansi.AUTO.string("  @|bold Depends On:|@ " + String.join(", ", spec.dependsOn())));
     }
     System.out.println(Ansi.AUTO.string("  @|bold Path:|@ " + workspace.specMarkdownPath(specId)));
+    printAuditSection(auditEvents, System.out);
     System.out.println();
     if (content != null && !content.isBlank()) {
       System.out.println(content);
     } else {
       System.out.println(Ansi.AUTO.string("  @|faint spec.md not found.|@"));
     }
+  }
+
+  static void printAuditSection(List<SpecAuditEvent> events, java.io.PrintStream out) {
+    if (events.isEmpty()) {
+      return;
+    }
+    out.println();
+    out.println(Ansi.AUTO.string("  @|bold Audit:|@"));
+    for (var e : events) {
+      out.println(formatAuditLine(e));
+    }
+  }
+
+  static String formatAuditLine(SpecAuditEvent e) {
+    var pid = e.pid() != null ? " pid=" + e.pid() : "";
+    var note = e.note() != null && !e.note().isBlank() ? " (" + e.note() + ")" : "";
+    return Ansi.AUTO.string(
+        "    @|faint "
+            + e.ts()
+            + "|@  "
+            + e.event()
+            + " @|faint by "
+            + e.agent()
+            + pid
+            + " on "
+            + e.host()
+            + "|@"
+            + note);
   }
 
   private static LinkedHashMap<String, Object> toJsonSpec(
