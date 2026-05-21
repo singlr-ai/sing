@@ -17,14 +17,14 @@ class CodeReviewGeneratorTest {
 
   @Test
   void reviewScriptContainsReviewerBinary() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
-    assertTrue(script.contains("gemini --print"));
+    assertTrue(script.contains("codex --print"));
   }
 
   @Test
   void reviewScriptContainsBugChecklist() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
     assertTrue(script.contains("Logic errors"));
     assertTrue(script.contains("Edge cases"));
@@ -38,14 +38,14 @@ class CodeReviewGeneratorTest {
 
   @Test
   void reviewScriptUsesGitDiff() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
     assertTrue(script.contains("git diff main..HEAD"));
   }
 
   @Test
   void reviewScriptExcludesLockFiles() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
     assertTrue(script.contains("':!*.lock'"));
     assertTrue(script.contains("':!*.min.js'"));
@@ -54,24 +54,24 @@ class CodeReviewGeneratorTest {
 
   @Test
   void reviewScriptWritesResultFile() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
     assertTrue(script.contains("~/code-review.md"));
   }
 
   @Test
   void reviewScriptExitsWithCode2OnFailure() {
-    var script = CodeReviewGenerator.generateReviewScript("gemini");
+    var script = CodeReviewGenerator.generateReviewScript("codex");
 
     assertTrue(script.contains("exit 2"));
   }
 
   @Test
-  void reviewScriptUsesCodexBinaryWhenConfigured() {
-    var script = CodeReviewGenerator.generateReviewScript("codex");
+  void reviewScriptUsesClaudeBinaryWhenConfigured() {
+    var script = CodeReviewGenerator.generateReviewScript("claude");
 
-    assertTrue(script.contains("codex --print"));
-    assertFalse(script.contains("gemini"));
+    assertTrue(script.contains("claude --print"));
+    assertFalse(script.contains("codex"));
   }
 
   @Test
@@ -88,7 +88,7 @@ class CodeReviewGeneratorTest {
 
   @Test
   void generateFilesReturnsEmptyWhenDisabled() {
-    var review = new CodeReview(false, "gemini");
+    var review = new CodeReview(false, "codex");
     var agent =
         new SailYaml.Agent(
             "claude-code", true, "sail/", true, null, null, null, null, null, review, null);
@@ -101,14 +101,14 @@ class CodeReviewGeneratorTest {
 
   @Test
   void generateFilesReturnsScriptOnly() {
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
     var agent =
         new SailYaml.Agent(
             "claude-code",
             true,
             "sail/",
             true,
-            List.of("gemini"),
+            List.of("codex"),
             null,
             null,
             null,
@@ -123,7 +123,7 @@ class CodeReviewGeneratorTest {
     var script = files.getFirst();
     assertTrue(script.remotePath().endsWith("code-review.sh"));
     assertTrue(script.executable());
-    assertTrue(script.content().contains("gemini --print"));
+    assertTrue(script.content().contains("codex --print"));
   }
 
   @Test
@@ -135,7 +135,7 @@ class CodeReviewGeneratorTest {
             true,
             "sail/",
             true,
-            List.of("claude-code", "codex", "gemini"),
+            List.of("claude-code", "codex"),
             null,
             null,
             null,
@@ -147,7 +147,7 @@ class CodeReviewGeneratorTest {
     var files = CodeReviewGenerator.generateFiles(config, Set.of("codex"));
 
     assertEquals(1, files.size());
-    assertTrue(files.getFirst().content().contains("gemini --print"));
+    assertTrue(files.getFirst().content().contains("claude --print"));
   }
 
   @Test

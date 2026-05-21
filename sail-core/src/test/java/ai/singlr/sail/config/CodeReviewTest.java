@@ -16,23 +16,23 @@ class CodeReviewTest {
 
   @Test
   void fromMapParsesEnabledWithAuditor() {
-    var review = CodeReview.fromMap(Map.of("enabled", true, "auditor", "gemini"));
+    var review = CodeReview.fromMap(Map.of("enabled", true, "auditor", "codex"));
 
     assertTrue(review.enabled());
-    assertEquals("gemini", review.auditor());
+    assertEquals("codex", review.auditor());
   }
 
   @Test
   void fromMapDisabledByDefault() {
-    var review = CodeReview.fromMap(Map.of("auditor", "gemini"));
+    var review = CodeReview.fromMap(Map.of("auditor", "codex"));
 
     assertFalse(review.enabled());
-    assertEquals("gemini", review.auditor());
+    assertEquals("codex", review.auditor());
   }
 
   @Test
   void fromMapExplicitlyDisabled() {
-    var review = CodeReview.fromMap(Map.of("enabled", false, "auditor", "gemini"));
+    var review = CodeReview.fromMap(Map.of("enabled", false, "auditor", "codex"));
 
     assertFalse(review.enabled());
   }
@@ -55,39 +55,27 @@ class CodeReviewTest {
 
   @Test
   void resolveAuditorUsesExplicitOverride() {
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
 
     assertEquals(
-        "gemini", review.resolveAuditor("claude-code", List.of("codex", "gemini"), Set.of()));
+        "codex", review.resolveAuditor("claude-code", List.of("claude-code", "codex"), Set.of()));
   }
 
   @Test
-  void resolveAuditorPicksFirstNonPrimaryNonExcluded() {
+  void resolveAuditorPicksFirstNonPrimary() {
     var review = new CodeReview(true, null);
 
     assertEquals(
-        "gemini",
-        review.resolveAuditor(
-            "claude-code", List.of("claude-code", "codex", "gemini"), Set.of("codex")));
+        "codex", review.resolveAuditor("claude-code", List.of("claude-code", "codex"), Set.of()));
   }
 
   @Test
-  void resolveAuditorSkipsPrimaryAndExcluded() {
+  void resolveAuditorSkipsExcluded() {
     var review = new CodeReview(true, null);
 
     assertEquals(
-        "gemini",
-        review.resolveAuditor(
-            "claude-code", List.of("claude-code", "codex", "gemini"), Set.of("codex")));
-  }
-
-  @Test
-  void resolveAuditorPicksFirstNonPrimaryWhenNoExclusions() {
-    var review = new CodeReview(true, null);
-
-    assertEquals(
-        "codex",
-        review.resolveAuditor("claude-code", List.of("claude-code", "codex", "gemini"), Set.of()));
+        "claude-code",
+        review.resolveAuditor("claude-code", List.of("claude-code", "codex"), Set.of("codex")));
   }
 
   @Test
@@ -153,15 +141,15 @@ class CodeReviewTest {
 
   @Test
   void resolveAuditorRejectsNotInInstallList() {
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
 
     var ex =
         assertThrows(
             IllegalArgumentException.class,
-            () -> review.resolveAuditor("claude-code", List.of("codex"), Set.of()));
+            () -> review.resolveAuditor("claude-code", List.of("claude-code"), Set.of()));
 
     assertTrue(ex.getMessage().contains("is not in the agent install list"));
-    assertTrue(ex.getMessage().contains("Add 'gemini' to 'agent.install'"));
+    assertTrue(ex.getMessage().contains("Add 'codex' to 'agent.install'"));
   }
 
   @Test
@@ -187,10 +175,10 @@ class CodeReviewTest {
 
   @Test
   void toMapSerializesAuditor() {
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
     var map = review.toMap();
 
     assertEquals(true, map.get("enabled"));
-    assertEquals("gemini", map.get("auditor"));
+    assertEquals("codex", map.get("auditor"));
   }
 }

@@ -709,16 +709,6 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void generateFilesReturnsGeminiMdForGeminiAgent() {
-    var agent =
-        new SailYaml.Agent("gemini", true, "sail/", true, null, null, null, null, null, null, null);
-    var config = configWithAgent(agent);
-    var files = AgentContextGenerator.generateFiles(config);
-
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("GEMINI.md")));
-  }
-
-  @Test
   void generateFilesReturnsMultipleFilesWhenMultipleInstalled() {
     var agent =
         new SailYaml.Agent(
@@ -744,14 +734,14 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void generateFilesReturnsAllFourWhenAllInstalled() {
+  void generateFilesReturnsAllWhenAllInstalled() {
     var agent =
         new SailYaml.Agent(
             "claude-code",
             true,
             "sail/",
             true,
-            List.of("claude-code", "codex", "gemini"),
+            List.of("claude-code", "codex"),
             null,
             null,
             "specs",
@@ -761,7 +751,7 @@ class AgentContextGeneratorTest {
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(8, files.size());
+    assertEquals(5, files.size());
   }
 
   @Test
@@ -811,10 +801,7 @@ class AgentContextGeneratorTest {
     var agentFiles =
         files.stream()
             .filter(
-                f ->
-                    f.remotePath().endsWith("CLAUDE.md")
-                        || f.remotePath().endsWith("AGENTS.md")
-                        || f.remotePath().endsWith("GEMINI.md"))
+                f -> f.remotePath().endsWith("CLAUDE.md") || f.remotePath().endsWith("AGENTS.md"))
             .toList();
 
     assertFalse(agentFiles.isEmpty());
@@ -828,10 +815,7 @@ class AgentContextGeneratorTest {
     var infraFiles =
         files.stream()
             .filter(
-                f ->
-                    !f.remotePath().endsWith("CLAUDE.md")
-                        && !f.remotePath().endsWith("AGENTS.md")
-                        && !f.remotePath().endsWith("GEMINI.md"))
+                f -> !f.remotePath().endsWith("CLAUDE.md") && !f.remotePath().endsWith("AGENTS.md"))
             .toList();
 
     assertFalse(infraFiles.isEmpty());
@@ -846,7 +830,7 @@ class AgentContextGeneratorTest {
             true,
             "sail/",
             true,
-            List.of("claude-code", "codex", "gemini"),
+            List.of("claude-code", "codex"),
             null,
             null,
             null,
@@ -861,13 +845,10 @@ class AgentContextGeneratorTest {
     var agentFiles =
         files.stream()
             .filter(
-                f ->
-                    f.remotePath().endsWith("CLAUDE.md")
-                        || f.remotePath().endsWith("AGENTS.md")
-                        || f.remotePath().endsWith("GEMINI.md"))
+                f -> f.remotePath().endsWith("CLAUDE.md") || f.remotePath().endsWith("AGENTS.md"))
             .toList();
 
-    assertEquals(3, agentFiles.size());
+    assertEquals(2, agentFiles.size());
     assertTrue(agentFiles.stream().allMatch(GeneratedFile::skipIfExists));
   }
 
@@ -879,7 +860,7 @@ class AgentContextGeneratorTest {
             true,
             "sail/",
             true,
-            List.of("claude-code", "codex", "gemini"),
+            List.of("claude-code", "codex"),
             null,
             null,
             null,
@@ -892,10 +873,7 @@ class AgentContextGeneratorTest {
     var contextBodies =
         files.stream()
             .filter(
-                f ->
-                    f.remotePath().endsWith("CLAUDE.md")
-                        || f.remotePath().endsWith("AGENTS.md")
-                        || f.remotePath().endsWith("GEMINI.md"))
+                f -> f.remotePath().endsWith("CLAUDE.md") || f.remotePath().endsWith("AGENTS.md"))
             .map(f -> f.content().substring(f.content().indexOf('\n')))
             .toList();
 
@@ -923,18 +901,6 @@ class AgentContextGeneratorTest {
         files.stream().filter(f -> f.remotePath().endsWith("AGENTS.md")).findFirst().orElseThrow();
 
     assertTrue(agents.content().startsWith("# AGENTS.md"));
-  }
-
-  @Test
-  void geminiMdHasCorrectHeader() {
-    var agent =
-        new SailYaml.Agent("gemini", true, "sail/", true, null, null, null, null, null, null, null);
-    var config = configWithAgent(agent);
-    var files = AgentContextGenerator.generateFiles(config);
-    var gemini =
-        files.stream().filter(f -> f.remotePath().endsWith("GEMINI.md")).findFirst().orElseThrow();
-
-    assertTrue(gemini.content().startsWith("# GEMINI.md"));
   }
 
   @Test
@@ -1209,7 +1175,7 @@ class AgentContextGeneratorTest {
             true,
             "sail/",
             true,
-            List.of("claude-code", "codex", "gemini"),
+            List.of("claude-code", "codex"),
             null,
             null,
             "specs",
@@ -1219,7 +1185,7 @@ class AgentContextGeneratorTest {
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(8, files.size());
+    assertEquals(5, files.size());
   }
 
   @Test

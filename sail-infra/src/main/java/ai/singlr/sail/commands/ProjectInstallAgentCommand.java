@@ -35,7 +35,7 @@ public final class ProjectInstallAgentCommand implements Runnable {
   @Parameters(index = "0", description = "Project name.")
   private String name;
 
-  @Parameters(index = "1", description = "Agent CLI to install (claude-code, codex, gemini).")
+  @Parameters(index = "1", description = "Agent CLI to install (claude-code, codex).")
   private String agentName;
 
   @Option(names = "--json", description = "Output in JSON format.")

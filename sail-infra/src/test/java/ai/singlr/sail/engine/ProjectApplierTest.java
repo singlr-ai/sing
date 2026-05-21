@@ -202,12 +202,12 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("bash -lc which claude")
-            .onFail("bash -lc which gemini", "not found")
+            .onFail("bash -lc which codex", "not found")
             .onOk("which node")
             .onOk("bash -c");
     var applier = applier(shell);
 
-    var result = applier.applyAgentTools(CONTAINER, List.of("claude-code", "gemini"), null);
+    var result = applier.applyAgentTools(CONTAINER, List.of("claude-code", "codex"), null);
 
     assertEquals(1, result.added());
     assertEquals(1, result.skipped());

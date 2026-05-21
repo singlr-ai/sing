@@ -45,14 +45,14 @@ public final class MethodologyGenerator {
     if ("spec-driven".equals(methodology.approach())) {
       var skillPath = skillPath(agent, basePath, "spec");
       if (skillPath != null) {
-        files.add(new GeneratedFile(skillPath, generateSpecSkill(agent), false));
+        files.add(new GeneratedFile(skillPath, generateSpecSkill(), false));
       }
     }
 
     if (methodology.verify() != null) {
       var skillPath = skillPath(agent, basePath, "verify");
       if (skillPath != null) {
-        files.add(new GeneratedFile(skillPath, generateVerifySkill(agent, methodology), false));
+        files.add(new GeneratedFile(skillPath, generateVerifySkill(methodology), false));
       }
     }
 
@@ -116,21 +116,10 @@ public final class MethodologyGenerator {
     return switch (agent) {
       case CLAUDE_CODE -> basePath + ".claude/skills/" + skillName + "/SKILL.md";
       case CODEX -> basePath + ".agents/skills/" + skillName + "/SKILL.md";
-      case GEMINI -> basePath + ".gemini/commands/" + skillName + ".toml";
     };
   }
 
-  private static String generateSpecSkill(AgentCli agent) {
-    if (agent == AgentCli.GEMINI) {
-      return """
-          [command]
-          description = "Write a spec before implementing"
-
-          [command.prompt]
-          text = "Before implementing, write a detailed spec covering: 1) What you will build, 2) The approach and key design decisions, 3) Edge cases and error handling, 4) Test strategy. Write the spec, then implement against it."
-          """;
-    }
-
+  private static String generateSpecSkill() {
     return """
         ---
         name: spec
@@ -148,18 +137,7 @@ public final class MethodologyGenerator {
         """;
   }
 
-  private static String generateVerifySkill(AgentCli agent, Methodology methodology) {
-    if (agent == AgentCli.GEMINI) {
-      return """
-          [command]
-          description = "Run verification"
-
-          [command.prompt]
-          text = "Run the verification command: `%s`. Fix any failures before proceeding."
-          """
-          .formatted(methodology.verify());
-    }
-
+  private static String generateVerifySkill(Methodology methodology) {
     return """
         ---
         name: verify

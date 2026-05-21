@@ -430,7 +430,7 @@ class LifecycleCommandTest {
     var output = sw.toString();
     assertTrue(output.contains("--json"));
     assertTrue(output.contains("--dry-run"));
-    assertTrue(output.contains("claude-code, codex, gemini"));
+    assertTrue(output.contains("claude-code, codex"));
   }
 
   @Test

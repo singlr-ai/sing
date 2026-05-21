@@ -44,7 +44,7 @@ public enum ProjectPhase {
   SERVICES_PROVISIONED,
   /** Stale Testcontainers pruning configured via cron. */
   PRUNE_CRON_CONFIGURED,
-  /** Agent CLI tools (claude, codex, gemini) installed inside the container. */
+  /** Agent CLI tools (claude, codex) installed inside the container. */
   AGENT_TOOLS_INSTALLED,
   /** Agent context file (e.g. CLAUDE.md) generated and pushed into workspace. */
   CONTEXT_GENERATED,

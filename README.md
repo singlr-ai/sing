@@ -107,7 +107,7 @@ branch: feat/payment-integration
 ```
 
 `repo`/`repos` routes work to the right repository in multi-repo projects. `agent` routes a spec
-to a specific installed agent (`claude-code`, `codex`, or `gemini`); if omitted, dispatch uses
+to a specific installed agent (`claude-code` or `codex`); if omitted, dispatch uses
 `agent.type` from `sail.yaml`. `model` and `reasoning_effort` tune agents that support those
 controls; unsupported combinations fail fast.
 
@@ -174,17 +174,17 @@ want to retain the old index file during manual review.
 
 ## Context Generation
 
-`sail agent run` (or `sail agent context regen`) generates a complete agent environment from `sail.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`, Gemini gets `GEMINI.md`. Same content, different format.
+`sail agent run` (or `sail agent context regen`) generates a complete agent environment from `sail.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`. Same content, different format.
 
 | Generated | Purpose |
 |-----------|---------|
-| `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` | Tech stack, conventions, runtimes, services, autonomous work protocol |
+| `CLAUDE.md` / `AGENTS.md` | Tech stack, conventions, runtimes, services, autonomous work protocol |
 | `SECURITY.md` | Zero-trust principles, OWASP Top 10, input validation, secrets management |
 | `.context/` repository | Persistent knowledge across sessions (system overview, patterns, failure log) |
 | Methodology skills | `/spec` (write spec first), `/verify` (run tests and block on failures) |
 | Post-task hooks | Auto-trigger security audit and code review at spec completion |
 
-The autonomous work protocol in the context file tells the agent how to read specs, update status, and hand off — this works identically across Claude Code, Codex, and Gemini.
+The autonomous work protocol in the context file tells the agent how to read specs, update status, and hand off — this works identically across Claude Code and Codex.
 
 ### `.context/` — Institutional Memory
 
@@ -263,15 +263,14 @@ agent:
   install:
     - claude-code
     - codex
-    - gemini
   security_audit:
     enabled: true
-    # auditor: gemini     # defaults to a different agent than primary
+    # auditor: codex      # defaults to a different agent than primary
   code_review:
     enabled: true
 ```
 
-Claude, Codex, or Gemini can execute a spec. Set `agent: codex` in `spec.yaml` to override the
+Claude or Codex can execute a spec. Set `agent: codex` in `spec.yaml` to override the
 project default for that unit of work. For Codex, `model` and `reasoning_effort` map to
 `codex exec --model ... --config model_reasoning_effort=...`. The hooks fire at spec completion,
 not session stop — so reviews always see complete, coherent work.

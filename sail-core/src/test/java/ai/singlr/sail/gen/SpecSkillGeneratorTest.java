@@ -97,34 +97,6 @@ class SpecSkillGeneratorTest {
   }
 
   @Test
-  void geminiGeneratesSkillAndCommand() {
-    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
-
-    assertEquals(2, files.size());
-    assertEquals(BASE + ".gemini/skills/spec-board/SKILL.md", files.get(0).remotePath());
-    assertEquals(BASE + ".gemini/commands/spec/board.toml", files.get(1).remotePath());
-  }
-
-  @Test
-  void geminiSkillHasFrontmatter() {
-    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
-    var content = files.get(0).content();
-
-    assertTrue(content.startsWith("---\n"));
-    assertTrue(content.contains("name: spec-board"));
-  }
-
-  @Test
-  void geminiCommandTomlHasPrompt() {
-    var files = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
-    var toml = files.get(1).content();
-
-    assertTrue(toml.contains("[command]"));
-    assertTrue(toml.contains("[command.prompt]"));
-    assertTrue(toml.contains("kanban"));
-  }
-
-  @Test
   void codexReturnsEmptyFiles() {
     var files = SpecSkillGenerator.generateFiles(AgentCli.CODEX, "specs", BASE);
 
@@ -162,12 +134,8 @@ class SpecSkillGeneratorTest {
   @Test
   void filesAreNotExecutable() {
     var claudeFiles = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
-    var geminiFiles = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, "specs", BASE);
 
     for (var file : claudeFiles) {
-      assertFalse(file.executable());
-    }
-    for (var file : geminiFiles) {
       assertFalse(file.executable());
     }
   }
@@ -178,9 +146,6 @@ class SpecSkillGeneratorTest {
 
     var claude = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, customDir, BASE);
     assertTrue(claude.get(0).content().contains("work-items/<id>/spec.yaml"));
-
-    var gemini = SpecSkillGenerator.generateFiles(AgentCli.GEMINI, customDir, BASE);
-    assertTrue(gemini.get(0).content().contains("work-items/<id>/spec.yaml"));
 
     var codex = SpecSkillGenerator.codexInstructions(customDir);
     assertTrue(codex.contains("work-items/<id>/spec.yaml"));

@@ -75,29 +75,6 @@ class MethodologyGeneratorTest {
   }
 
   @Test
-  void generateFiles_gemini_usesGeminiCommandsPath() {
-    var methodology = new Methodology("spec-driven", "npm test", null);
-
-    var files =
-        MethodologyGenerator.generateFiles(AgentCli.GEMINI, methodology, "/home/dev/workspace/");
-
-    assertEquals(2, files.size());
-    assertEquals("/home/dev/workspace/.gemini/commands/spec.toml", files.get(0).remotePath());
-    assertEquals("/home/dev/workspace/.gemini/commands/verify.toml", files.get(1).remotePath());
-  }
-
-  @Test
-  void generateFiles_gemini_specSkillUsesTomlFormat() {
-    var methodology = new Methodology("spec-driven", null, null);
-
-    var files =
-        MethodologyGenerator.generateFiles(AgentCli.GEMINI, methodology, "/home/dev/workspace/");
-
-    assertTrue(files.get(0).content().contains("[command]"));
-    assertTrue(files.get(0).content().contains("description"));
-  }
-
-  @Test
   void generateMethodologyInstructions_null_returnsEmpty() {
     var result = MethodologyGenerator.generateMethodologyInstructions(null);
 

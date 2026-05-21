@@ -16,8 +16,6 @@ import java.util.List;
  *
  * <ul>
  *   <li>Claude Code: {@code .claude/skills/spec-board/SKILL.md} + supporting files
- *   <li>Gemini CLI: {@code .gemini/skills/spec-board/SKILL.md} + {@code
- *       .gemini/commands/spec/board.toml}
  *   <li>Codex: instructions embedded in {@code AGENTS.md} via {@link #codexInstructions}
  * </ul>
  */
@@ -42,7 +40,6 @@ public final class SpecSkillGenerator {
 
     return switch (agent) {
       case CLAUDE_CODE -> claudeSkillFiles(absSpecsDir, basePath);
-      case GEMINI -> geminiSkillFiles(absSpecsDir, basePath);
       case CODEX -> List.of();
     };
   }
@@ -77,19 +74,6 @@ public final class SpecSkillGenerator {
 
     files.add(new GeneratedFile(skillDir + "SKILL.md", claudeSkillMd(specsDir), false));
     files.add(new GeneratedFile(skillDir + "spec-template.md", specTemplateMd(), false));
-
-    return List.copyOf(files);
-  }
-
-  private static List<GeneratedFile> geminiSkillFiles(String specsDir, String basePath) {
-    var files = new ArrayList<GeneratedFile>();
-
-    files.add(
-        new GeneratedFile(
-            basePath + ".gemini/skills/spec-board/SKILL.md", geminiSkillMd(specsDir), false));
-    files.add(
-        new GeneratedFile(
-            basePath + ".gemini/commands/spec/board.toml", geminiCommandToml(), false));
 
     return List.copyOf(files);
   }
@@ -147,69 +131,6 @@ public final class SpecSkillGenerator {
         """;
   }
 
-  private static String geminiSkillMd(String specsDir) {
-    return """
-        ---
-        name: spec-board
-        description: >
-          Manage the project spec board — create specs, list them as a kanban board, update status,
-          show spec details. Only invoked explicitly by the engineer.
-        ---
-
-        You are the spec manager for this project. The engineer interacts with you to plan and
-        track work instead of editing YAML by hand.
-
-        ## Commands
-
-        When the engineer says "show the board", "create a spec", "update spec status", or similar:
-
-        ### List / Board View
-        """
-        + listInstructions(specsDir)
-        + """
-
-        ### Create a Spec
-        """
-        + createInstructions(specsDir)
-        + """
-
-        ### Show a Spec
-        """
-        + showInstructions(specsDir)
-        + """
-
-        ### Update Status
-        """
-        + updateInstructions(specsDir)
-        + """
-
-        ### Bulk Creation
-        """
-        + bulkCreateInstructions(specsDir)
-        + """
-
-        ## Reference
-
-        """
-        + coreReference(specsDir)
-        + """
-
-        ## Spec Template
-
-        """
-        + specTemplate();
-  }
-
-  private static String geminiCommandToml() {
-    return """
-        [command]
-        description = "Show the spec board — list all specs grouped by status"
-
-        [command.prompt]
-        text = "Scan specs/*/spec.yaml and display all specs grouped by status as a kanban board. Show columns: Pending, In Progress, Review, Done. For each spec show id, title, and dependencies."
-        """;
-  }
-
   private static String listInstructions(String specsDir) {
     return """
         Scan `%s/*/spec.yaml` and display specs grouped by status columns:
@@ -243,7 +164,7 @@ public final class SpecSkillGenerator {
            status: pending
            depends_on: []
            repo: <repo-path>
-           agent: <claude-code|codex|gemini>
+           agent: <claude-code|codex>
            model: <model-id>
            reasoning_effort: <none|low|medium|high|xhigh>
            ```
@@ -261,8 +182,8 @@ public final class SpecSkillGenerator {
         Values must match `repos[].path` in `sail.yaml`.
 
         Ask which agent should execute the spec when the project has multiple installed agents. \
-        Use `agent: codex`, `agent: claude-code`, or `agent: gemini`. If omitted, Sail uses \
-        `agent.type` from `sail.yaml`.
+        Use `agent: codex` or `agent: claude-code`. If omitted, Sail uses `agent.type` from \
+        `sail.yaml`.
 
         Ask which model and reasoning effort to use when the selected agent supports them. \
         For Codex, use `model: gpt-5.5` and `reasoning_effort: high` when the engineer wants \
@@ -345,7 +266,7 @@ public final class SpecSkillGenerator {
         - **depends_on** (optional): list of spec ids that must be done first
         - **repo** (optional): single target repository path from `sail.yaml` `repos[].path`
         - **repos** (optional): list of target repository paths for cross-repo work
-        - **agent** (optional): agent CLI for this spec (`claude-code`, `codex`, or `gemini`)
+        - **agent** (optional): agent CLI for this spec (`claude-code` or `codex`)
         - **model** (optional): model id for agents that support model selection
         - **reasoning_effort** (optional): `none`, `low`, `medium`, `high`, or `xhigh`
         - **branch** (optional): git branch name for this spec's work

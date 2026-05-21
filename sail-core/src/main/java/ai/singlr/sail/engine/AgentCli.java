@@ -17,9 +17,7 @@ public enum AgentCli {
       InstallMethod.NATIVE_SCRIPT,
       "curl -fsSL https://claude.ai/install.sh | bash",
       "CLAUDE.md"),
-  CODEX("codex", "codex", InstallMethod.NPM, "sudo npm install -g @openai/codex", "AGENTS.md"),
-  GEMINI(
-      "gemini", "gemini", InstallMethod.NPM, "sudo npm install -g @google/gemini-cli", "GEMINI.md");
+  CODEX("codex", "codex", InstallMethod.NPM, "sudo npm install -g @openai/codex", "AGENTS.md");
 
   /** How the agent CLI is installed. */
   public enum InstallMethod {
@@ -48,12 +46,12 @@ public enum AgentCli {
     this.contextFileName = contextFileName;
   }
 
-  /** The name used in sail.yaml ({@code "claude-code"}, {@code "codex"}, {@code "gemini"}). */
+  /** The name used in sail.yaml ({@code "claude-code"} or {@code "codex"}). */
   public String yamlName() {
     return yamlName;
   }
 
-  /** The CLI binary name on PATH ({@code "claude"}, {@code "codex"}, {@code "gemini"}). */
+  /** The CLI binary name on PATH ({@code "claude"} or {@code "codex"}). */
   public String binaryName() {
     return binaryName;
   }
@@ -68,7 +66,7 @@ public enum AgentCli {
     return installCommand;
   }
 
-  /** The context file name for this agent (e.g., "CLAUDE.md", "AGENTS.md", "GEMINI.md"). */
+  /** The context file name for this agent (e.g., "CLAUDE.md", "AGENTS.md"). */
   public String contextFileName() {
     return contextFileName;
   }
@@ -83,7 +81,6 @@ public enum AgentCli {
     return switch (this) {
       case CLAUDE_CODE -> "Claude Code";
       case CODEX -> "Codex CLI (@openai/codex)";
-      case GEMINI -> "Gemini CLI (@google/gemini-cli)";
     };
   }
 
@@ -130,11 +127,6 @@ public enum AgentCli {
         var perm = fullPermissions ? " --dangerously-bypass-approvals-and-sandbox" : "";
         yield binaryName + " exec" + perm + codexModelOptions(model, reasoningEffort) + " " + task;
       }
-      case GEMINI -> {
-        requireNoModelOptions(model, reasoningEffort);
-        var perm = fullPermissions ? " --yolo" : "";
-        yield binaryName + perm + " -p " + task;
-      }
     };
   }
 
@@ -149,7 +141,6 @@ public enum AgentCli {
           fullPermissions ? binaryName + " --dangerously-skip-permissions" : binaryName;
       case CODEX ->
           fullPermissions ? binaryName + " --dangerously-bypass-approvals-and-sandbox" : binaryName;
-      case GEMINI -> fullPermissions ? binaryName + " --yolo" : binaryName;
     };
   }
 
@@ -167,7 +158,7 @@ public enum AgentCli {
     throw new IllegalArgumentException(
         "Unknown agent CLI: '"
             + name
-            + "'. Known agents: claude-code, codex, gemini."
+            + "'. Known agents: claude-code, codex."
             + "\n  Check the 'install' list in your sail.yaml agent section.");
   }
 

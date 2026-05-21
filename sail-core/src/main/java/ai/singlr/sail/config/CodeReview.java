@@ -21,7 +21,7 @@ import java.util.Set;
  */
 public record CodeReview(boolean enabled, String auditor) {
 
-  private static final Set<String> KNOWN_AGENTS = Set.of("claude-code", "codex", "gemini");
+  private static final Set<String> KNOWN_AGENTS = Set.of("claude-code", "codex");
 
   public static CodeReview fromMap(Map<String, Object> map) {
     var enabled = Boolean.TRUE.equals(map.get("enabled"));

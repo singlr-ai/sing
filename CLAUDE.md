@@ -96,4 +96,4 @@ Always write modern Java — leverage JDK 25 features, never write old-style cod
 - **Services:** Postgres, Meilisearch, Redpanda run as rootless Podman containers inside the Incus container with `--restart=always`. `loginctl enable-linger` keeps them alive across reboots.
 - **Developer processes:** Application JVMs and Node dev servers are interactive — developers run them in editor terminal tabs. Not managed by `sail` or systemd.
 - **Editor:** SSH remote dev into the container. No tmux needed — editor terminal tabs persist across reconnects.
-- **AI Agent:** Agent-agnostic design. Supports Claude Code, Codex, and Gemini CLI. Container snapshots provide rollback safety. The `agent` block in `sail.yaml` declares the agent type and its config. Spec-driven workflows via `sail dispatch`.
+- **AI Agent:** Agent-agnostic design. Supports Claude Code and Codex. Container snapshots provide rollback safety. The `agent` block in `sail.yaml` declares the agent type and its config. Spec-driven workflows via `sail dispatch`.

@@ -54,9 +54,9 @@ class SecurityAuditTest {
 
   @Test
   void resolveAuditorUsesExplicitOverride() {
-    var audit = new SecurityAudit(true, "gemini");
+    var audit = new SecurityAudit(true, "codex");
 
-    assertEquals("gemini", audit.resolveAuditor("claude-code", List.of("codex", "gemini")));
+    assertEquals("codex", audit.resolveAuditor("claude-code", List.of("claude-code", "codex")));
   }
 
   @Test
@@ -70,15 +70,7 @@ class SecurityAuditTest {
   void resolveAuditorSkipsPrimaryWhenFirst() {
     var audit = new SecurityAudit(true, null);
 
-    assertEquals(
-        "codex", audit.resolveAuditor("claude-code", List.of("claude-code", "codex", "gemini")));
-  }
-
-  @Test
-  void resolveAuditorPicksFirstNonPrimaryFromMultiple() {
-    var audit = new SecurityAudit(true, null);
-
-    assertEquals("gemini", audit.resolveAuditor("claude-code", List.of("gemini", "codex")));
+    assertEquals("codex", audit.resolveAuditor("claude-code", List.of("claude-code", "codex")));
   }
 
   @Test
@@ -103,10 +95,10 @@ class SecurityAuditTest {
   }
 
   @Test
-  void resolveAuditorWithTwoNonPrimaryPicksFirst() {
+  void resolveAuditorPicksNonPrimaryWhenPrimaryNotInList() {
     var audit = new SecurityAudit(true, null);
 
-    assertEquals("codex", audit.resolveAuditor("gemini", List.of("codex", "claude-code")));
+    assertEquals("codex", audit.resolveAuditor("claude-code", List.of("codex")));
   }
 
   @Test
@@ -132,15 +124,15 @@ class SecurityAuditTest {
 
   @Test
   void resolveAuditorRejectsNotInInstallList() {
-    var audit = new SecurityAudit(true, "gemini");
+    var audit = new SecurityAudit(true, "codex");
 
     var ex =
         assertThrows(
             IllegalArgumentException.class,
-            () -> audit.resolveAuditor("claude-code", List.of("codex")));
+            () -> audit.resolveAuditor("claude-code", List.of("claude-code")));
 
     assertTrue(ex.getMessage().contains("is not in the agent install list"));
-    assertTrue(ex.getMessage().contains("Add 'gemini' to 'agent.install'"));
+    assertTrue(ex.getMessage().contains("Add 'codex' to 'agent.install'"));
   }
 
   @Test

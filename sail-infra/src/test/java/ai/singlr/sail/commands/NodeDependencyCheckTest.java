@@ -65,24 +65,13 @@ class NodeDependencyCheckTest {
   }
 
   @Test
-  void geminiWithoutNodeDetected() {
-    var config = parseConfig(YAML_GEMINI_NO_NODE);
-
-    var agents = NodeDependencyCheck.findNodeDependentAgents(config);
-
-    assertEquals(1, agents.size());
-    assertEquals(AgentCli.GEMINI, agents.getFirst());
-  }
-
-  @Test
-  void multipleNodeAgentsDetected() {
+  void singleCodexAgentDetectedTwice() {
     var config = parseConfig(YAML_MULTI_AGENT_NO_NODE);
 
     var agents = NodeDependencyCheck.findNodeDependentAgents(config);
 
-    assertEquals(2, agents.size());
-    assertTrue(agents.contains(AgentCli.CODEX));
-    assertTrue(agents.contains(AgentCli.GEMINI));
+    assertEquals(1, agents.size());
+    assertEquals(AgentCli.CODEX, agents.getFirst());
   }
 
   @Test
@@ -260,19 +249,6 @@ class NodeDependencyCheckTest {
         type: codex
       """;
 
-  private static final String YAML_GEMINI_NO_NODE =
-      """
-      name: test
-      resources:
-        cpu: 2
-        memory: 4GB
-        disk: 20GB
-      agent:
-        type: gemini
-        install:
-          - gemini
-      """;
-
   private static final String YAML_MULTI_AGENT_NO_NODE =
       """
       name: test
@@ -287,7 +263,6 @@ class NodeDependencyCheckTest {
         install:
           - claude-code
           - codex
-          - gemini
       """;
 
   private static final String YAML_CODEX_WITH_NODE =

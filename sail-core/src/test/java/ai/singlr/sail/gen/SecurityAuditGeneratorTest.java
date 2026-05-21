@@ -94,17 +94,6 @@ class SecurityAuditGeneratorTest {
   }
 
   @Test
-  void geminiHooksConfigIsValidJson() {
-    var config =
-        PostTaskHooksGenerator.generateGeminiHooksConfig("/home/dev/.sail/security-audit.sh");
-
-    assertTrue(config.contains("\"hooks\""));
-    assertTrue(config.contains("\"SessionEnd\""));
-    assertTrue(config.contains("\"post-task-audit\""));
-    assertTrue(config.contains("/home/dev/.sail/security-audit.sh"));
-  }
-
-  @Test
   void generateFilesReturnsEmptyWhenNoSecurityAudit() {
     var agent =
         new SailYaml.Agent(
@@ -182,20 +171,6 @@ class SecurityAuditGeneratorTest {
   }
 
   @Test
-  void generateFilesReturnsTwoFilesForGemini() {
-    var audit = new SecurityAudit(true, "codex");
-    var agent =
-        new SailYaml.Agent(
-            "gemini", true, "sail/", true, List.of("codex"), null, null, null, audit, null, null);
-    var config = minimalConfig(agent);
-
-    var files = SecurityAuditGenerator.generateFiles(config);
-
-    assertEquals(1, files.size());
-    assertTrue(files.get(0).remotePath().endsWith("security-audit.sh"));
-  }
-
-  @Test
   void generateFilesUsesCorrectSshUser() {
     var audit = new SecurityAudit(true, "codex");
     var agent =
@@ -266,7 +241,7 @@ class SecurityAuditGeneratorTest {
             true,
             "sail/",
             true,
-            List.of("gemini", "claude-code"),
+            List.of("codex", "claude-code"),
             null,
             null,
             null,
@@ -278,7 +253,7 @@ class SecurityAuditGeneratorTest {
     var files = SecurityAuditGenerator.generateFiles(config);
 
     assertEquals(1, files.size());
-    assertTrue(files.get(0).content().contains("gemini --print"));
+    assertTrue(files.get(0).content().contains("claude --print"));
   }
 
   @Test
@@ -369,7 +344,7 @@ class SecurityAuditGeneratorTest {
 
   @Test
   void generateFilesThrowsWhenAuditorNotInstalled() {
-    var audit = new SecurityAudit(true, "gemini");
+    var audit = new SecurityAudit(true, "claude-code");
     var agent =
         new SailYaml.Agent(
             "claude-code",
@@ -404,13 +379,6 @@ class SecurityAuditGeneratorTest {
     var path = PostTaskHooksGenerator.hooksConfigPath("codex", "dev");
 
     assertEquals("/home/dev/workspace/codex.toml", path);
-  }
-
-  @Test
-  void hooksConfigPathGemini() {
-    var path = PostTaskHooksGenerator.hooksConfigPath("gemini", "dev");
-
-    assertEquals("/home/dev/workspace/.gemini/settings.json", path);
   }
 
   @Test

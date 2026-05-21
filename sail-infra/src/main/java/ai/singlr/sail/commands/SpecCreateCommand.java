@@ -54,7 +54,7 @@ public final class SpecCreateCommand implements Runnable {
   @Option(names = "--repo", split = ",", description = "Repository path(s) this spec targets.")
   private List<String> repos;
 
-  @Option(names = "--agent", description = "Agent CLI for this spec (claude-code, codex, gemini).")
+  @Option(names = "--agent", description = "Agent CLI for this spec (claude-code, codex).")
   private String agent;
 
   @Option(names = "--model", description = "Model id for this spec.")

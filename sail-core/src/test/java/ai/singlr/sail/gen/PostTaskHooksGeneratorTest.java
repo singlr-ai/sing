@@ -105,30 +105,15 @@ class PostTaskHooksGeneratorTest {
   }
 
   @Test
-  void singleAuditProducesDirectHookForGemini() {
-    var audit = new SecurityAudit(true, "codex");
-    var agent =
-        new SailYaml.Agent(
-            "gemini", true, "sail/", true, List.of("codex"), null, null, null, audit, null, null);
-    var config = minimalConfig(agent);
-
-    var files = PostTaskHooksGenerator.generateFiles(config, Set.of());
-
-    assertEquals(1, files.size());
-    assertTrue(files.getFirst().remotePath().contains(".gemini/settings.json"));
-    assertTrue(files.getFirst().content().contains("SessionEnd"));
-  }
-
-  @Test
   void singleCodeReviewProducesDirectHook() {
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
     var agent =
         new SailYaml.Agent(
             "claude-code",
             true,
             "sail/",
             true,
-            List.of("gemini"),
+            List.of("codex"),
             null,
             null,
             null,
@@ -146,14 +131,14 @@ class PostTaskHooksGeneratorTest {
   @Test
   void bothAuditsProduceOrchestratorPlusHook() {
     var audit = new SecurityAudit(true, "codex");
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
     var agent =
         new SailYaml.Agent(
             "claude-code",
             true,
             "sail/",
             true,
-            List.of("codex", "gemini"),
+            List.of("codex"),
             null,
             null,
             null,
@@ -207,13 +192,6 @@ class PostTaskHooksGeneratorTest {
   }
 
   @Test
-  void hooksConfigPathGemini() {
-    var path = PostTaskHooksGenerator.hooksConfigPath("gemini", "dev");
-
-    assertEquals("/home/dev/workspace/.gemini/settings.json", path);
-  }
-
-  @Test
   void hooksConfigPathUnknownReturnsNull() {
     var path = PostTaskHooksGenerator.hooksConfigPath("unknown-agent", "dev");
 
@@ -237,16 +215,6 @@ class PostTaskHooksGeneratorTest {
 
     assertTrue(config.contains("[[hooks]]"));
     assertTrue(config.contains("event = \"session_stop\""));
-    assertTrue(config.contains("/home/dev/.sail/post-task.sh"));
-  }
-
-  @Test
-  void geminiHooksConfigIsValidJson() {
-    var config = PostTaskHooksGenerator.generateGeminiHooksConfig("/home/dev/.sail/post-task.sh");
-
-    assertTrue(config.contains("\"hooks\""));
-    assertTrue(config.contains("\"SessionEnd\""));
-    assertTrue(config.contains("\"post-task-audit\""));
     assertTrue(config.contains("/home/dev/.sail/post-task.sh"));
   }
 
@@ -291,14 +259,14 @@ class PostTaskHooksGeneratorTest {
   @Test
   void disabledSecurityAuditNotCollected() {
     var audit = new SecurityAudit(false, "codex");
-    var review = new CodeReview(true, "gemini");
+    var review = new CodeReview(true, "codex");
     var agent =
         new SailYaml.Agent(
             "claude-code",
             true,
             "sail/",
             true,
-            List.of("codex", "gemini"),
+            List.of("codex"),
             null,
             null,
             null,

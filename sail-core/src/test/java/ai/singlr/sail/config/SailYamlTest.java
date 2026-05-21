@@ -732,7 +732,6 @@ class SailYamlTest {
           install:
             - claude-code
             - codex
-            - gemini
         """;
     var config = SailYaml.fromMap(YamlUtil.parseMap(yaml));
 

@@ -130,7 +130,6 @@ public final class PostTaskHooksGenerator {
     return switch (primaryAgentType) {
       case "claude-code" -> generateClaudeCodeHooksConfig(stopScriptPath);
       case "codex" -> generateCodexHooksConfig(stopScriptPath);
-      case "gemini" -> generateGeminiHooksConfig(stopScriptPath);
       default -> null;
     };
   }
@@ -140,7 +139,6 @@ public final class PostTaskHooksGenerator {
     return switch (primaryAgentType) {
       case "claude-code" -> "/home/" + sshUser + "/workspace/.claude/settings.json";
       case "codex" -> "/home/" + sshUser + "/workspace/codex.toml";
-      case "gemini" -> "/home/" + sshUser + "/workspace/.gemini/settings.json";
       default -> null;
     };
   }
@@ -171,28 +169,6 @@ public final class PostTaskHooksGenerator {
         [[hooks]]
         event = "session_stop"
         command = "%s"
-        """
-        .formatted(scriptPath);
-  }
-
-  static String generateGeminiHooksConfig(String scriptPath) {
-    return """
-        {
-          "hooks": {
-            "SessionEnd": [
-              {
-                "matcher": "*",
-                "hooks": [
-                  {
-                    "name": "post-task-audit",
-                    "type": "command",
-                    "command": "%s"
-                  }
-                ]
-              }
-            ]
-          }
-        }
         """
         .formatted(scriptPath);
   }

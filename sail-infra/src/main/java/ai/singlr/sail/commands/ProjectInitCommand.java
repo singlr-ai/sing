@@ -205,8 +205,7 @@ public final class ProjectInitCommand implements Runnable {
 
     out.println();
     var agentType =
-        promptWithDefault(
-            out, ansi, "Agent type (claude-code/codex/gemini/helios/none)", "claude-code");
+        promptWithDefault(out, ansi, "Agent type (claude-code/codex/helios/none)", "claude-code");
     SailYaml.Agent agent = null;
     if (!"none".equalsIgnoreCase(agentType)) {
       List<String> install = null;
@@ -214,7 +213,7 @@ public final class ProjectInitCommand implements Runnable {
         install = new ArrayList<>();
         install.add(agentType);
         do {
-          var cli = promptRequired(out, ansi, "Agent CLI name (claude-code/codex/gemini)");
+          var cli = promptRequired(out, ansi, "Agent CLI name (claude-code/codex)");
           if (!cli.equals(agentType)) {
             install.add(cli);
           }

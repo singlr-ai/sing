@@ -310,18 +310,6 @@ class AgentSessionTest {
   }
 
   @Test
-  void buildBackgroundLaunchCommandGeminiUsesYolo() {
-    var cmd =
-        AgentSession.buildBackgroundLaunchCommand(
-            "acme", "dev", "/home/dev/workspace", true, AgentCli.GEMINI);
-
-    var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("gemini --yolo"));
-    assertTrue(joined.contains("-p"));
-    assertFalse(joined.contains("--print"));
-  }
-
-  @Test
   void buildBackgroundLaunchCommandDefaultsToClaudeCode() {
     var cmd =
         AgentSession.buildBackgroundLaunchCommand(
@@ -417,18 +405,6 @@ class AgentSessionTest {
     var second = new SailYaml.Repo("https://github.com/org/sing.git", "sing", null);
 
     assertEquals("/home/dev/workspace", AgentSession.launchWorkDir("dev", List.of(first, second)));
-  }
-
-  @Test
-  void buildForegroundTaskCommandGeminiYolo() {
-    var cmd =
-        AgentSession.buildForegroundTaskCommand(
-            "acme", "dev", "/home/dev/workspace", true, AgentCli.GEMINI);
-
-    var joined = String.join(" ", cmd);
-    assertTrue(joined.contains("gemini --yolo"));
-    assertTrue(joined.contains("-p"));
-    assertFalse(joined.contains("claude"));
   }
 
   @Test

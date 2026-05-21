@@ -22,8 +22,8 @@ import java.util.Set;
  *
  * @param ts when the event happened (UTC instant; required)
  * @param event lifecycle marker — see {@link #WELL_KNOWN_EVENTS} for sail-written names (required)
- * @param agent who emitted it — agent type ({@code claude-code}, {@code codex}, {@code gemini}) or
- *     {@code sail} for orchestrator-emitted events (required)
+ * @param agent who emitted it — agent type ({@code claude-code} or {@code codex}) or {@code sail}
+ *     for orchestrator-emitted events (required)
  * @param pid OS process id of the agent run, if known
  * @param host hostname of the machine running sail when the event was recorded (required)
  * @param note short free-form context (e.g. {@code restarted from done}); may be null

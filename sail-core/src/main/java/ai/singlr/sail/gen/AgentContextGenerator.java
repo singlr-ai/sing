@@ -13,8 +13,8 @@ import java.util.Objects;
 
 /**
  * Generates agent context files and SECURITY.md from {@link SailYaml} configuration. Produces the
- * correct context file per agent type (CLAUDE.md for Claude Code, AGENTS.md for Codex, GEMINI.md
- * for Gemini) and a shared SECURITY.md. Pure utility — no I/O, no shell execution.
+ * correct context file per agent type (CLAUDE.md for Claude Code, AGENTS.md for Codex) and a shared
+ * SECURITY.md. Pure utility — no I/O, no shell execution.
  */
 public final class AgentContextGenerator {
 
@@ -484,9 +484,8 @@ public final class AgentContextGenerator {
         work. The values must match `repos[].path` in `sail.yaml`. If a multi-repository
         project omits repo targeting, `sail spec dispatch` will not auto-create a branch.
 
-        Use `agent: codex`, `agent: claude-code`, or `agent: gemini` when a spec should run on
-        a specific installed agent. If omitted, `sail spec dispatch` uses `agent.type` from
-        `sail.yaml`.
+        Use `agent: codex` or `agent: claude-code` when a spec should run on a specific
+        installed agent. If omitted, `sail spec dispatch` uses `agent.type` from `sail.yaml`.
 
         Use `model` and `reasoning_effort` when the selected agent supports those controls. Codex
         supports both; unsupported combinations fail during dispatch instead of silently falling

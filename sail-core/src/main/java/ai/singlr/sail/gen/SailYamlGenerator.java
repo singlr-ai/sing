@@ -219,7 +219,7 @@ public final class SailYamlGenerator {
     sb.append(
         """
         # AI coding agent configuration.
-        # type: primary agent for `sail agent start` (claude-code | codex | gemini | helios)
+        # type: primary agent for `sail agent start` (claude-code | codex | helios)
         # install: agent CLIs to install during provisioning (defaults to [type] if omitted)
         agent:
         """);
