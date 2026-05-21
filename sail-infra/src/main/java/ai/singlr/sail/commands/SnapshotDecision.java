@@ -15,8 +15,8 @@ import picocli.CommandLine.Help.Ansi;
 /**
  * Resolves whether to take a snapshot before a state-mutating command (dispatch, agent launch, run)
  * and runs the snapshot with progress feedback. The CLI uses {@code --snapshot} / {@code
- * --no-snapshot} (picocli {@code negatable = true}) to override the inherited default from {@code
- * sail.yaml}'s {@code agent.auto_snapshot}.
+ * --no-snapshot} (picocli {@code negatable = true}) to skip the prompt; without those flags the
+ * user is always prompted in interactive mode.
  */
 final class SnapshotDecision {
 
@@ -24,16 +24,16 @@ final class SnapshotDecision {
 
   /**
    * Returns true if a snapshot should be taken now. {@code override} is the value of {@code
-   * --snapshot} / {@code --no-snapshot} ({@code null} means neither was passed). When neither flag
-   * is set: if {@code agent.auto_snapshot} is true in YAML, snapshot silently; otherwise prompt the
-   * user (defaults to no), and skip silently in non-interactive mode (JSON output or piped stdin).
+   * --snapshot} / {@code --no-snapshot} ({@code null} means neither was passed). When no override
+   * is set the user is prompted (defaults to no); non-interactive mode (JSON output or piped stdin)
+   * skips silently. The {@code agent.auto_snapshot} setting in {@code sail.yaml} is no longer
+   * consulted — snapshotting is fully opt-in per-dispatch via the flag.
+   *
+   * @param config kept for API consistency across call sites; currently unused
    */
   static boolean shouldSnapshot(Boolean override, SailYaml config, boolean json) {
     if (override != null) {
       return override;
-    }
-    if (config != null && config.agent() != null && config.agent().autoSnapshot()) {
-      return true;
     }
     if (json) {
       return false;

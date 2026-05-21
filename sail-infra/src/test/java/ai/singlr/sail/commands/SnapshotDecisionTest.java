@@ -41,8 +41,11 @@ class SnapshotDecisionTest {
   }
 
   @Test
-  void inheritWithAutoSnapshotYamlSnapshotsSilently() {
-    assertTrue(SnapshotDecision.shouldSnapshot(null, configWithAutoSnapshot(true), false));
+  void yamlAutoSnapshotDoesNotBypassPrompt() {
+    ConsoleHelper.resetStdin();
+    System.setIn(new java.io.ByteArrayInputStream(new byte[0]));
+
+    assertFalse(SnapshotDecision.shouldSnapshot(null, configWithAutoSnapshot(true), false));
   }
 
   @Test

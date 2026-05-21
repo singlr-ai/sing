@@ -73,7 +73,7 @@ public final class DispatchCommand implements Runnable {
       negatable = true,
       description =
           "Take a container snapshot before dispatch. Use --no-snapshot to skip. If neither is"
-              + " passed, prompts interactively unless agent.auto_snapshot is true in sail.yaml.")
+              + " passed, prompts interactively (defaults to no); skips silently in --json mode.")
   private Boolean snapshot;
 
   @Option(
