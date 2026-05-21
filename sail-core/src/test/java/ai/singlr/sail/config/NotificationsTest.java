@@ -89,6 +89,44 @@ class NotificationsTest {
   }
 
   @Test
+  void legacyAgentExitedAliasMatchesNewAgentSessionStopped() {
+    var n = new Notifications("https://ntfy.sh/test", List.of("agent_exited"));
+
+    assertTrue(n.shouldNotify("agent_session_stopped"));
+    assertTrue(n.shouldNotify("agent_exited"));
+  }
+
+  @Test
+  void legacySessionDoneAliasMatchesNewAgentSessionCompleted() {
+    var n = new Notifications("https://ntfy.sh/test", List.of("session_done"));
+
+    assertTrue(n.shouldNotify("agent_session_completed"));
+    assertTrue(n.shouldNotify("session_done"));
+  }
+
+  @Test
+  void newBusTypesValidateAndFilter() {
+    var n =
+        new Notifications("https://ntfy.sh/test", List.of("spec_dispatched", "snapshot_created"));
+
+    assertTrue(n.shouldNotify("spec_dispatched"));
+    assertTrue(n.shouldNotify("snapshot_created"));
+    assertFalse(n.shouldNotify("spec_restarted"));
+  }
+
+  @Test
+  void fromMapAcceptsNewBusEventNames() {
+    assertDoesNotThrow(
+        () ->
+            Notifications.fromMap(
+                Map.of(
+                    "url",
+                    "https://ntfy.sh/test",
+                    "events",
+                    List.of("spec_dispatched", "agent_session_started"))));
+  }
+
+  @Test
   void fromMapRejectsFileScheme() {
     var ex =
         assertThrows(

@@ -18,6 +18,7 @@ public final class SailApiServer implements AutoCloseable {
   private final EventBus eventBus;
   private final AuditPersister auditPersister;
   private final EventBus.Subscription persisterSubscription;
+  private final EventBus.Subscription webhookSubscription;
   private final SseHandler sseHandler;
 
   public SailApiServer(String host, int port, ApiOperations operations, String token)
@@ -41,6 +42,8 @@ public final class SailApiServer implements AutoCloseable {
     this.auditPersister = auditPersister;
     this.persisterSubscription =
         eventBus != null && auditPersister != null ? eventBus.subscribe(auditPersister) : null;
+    this.webhookSubscription =
+        eventBus != null ? eventBus.subscribe(WebhookReactor.withDefaultResolver()) : null;
     server = HttpServer.create(new InetSocketAddress(host, port), 32);
     executor = Executors.newVirtualThreadPerTaskExecutor();
     var auth = new BearerAuth(token);
@@ -79,6 +82,9 @@ public final class SailApiServer implements AutoCloseable {
 
   @Override
   public void close() {
+    if (webhookSubscription != null) {
+      webhookSubscription.close();
+    }
     if (persisterSubscription != null) {
       persisterSubscription.close();
     }

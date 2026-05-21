@@ -21,9 +21,31 @@ import java.util.Set;
  */
 public record Notifications(String url, List<String> events) {
 
-  /** Known event types that can trigger notifications. */
+  /**
+   * Known event types that can trigger notifications. Includes both legacy names (kept for
+   * backwards-compatibility with existing sail.yaml files) and the new bus event types that flow
+   * through the EventBus.
+   */
   public static final Set<String> VALID_EVENTS =
-      Set.of("guardrail_triggered", "agent_exited", "session_done");
+      Set.of(
+          "guardrail_triggered",
+          "agent_exited",
+          "session_done",
+          "spec_dispatched",
+          "spec_restarted",
+          "agent_session_started",
+          "agent_session_stopped",
+          "agent_session_completed",
+          "snapshot_created");
+
+  /**
+   * Legacy alias names that map to current bus event type names. {@link #shouldNotify(String)}
+   * accepts either form so users with old configs do not need to migrate.
+   */
+  private static final Map<String, String> LEGACY_ALIAS_OF =
+      Map.of(
+          "agent_session_stopped", "agent_exited",
+          "agent_session_completed", "session_done");
 
   @SuppressWarnings("unchecked")
   public static Notifications fromMap(Map<String, Object> map) {
@@ -58,9 +80,20 @@ public record Notifications(String url, List<String> events) {
     return map;
   }
 
-  /** Returns true if the given event should trigger a notification. */
+  /**
+   * Returns true if the given event should trigger a notification. Accepts either the current bus
+   * event-type name or its legacy alias when one exists, so configs declared with the old
+   * vocabulary (for example {@code agent_exited}) continue to fire for the new bus events.
+   */
   public boolean shouldNotify(String event) {
-    return events == null || events.isEmpty() || events.contains(event);
+    if (events == null || events.isEmpty()) {
+      return true;
+    }
+    if (events.contains(event)) {
+      return true;
+    }
+    var legacy = LEGACY_ALIAS_OF.get(event);
+    return legacy != null && events.contains(legacy);
   }
 
   /**
