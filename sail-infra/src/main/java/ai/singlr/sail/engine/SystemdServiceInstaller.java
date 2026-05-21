@@ -156,7 +156,7 @@ public final class SystemdServiceInstaller {
         RestartSec=2
         LimitNOFILE=4096
         RuntimeDirectory=sail
-        RuntimeDirectoryMode=0750
+        RuntimeDirectoryMode=0755
 
         [Install]
         WantedBy=%s

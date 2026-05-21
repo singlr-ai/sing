@@ -139,6 +139,9 @@ class SystemdServiceInstallerTest {
     assertTrue(unit.contains("WantedBy=default.target"));
     assertTrue(unit.contains("LimitNOFILE=4096"));
     assertTrue(unit.contains("RuntimeDirectory=sail"));
+    assertTrue(
+        unit.contains("RuntimeDirectoryMode=0755"),
+        "0755 is required so UID-mapped container processes can traverse /run/sail/");
     assertFalse(unit.contains("User=root"), "USER mode unit must not pin User=root");
   }
 
@@ -391,6 +394,7 @@ class SystemdServiceInstallerTest {
     assertTrue(
         unit.contains("ExecStart=" + SAIL_BINARY + " api --host " + HOST + " --port " + PORT));
     assertTrue(unit.contains("RuntimeDirectory=sail"));
+    assertTrue(unit.contains("RuntimeDirectoryMode=0755"));
   }
 
   @Test
