@@ -101,16 +101,33 @@ public final class SailPaths {
   }
 
   /**
-   * Path of the event-ingress Unix domain socket. Located under {@code $XDG_RUNTIME_DIR/sail/} so
-   * the parent directory's lifecycle is owned by systemd ({@code RuntimeDirectory=sail}); falls
-   * back to {@code ~/.sail/api.sock} for development environments without {@code XDG_RUNTIME_DIR}.
+   * Path of the event-ingress Unix domain socket. Resolution order:
+   *
+   * <ol>
+   *   <li>Running as {@code root} → {@code /run/sail/api.sock} (system-level systemd creates the
+   *       parent via {@code RuntimeDirectory=sail} on the {@code sail-api.service} unit).
+   *   <li>{@code $XDG_RUNTIME_DIR} is set → {@code $XDG_RUNTIME_DIR/sail/api.sock} (user-level
+   *       systemd creates the parent via the same directive on the user unit).
+   *   <li>Fallback for dev environments without {@code XDG_RUNTIME_DIR} → {@code ~/.sail/api.sock}.
+   * </ol>
    */
   public static Path apiSocketPath() {
-    var runtimeDir = System.getenv("XDG_RUNTIME_DIR");
-    if (runtimeDir != null && !runtimeDir.isBlank()) {
-      return Path.of(runtimeDir, "sail", "api.sock");
+    return apiSocketPath(isRoot(), System.getenv("XDG_RUNTIME_DIR"));
+  }
+
+  /** Pure resolver; visible for tests so the lookup can be exercised without running as root. */
+  static Path apiSocketPath(boolean root, String xdgRuntimeDir) {
+    if (root) {
+      return Path.of("/run/sail/api.sock");
+    }
+    if (xdgRuntimeDir != null && !xdgRuntimeDir.isBlank()) {
+      return Path.of(xdgRuntimeDir, "sail", "api.sock");
     }
     return SAIL_DIR.resolve("api.sock");
+  }
+
+  private static boolean isRoot() {
+    return "root".equals(ProcessHandle.current().info().user().orElse(""));
   }
 
   /** Container-side mount point for {@link #apiSocketPath()}. Same on every project. */

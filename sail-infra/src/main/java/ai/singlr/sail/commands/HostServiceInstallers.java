@@ -10,15 +10,23 @@ import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SystemdServiceInstaller;
 import java.nio.file.Path;
 
-/** Construction helpers for {@link SystemdServiceInstaller}; centralizes default arguments. */
+/**
+ * Construction helpers for {@link SystemdServiceInstaller}; centralizes default arguments and picks
+ * the install mode based on whether the invoking process is root.
+ */
 final class HostServiceInstallers {
 
   private HostServiceInstallers() {}
 
   static SystemdServiceInstaller create(
       ShellExecutor shell, String bindHost, int bindPort, String username) {
+    var mode =
+        ConsoleHelper.isRoot()
+            ? SystemdServiceInstaller.Mode.SYSTEM
+            : SystemdServiceInstaller.Mode.USER;
     return new SystemdServiceInstaller(
         shell,
+        mode,
         Path.of(System.getProperty("user.home")),
         SailPaths.binaryPath(),
         bindHost,

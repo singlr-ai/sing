@@ -7,6 +7,7 @@ package ai.singlr.sail.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.engine.SystemdServiceInstaller.Mode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,11 +21,22 @@ class SystemdServiceInstallerTest {
   private static final int PORT = 7070;
   private static final String USER = "dev";
 
+  // --------------------- constructor validation ---------------------
+
   @Test
   void constructorRejectsNullShell(@TempDir Path home) {
     assertThrows(
         NullPointerException.class,
-        () -> new SystemdServiceInstaller(null, home, SAIL_BINARY, HOST, PORT, USER));
+        () -> new SystemdServiceInstaller(null, Mode.USER, home, SAIL_BINARY, HOST, PORT, USER));
+  }
+
+  @Test
+  void constructorRejectsNullMode(@TempDir Path home) {
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new SystemdServiceInstaller(
+                new ScriptedShellExecutor(), null, home, SAIL_BINARY, HOST, PORT, USER));
   }
 
   @Test
@@ -33,7 +45,7 @@ class SystemdServiceInstallerTest {
         NullPointerException.class,
         () ->
             new SystemdServiceInstaller(
-                new ScriptedShellExecutor(), null, SAIL_BINARY, HOST, PORT, USER));
+                new ScriptedShellExecutor(), Mode.USER, null, SAIL_BINARY, HOST, PORT, USER));
   }
 
   @Test
@@ -41,7 +53,8 @@ class SystemdServiceInstallerTest {
     assertThrows(
         NullPointerException.class,
         () ->
-            new SystemdServiceInstaller(new ScriptedShellExecutor(), home, null, HOST, PORT, USER));
+            new SystemdServiceInstaller(
+                new ScriptedShellExecutor(), Mode.USER, home, null, HOST, PORT, USER));
   }
 
   @Test
@@ -50,7 +63,7 @@ class SystemdServiceInstallerTest {
         IllegalArgumentException.class,
         () ->
             new SystemdServiceInstaller(
-                new ScriptedShellExecutor(), home, SAIL_BINARY, "", PORT, USER));
+                new ScriptedShellExecutor(), Mode.USER, home, SAIL_BINARY, "", PORT, USER));
   }
 
   @Test
@@ -59,12 +72,12 @@ class SystemdServiceInstallerTest {
         IllegalArgumentException.class,
         () ->
             new SystemdServiceInstaller(
-                new ScriptedShellExecutor(), home, SAIL_BINARY, HOST, 0, USER));
+                new ScriptedShellExecutor(), Mode.USER, home, SAIL_BINARY, HOST, 0, USER));
     assertThrows(
         IllegalArgumentException.class,
         () ->
             new SystemdServiceInstaller(
-                new ScriptedShellExecutor(), home, SAIL_BINARY, HOST, 70000, USER));
+                new ScriptedShellExecutor(), Mode.USER, home, SAIL_BINARY, HOST, 70000, USER));
   }
 
   @Test
@@ -73,34 +86,32 @@ class SystemdServiceInstallerTest {
         IllegalArgumentException.class,
         () ->
             new SystemdServiceInstaller(
-                new ScriptedShellExecutor(), home, SAIL_BINARY, HOST, PORT, " "));
+                new ScriptedShellExecutor(), Mode.USER, home, SAIL_BINARY, HOST, PORT, " "));
   }
 
-  @Test
-  void serviceFileLivesUnderDotSail(@TempDir Path home) {
-    var installer = installer(home);
-
-    assertEquals(home.resolve(".sail/services/sail-api.service"), installer.serviceFilePath());
-  }
+  // --------------------- USER mode: paths + isInstalled ---------------------
 
   @Test
-  void systemdLinkLivesUnderConfigSystemdUser(@TempDir Path home) {
-    var installer = installer(home);
-
+  void userModeServiceFileLivesUnderDotSail(@TempDir Path home) {
     assertEquals(
-        home.resolve(".config/systemd/user/sail-api.service"), installer.systemdLinkPath());
+        home.resolve(".sail/services/sail-api.service"), userInstaller(home).serviceFilePath());
   }
 
   @Test
-  void isInstalledIsFalseInitially(@TempDir Path home) {
-    var installer = installer(home);
-
-    assertFalse(installer.isInstalled());
+  void userModeSystemdLinkLivesUnderConfigSystemdUser(@TempDir Path home) {
+    assertEquals(
+        home.resolve(".config/systemd/user/sail-api.service"),
+        userInstaller(home).systemdLinkPath());
   }
 
   @Test
-  void isInstalledRequiresBothFileAndSymlink(@TempDir Path home) throws Exception {
-    var installer = installer(home);
+  void userModeIsInstalledIsFalseInitially(@TempDir Path home) {
+    assertFalse(userInstaller(home).isInstalled());
+  }
+
+  @Test
+  void userModeIsInstalledRequiresBothFileAndSymlink(@TempDir Path home) throws Exception {
+    var installer = userInstaller(home);
     Files.createDirectories(installer.serviceFilePath().getParent());
     Files.writeString(installer.serviceFilePath(), "x");
 
@@ -112,10 +123,15 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void renderUnitContainsExecStartAndPort(@TempDir Path home) {
-    var installer = installer(home);
+  void userModeReportsModeUser(@TempDir Path home) {
+    assertEquals(Mode.USER, userInstaller(home).mode());
+  }
 
-    var unit = installer.renderUnit();
+  // --------------------- USER mode: unit rendering ---------------------
+
+  @Test
+  void userModeUnitContainsExecStartAndPortAndDefaultTarget(@TempDir Path home) {
+    var unit = userInstaller(home).renderUnit();
 
     assertTrue(
         unit.contains("ExecStart=" + SAIL_BINARY + " api --host " + HOST + " --port " + PORT));
@@ -123,12 +139,15 @@ class SystemdServiceInstallerTest {
     assertTrue(unit.contains("WantedBy=default.target"));
     assertTrue(unit.contains("LimitNOFILE=4096"));
     assertTrue(unit.contains("RuntimeDirectory=sail"));
+    assertFalse(unit.contains("User=root"), "USER mode unit must not pin User=root");
   }
 
+  // --------------------- USER mode: install / uninstall ---------------------
+
   @Test
-  void installWritesUnitUnderDotSailAndCreatesSymlink(@TempDir Path home) throws Exception {
+  void userModeInstallWritesUnitUnderDotSailAndCreatesSymlink(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    var installer = installer(home, shell);
+    var installer = userInstaller(home, shell);
 
     installer.install();
 
@@ -143,9 +162,9 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void installReplacesExistingSymlink(@TempDir Path home) throws Exception {
+  void userModeInstallReplacesExistingSymlink(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    var installer = installer(home, shell);
+    var installer = userInstaller(home, shell);
     Files.createDirectories(installer.systemdLinkPath().getParent());
     Files.createSymbolicLink(installer.systemdLinkPath(), home.resolve("stale-target"));
 
@@ -156,29 +175,25 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void installThrowsWhenDaemonReloadFails(@TempDir Path home) {
+  void userModeInstallThrowsWhenDaemonReloadFails(@TempDir Path home) {
     var shell = new ScriptedShellExecutor().onFail("daemon-reload", "no D-Bus");
-    var installer = installer(home, shell);
-
-    var ex = assertThrows(IOException.class, installer::install);
+    var ex = assertThrows(IOException.class, () -> userInstaller(home, shell).install());
     assertTrue(ex.getMessage().contains("reload"));
     assertTrue(ex.getMessage().contains("no D-Bus"));
   }
 
   @Test
-  void installThrowsWhenEnableFails(@TempDir Path home) {
+  void userModeInstallThrowsWhenEnableFails(@TempDir Path home) {
     var shell =
         new ScriptedShellExecutor().onOk("daemon-reload").onFail("enable --now", "unit not found");
-    var installer = installer(home, shell);
-
-    var ex = assertThrows(IOException.class, installer::install);
+    var ex = assertThrows(IOException.class, () -> userInstaller(home, shell).install());
     assertTrue(ex.getMessage().contains("enable+start"));
   }
 
   @Test
-  void uninstallStopsDisablesRemovesAndReloads(@TempDir Path home) throws Exception {
+  void userModeUninstallStopsDisablesRemovesAndReloads(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    var installer = installer(home, shell);
+    var installer = userInstaller(home, shell);
     Files.createDirectories(installer.serviceFilePath().getParent());
     Files.writeString(installer.serviceFilePath(), "old content");
     Files.createDirectories(installer.systemdLinkPath().getParent());
@@ -194,44 +209,47 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void uninstallSwallowsDisableFailureToStayIdempotent(@TempDir Path home) throws Exception {
+  void userModeUninstallSwallowsDisableFailureToStayIdempotent(@TempDir Path home)
+      throws Exception {
     var shell =
         new ScriptedShellExecutor().onFail("disable --now", "not loaded").onOk("daemon-reload");
-    var installer = installer(home, shell);
-
-    installer.uninstall();
+    userInstaller(home, shell).uninstall();
   }
 
+  // --------------------- USER mode: start / stop / restart ---------------------
+
   @Test
-  void startInvokesSystemctlStart(@TempDir Path home) throws Exception {
+  void userModeStartInvokesSystemctlStart(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    installer(home, shell).start();
+    userInstaller(home, shell).start();
     assertEquals("systemctl --user start sail-api.service", shell.invocations().getFirst());
   }
 
   @Test
-  void startPropagatesFailure(@TempDir Path home) {
+  void userModeStartPropagatesFailure(@TempDir Path home) {
     var shell = new ScriptedShellExecutor().onFail("start sail-api", "boom");
-    var ex = assertThrows(IOException.class, () -> installer(home, shell).start());
+    var ex = assertThrows(IOException.class, () -> userInstaller(home, shell).start());
     assertTrue(ex.getMessage().contains("Failed to start"));
   }
 
   @Test
-  void stopInvokesSystemctlStop(@TempDir Path home) throws Exception {
+  void userModeStopInvokesSystemctlStop(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    installer(home, shell).stop();
+    userInstaller(home, shell).stop();
     assertEquals("systemctl --user stop sail-api.service", shell.invocations().getFirst());
   }
 
   @Test
-  void restartInvokesSystemctlRestart(@TempDir Path home) throws Exception {
+  void userModeRestartInvokesSystemctlRestart(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
-    installer(home, shell).restart();
+    userInstaller(home, shell).restart();
     assertEquals("systemctl --user restart sail-api.service", shell.invocations().getFirst());
   }
 
+  // --------------------- USER mode: status ---------------------
+
   @Test
-  void statusParsesShowOutput(@TempDir Path home) throws Exception {
+  void userModeStatusParsesShowOutput(@TempDir Path home) throws Exception {
     var output =
         """
         LoadState=loaded
@@ -241,7 +259,7 @@ class SystemdServiceInstallerTest {
         """;
     var shell = new ScriptedShellExecutor().onOk("systemctl --user show", output);
 
-    var status = installer(home, shell).status();
+    var status = userInstaller(home, shell).status();
 
     assertEquals("loaded", status.loadState());
     assertEquals("active", status.activeState());
@@ -251,10 +269,10 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void statusFillsUnknownWhenFieldsMissing(@TempDir Path home) throws Exception {
+  void userModeStatusFillsUnknownWhenFieldsMissing(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("systemctl --user show", "");
 
-    var status = installer(home, shell).status();
+    var status = userInstaller(home, shell).status();
 
     assertEquals("unknown", status.loadState());
     assertEquals("unknown", status.activeState());
@@ -263,19 +281,15 @@ class SystemdServiceInstallerTest {
   }
 
   @Test
-  void statusZeroPidTreatedAsNull(@TempDir Path home) throws Exception {
+  void userModeStatusZeroPidTreatedAsNull(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("systemctl --user show", "MainPID=0\n");
-
-    var status = installer(home, shell).status();
-
-    assertNull(status.pid());
+    assertNull(userInstaller(home, shell).status().pid());
   }
 
   @Test
-  void statusGarbagePidTreatedAsNull(@TempDir Path home) throws Exception {
+  void userModeStatusGarbagePidTreatedAsNull(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("systemctl --user show", "MainPID=abc\n");
-
-    assertNull(installer(home, shell).status().pid());
+    assertNull(userInstaller(home, shell).status().pid());
   }
 
   @Test
@@ -286,73 +300,174 @@ class SystemdServiceInstallerTest {
                 "systemctl --user show",
                 "ActiveState=inactive\nSubState=dead\nMainPID=0\nLoadState=loaded\n");
 
-    assertFalse(installer(home, shell).status().running());
+    assertFalse(userInstaller(home, shell).status().running());
   }
 
+  // --------------------- USER mode: journal + linger ---------------------
+
   @Test
-  void journalReturnsStdout(@TempDir Path home) throws Exception {
+  void userModeJournalReturnsStdout(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("journalctl --user", "log line 1\nlog line 2\n");
 
-    assertEquals("log line 1\nlog line 2\n", installer(home, shell).journal(100));
+    assertEquals("log line 1\nlog line 2\n", userInstaller(home, shell).journal(100));
   }
 
   @Test
   void journalRejectsZeroLines(@TempDir Path home) {
-    assertThrows(IllegalArgumentException.class, () -> installer(home).journal(0));
+    assertThrows(IllegalArgumentException.class, () -> userInstaller(home).journal(0));
   }
 
   @Test
   void journalRejectsNegativeLines(@TempDir Path home) {
-    assertThrows(IllegalArgumentException.class, () -> installer(home).journal(-1));
+    assertThrows(IllegalArgumentException.class, () -> userInstaller(home).journal(-1));
   }
 
   @Test
-  void journalThrowsOnFailure(@TempDir Path home) {
+  void userModeJournalThrowsOnFailure(@TempDir Path home) {
     var shell = new ScriptedShellExecutor().onFail("journalctl", "permission denied");
 
-    var ex = assertThrows(IOException.class, () -> installer(home, shell).journal(50));
+    var ex = assertThrows(IOException.class, () -> userInstaller(home, shell).journal(50));
     assertTrue(ex.getMessage().contains("permission denied"));
   }
 
   @Test
-  void lingerStatusParsesLoginctlValue(@TempDir Path home) throws Exception {
+  void userModeLingerStatusParsesLoginctlValue(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("loginctl show-user", "yes\n");
-
-    assertEquals("yes", installer(home, shell).lingerStatus());
+    assertEquals("yes", userInstaller(home, shell).lingerStatus());
   }
 
   @Test
-  void lingerStatusReturnsUnknownOnFailure(@TempDir Path home) throws Exception {
+  void userModeLingerStatusReturnsUnknownOnFailure(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onFail("loginctl show-user", "no such user");
-
-    assertEquals("unknown", installer(home, shell).lingerStatus());
+    assertEquals("unknown", userInstaller(home, shell).lingerStatus());
   }
 
   @Test
-  void isLingerEnabledTrueForYes(@TempDir Path home) throws Exception {
+  void userModeIsLingerEnabledTrueForYes(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("loginctl show-user", "yes\n");
-
-    assertTrue(installer(home, shell).isLingerEnabled());
+    assertTrue(userInstaller(home, shell).isLingerEnabled());
   }
 
   @Test
-  void isLingerEnabledFalseForNo(@TempDir Path home) throws Exception {
+  void userModeIsLingerEnabledFalseForNo(@TempDir Path home) throws Exception {
     var shell = new ScriptedShellExecutor().onOk("loginctl show-user", "no\n");
-
-    assertFalse(installer(home, shell).isLingerEnabled());
+    assertFalse(userInstaller(home, shell).isLingerEnabled());
   }
 
   @Test
-  void enableLingerCommandContainsUsername(@TempDir Path home) {
-    assertTrue(installer(home).enableLingerCommand().contains(USER));
-    assertTrue(installer(home).enableLingerCommand().startsWith("sudo loginctl enable-linger"));
+  void userModeEnableLingerCommandContainsUsername(@TempDir Path home) {
+    assertTrue(userInstaller(home).enableLingerCommand().contains(USER));
+    assertTrue(userInstaller(home).enableLingerCommand().startsWith("sudo loginctl enable-linger"));
   }
 
-  private static SystemdServiceInstaller installer(Path home) {
-    return installer(home, new ScriptedShellExecutor());
+  // --------------------- SYSTEM mode ---------------------
+
+  @Test
+  void systemModeServiceFileLivesUnderEtcSystemd(@TempDir Path home) {
+    assertEquals(
+        Path.of("/etc/systemd/system/sail-api.service"), systemInstaller(home).serviceFilePath());
   }
 
-  private static SystemdServiceInstaller installer(Path home, ShellExec shell) {
-    return new SystemdServiceInstaller(shell, home, SAIL_BINARY, HOST, PORT, USER);
+  @Test
+  void systemModeHasNoSystemdLink(@TempDir Path home) {
+    assertNull(
+        systemInstaller(home).systemdLinkPath(),
+        "system-level unit is already on systemd's search path");
+  }
+
+  @Test
+  void systemModeIsInstalledFalseWhenUnitMissing(@TempDir Path home) {
+    // We never write to /etc/systemd/system in tests; this confirms the no-symlink-required
+    // branch still gates on the unit file existing.
+    assertFalse(systemInstaller(home).isInstalled());
+  }
+
+  @Test
+  void systemModeUnitContainsUserRootAndMultiUserTarget(@TempDir Path home) {
+    var unit = systemInstaller(home).renderUnit();
+
+    assertTrue(unit.contains("User=root"));
+    assertTrue(unit.contains("WantedBy=multi-user.target"));
+    assertTrue(
+        unit.contains("ExecStart=" + SAIL_BINARY + " api --host " + HOST + " --port " + PORT));
+    assertTrue(unit.contains("RuntimeDirectory=sail"));
+  }
+
+  @Test
+  void systemModeReportsModeSystem(@TempDir Path home) {
+    assertEquals(Mode.SYSTEM, systemInstaller(home).mode());
+  }
+
+  @Test
+  void systemModeSystemctlCommandsOmitUserFlag(@TempDir Path home) throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
+    var installer = systemInstallerWithFile(home, shell);
+
+    installer.start();
+    installer.stop();
+    installer.restart();
+
+    var cmds = shell.invocations();
+    assertEquals("systemctl start sail-api.service", cmds.get(0));
+    assertEquals("systemctl stop sail-api.service", cmds.get(1));
+    assertEquals("systemctl restart sail-api.service", cmds.get(2));
+  }
+
+  @Test
+  void systemModeJournalOmitsUserFlag(@TempDir Path home) throws Exception {
+    var shell = new ScriptedShellExecutor().onOk("journalctl", "log\n");
+
+    systemInstallerWithFile(home, shell).journal(20);
+
+    var cmd = shell.invocations().getFirst();
+    assertTrue(cmd.startsWith("journalctl -u sail-api.service"), "actual: " + cmd);
+    assertFalse(cmd.contains("--user"));
+  }
+
+  @Test
+  void systemModeLingerStatusIsNotApplicable(@TempDir Path home) throws Exception {
+    assertEquals("n/a", systemInstaller(home).lingerStatus());
+  }
+
+  @Test
+  void systemModeIsLingerEnabledAlwaysTrue(@TempDir Path home) throws Exception {
+    assertTrue(systemInstaller(home).isLingerEnabled());
+  }
+
+  @Test
+  void systemModeEnableLingerCommandIsEmpty(@TempDir Path home) {
+    assertEquals("", systemInstaller(home).enableLingerCommand());
+  }
+
+  // --------------------- helpers ---------------------
+
+  private static SystemdServiceInstaller userInstaller(Path home) {
+    return userInstaller(home, new ScriptedShellExecutor());
+  }
+
+  private static SystemdServiceInstaller userInstaller(Path home, ShellExec shell) {
+    return new SystemdServiceInstaller(shell, Mode.USER, home, SAIL_BINARY, HOST, PORT, USER);
+  }
+
+  /**
+   * SYSTEM-mode installer with the unit file path redirected under the test's @TempDir, so we can
+   * exercise install/uninstall paths without writing to {@code /etc/systemd/system} on the host.
+   * Only used by tests that touch the filesystem; pure-rendering tests use {@link
+   * #systemInstaller}.
+   */
+  private static SystemdServiceInstaller systemInstallerWithFile(Path home) {
+    return systemInstallerWithFile(home, new ScriptedShellExecutor());
+  }
+
+  private static SystemdServiceInstaller systemInstallerWithFile(Path home, ShellExec shell) {
+    return systemInstaller(home, shell);
+  }
+
+  private static SystemdServiceInstaller systemInstaller(Path home) {
+    return systemInstaller(home, new ScriptedShellExecutor());
+  }
+
+  private static SystemdServiceInstaller systemInstaller(Path home, ShellExec shell) {
+    return new SystemdServiceInstaller(shell, Mode.SYSTEM, home, SAIL_BINARY, HOST, PORT, USER);
   }
 }

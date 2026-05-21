@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import ai.singlr.sail.engine.ShellExecutor;
+import ai.singlr.sail.engine.SystemdServiceInstaller;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -15,7 +16,9 @@ import picocli.CommandLine.Spec;
 @Command(
     name = "install",
     description =
-        "Install the sail-api systemd user service so the API runs as a persistent daemon.",
+        "Install the sail-api systemd service so the API runs as a persistent daemon. Mode is"
+            + " picked automatically: system-level (/etc/systemd/system) when invoked as root,"
+            + " user-level (~/.config/systemd/user) otherwise.",
     mixinStandardHelpOptions = true)
 public final class HostServiceInstallCommand implements Runnable {
 
@@ -36,25 +39,31 @@ public final class HostServiceInstallCommand implements Runnable {
   }
 
   private void execute() throws Exception {
-    if (ConsoleHelper.isRoot()) {
-      throw new IllegalStateException(
-          "Do not run 'sail host service install' as root. Run as your dev user — systemd user"
-              + " units belong to the invoking user.");
-    }
     var shell = new ShellExecutor(dryRun);
     var username = HostServiceInstallers.currentUsername();
     var installer = HostServiceInstallers.create(shell, host, port, username);
 
     installer.install();
 
+    var modeLabel =
+        installer.mode() == SystemdServiceInstaller.Mode.SYSTEM ? "system-level" : "user-level";
     System.out.println(
-        Ansi.AUTO.string("  @|bold,green ✓|@ Installed " + installer.serviceFilePath()));
-    System.out.println(
-        Ansi.AUTO.string("    @|faint Linked at " + installer.systemdLinkPath() + "|@"));
+        Ansi.AUTO.string(
+            "  @|bold,green ✓|@ Installed "
+                + installer.serviceFilePath()
+                + " @|faint ("
+                + modeLabel
+                + ")|@"));
+    if (installer.systemdLinkPath() != null) {
+      System.out.println(
+          Ansi.AUTO.string("    @|faint Linked at " + installer.systemdLinkPath() + "|@"));
+    }
     System.out.println(
         Ansi.AUTO.string("    @|bold ExecStart:|@ sail api --host " + host + " --port " + port));
 
-    if (!dryRun && !installer.isLingerEnabled()) {
+    if (!dryRun
+        && installer.mode() == SystemdServiceInstaller.Mode.USER
+        && !installer.isLingerEnabled()) {
       System.out.println();
       System.out.println(
           Ansi.AUTO.string(
