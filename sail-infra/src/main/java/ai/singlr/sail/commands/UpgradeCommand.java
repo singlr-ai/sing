@@ -12,6 +12,8 @@ import ai.singlr.sail.engine.PlatformDetector;
 import ai.singlr.sail.engine.ReleaseFetcher;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.SemVer;
+import ai.singlr.sail.engine.ShellExecutor;
+import ai.singlr.sail.engine.SystemdServiceInstaller;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -154,7 +156,7 @@ public final class UpgradeCommand implements Runnable {
     }
 
     if (!json) {
-      System.out.println(Banner.stepLine(3, 3, "Installing to " + binaryPath + "...", Ansi.AUTO));
+      System.out.println(Banner.stepLine(3, 4, "Installing to " + binaryPath + "...", Ansi.AUTO));
     }
     if (dryRun) {
       System.out.println("[dry-run] Write new binary to " + binaryPath);
@@ -166,16 +168,110 @@ public final class UpgradeCommand implements Runnable {
       Files.move(
           tmpPath, binaryPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
       if (!json) {
-        System.out.println(Banner.stepDoneLine(3, 3, "Installed", Ansi.AUTO));
+        System.out.println(Banner.stepDoneLine(3, 4, "Installed", Ansi.AUTO));
       }
     }
 
+    var restartStatus = restartSailApi(dryRun);
+
     if (json) {
-      printJsonResult(currentVersion, latestVersionStr, "upgraded", binaryPath.toString());
+      printJsonResult(
+          currentVersion, latestVersionStr, "upgraded", binaryPath.toString(), restartStatus);
     } else {
       System.out.println();
       System.out.println(
           Ansi.AUTO.string("  @|bold,green \u2713 Upgraded to sail " + latestVersionStr + "|@"));
+    }
+  }
+
+  /**
+   * Detects whether {@code sail-api.service} is installed (system- or user-level depending on who's
+   * invoking this command) and restarts it if it was active so the new binary takes effect
+   * immediately. Returns a short status string for the JSON payload. Failures are logged but never
+   * fatal \u2014 the binary install already succeeded.
+   */
+  private RestartStatus restartSailApi(boolean dryRun) {
+    var stepNum = 4;
+    var totalSteps = 4;
+    if (dryRun) {
+      if (!json) {
+        System.out.println(
+            Banner.stepLine(stepNum, totalSteps, "Restart sail-api if running...", Ansi.AUTO));
+        System.out.println(
+            "[dry-run] Would probe + restart sail-api.service via systemctl when installed.");
+      }
+      return RestartStatus.DRY_RUN;
+    }
+    if (!json) {
+      System.out.println(Banner.stepLine(stepNum, totalSteps, "Restarting sail-api...", Ansi.AUTO));
+    }
+    try {
+      var shell = new ShellExecutor(false);
+      var installer =
+          HostServiceInstallers.create(
+              shell, "127.0.0.1", 7070, HostServiceInstallers.currentUsername());
+      if (!installer.isInstalled()) {
+        if (!json) {
+          System.out.println(
+              Banner.stepDoneLine(
+                  stepNum, totalSteps, "sail-api not installed; nothing to restart", Ansi.AUTO));
+        }
+        return RestartStatus.NOT_INSTALLED;
+      }
+      var status = installer.status();
+      if (!status.running()) {
+        if (!json) {
+          System.out.println(
+              Banner.stepDoneLine(
+                  stepNum,
+                  totalSteps,
+                  "sail-api is installed but not running; left as-is",
+                  Ansi.AUTO));
+        }
+        return RestartStatus.NOT_RUNNING;
+      }
+      installer.restart();
+      if (!json) {
+        var modeLabel =
+            installer.mode() == SystemdServiceInstaller.Mode.SYSTEM ? "system-level" : "user-level";
+        System.out.println(
+            Banner.stepDoneLine(
+                stepNum,
+                totalSteps,
+                "Restarted sail-api (" + modeLabel + ") on the new binary",
+                Ansi.AUTO));
+      }
+      return RestartStatus.RESTARTED;
+    } catch (Exception e) {
+      if (!json) {
+        System.err.println(
+            Banner.errorLine(
+                "sail-api restart failed: "
+                    + e.getMessage()
+                    + ". The new binary is on disk; restart manually with:"
+                    + " 'systemctl restart sail-api' (or 'systemctl --user restart sail-api').",
+                Ansi.AUTO));
+      }
+      return RestartStatus.FAILED;
+    }
+  }
+
+  /** Lifecycle outcome for the {@code sail-api} restart step. */
+  private enum RestartStatus {
+    NOT_INSTALLED("not_installed"),
+    NOT_RUNNING("not_running"),
+    RESTARTED("restarted"),
+    FAILED("failed"),
+    DRY_RUN("dry_run");
+
+    private final String wireValue;
+
+    RestartStatus(String wireValue) {
+      this.wireValue = wireValue;
+    }
+
+    String wireValue() {
+      return wireValue;
     }
   }
 
@@ -198,7 +294,8 @@ public final class UpgradeCommand implements Runnable {
     }
   }
 
-  private void printJsonResult(String from, String to, String status, String path) {
+  private void printJsonResult(
+      String from, String to, String status, String path, RestartStatus restart) {
     var map = new LinkedHashMap<String, Object>();
     map.put("status", status);
     map.put("from", from);
@@ -206,7 +303,14 @@ public final class UpgradeCommand implements Runnable {
     if (path != null) {
       map.put("path", path);
     }
+    if (restart != null) {
+      map.put("service_restart", restart.wireValue());
+    }
     System.out.println(YamlUtil.dumpJson(map));
+  }
+
+  private void printJsonResult(String from, String to, String status, String path) {
+    printJsonResult(from, to, status, path, null);
   }
 
   /** Re-executes the current command with sudo, inheriting stdin/stdout/stderr. */
