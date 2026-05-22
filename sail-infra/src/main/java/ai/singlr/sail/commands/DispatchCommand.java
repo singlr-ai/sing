@@ -5,6 +5,9 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.api.Event;
+import ai.singlr.sail.api.SailEventPublisher;
+import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecAuditEvent;
@@ -27,7 +30,9 @@ import ai.singlr.sail.engine.SpecAudit;
 import ai.singlr.sail.engine.SpecWorkspace;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
@@ -91,6 +96,8 @@ public final class DispatchCommand implements Runnable {
   private String file;
 
   @picocli.CommandLine.Spec private CommandSpec commandSpec;
+
+  private SailEventPublisher eventPublisher;
 
   @Override
   public void run() {
@@ -160,7 +167,8 @@ public final class DispatchCommand implements Runnable {
               + name);
     }
 
-    var nextSpec = resolveSpec(specId, restart, specs, specWorkspace, specAudit, host);
+    var resolution = resolveSpec(specId, restart, specs, specWorkspace, specAudit, host);
+    var nextSpec = resolution.spec();
     if (nextSpec == null) {
       printNoSpecs();
       return;
@@ -169,8 +177,20 @@ public final class DispatchCommand implements Runnable {
     var agentType = nextSpec.agent() != null ? nextSpec.agent() : config.agent().type();
     var targetRepos = DispatchRepos.resolve(config, nextSpec, repoOverrides);
     var taskSpec = withTargetRepos(nextSpec, targetRepos);
+    var branchName = BranchPolicy.branchName(config, nextSpec);
     specWorkspace.updateStatus(nextSpec.id(), "in_progress");
     specAudit.append(nextSpec.id(), SpecAuditEvent.dispatched(agentType, host, null));
+
+    if (resolution.restarted()) {
+      publishLifecycle(
+          Event.WellKnownTypes.SPEC_RESTARTED,
+          nextSpec.id(),
+          Map.of("note", "restarted from " + resolution.previousStatus()));
+    }
+    publishLifecycle(
+        Event.WellKnownTypes.SPEC_DISPATCHED,
+        nextSpec.id(),
+        dispatchedEventData(branchName, background));
 
     var specBody = Objects.requireNonNullElse(specWorkspace.readSpecBody(nextSpec.id()), "");
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
@@ -200,17 +220,14 @@ public final class DispatchCommand implements Runnable {
     var workDir = AgentSession.launchWorkDir(sshUser, targetRepos);
     var fullPermissions = true;
 
-    String branchName = null;
-
     if (!dryRun && SnapshotDecision.shouldSnapshot(snapshot, config, json)) {
       var snapMgr = new SnapshotManager(shell);
       var label = SnapshotManager.defaultLabel();
       SnapshotDecision.create(System.out, snapMgr, name, label, json);
+      publishLifecycle(Event.WellKnownTypes.SNAPSHOT_CREATED, null, Map.of("label", label));
     }
 
-    if (config.agent().autoBranch()) {
-      var prefix = config.agent().branchPrefix() != null ? config.agent().branchPrefix() : "sail/";
-      branchName = nextSpec.branch() != null ? nextSpec.branch() : prefix + nextSpec.id();
+    if (branchName != null) {
       var created = 0;
       for (var repo : targetRepos) {
         var repoDir = branchRepoDir(workDir, targetRepos, repo);
@@ -315,14 +332,37 @@ public final class DispatchCommand implements Runnable {
   }
 
   /**
+   * Outcome of {@link #resolveSpec}: the chosen spec, whether {@code --restart} actually reset a
+   * non-pending status (so the caller can publish a {@code spec_restarted} event), and the status
+   * the spec held just before the reset.
+   *
+   * @param spec the resolved spec, or {@code null} when there is no ready spec to dispatch
+   * @param restarted {@code true} iff {@code --restart} actually reset a non-pending status
+   * @param previousStatus the status the spec held before the reset; {@code null} when {@code
+   *     restarted} is {@code false}
+   */
+  record SpecResolution(Spec spec, boolean restarted, String previousStatus) {
+    static SpecResolution none() {
+      return new SpecResolution(null, false, null);
+    }
+
+    static SpecResolution of(Spec spec) {
+      return new SpecResolution(spec, false, null);
+    }
+
+    static SpecResolution restarted(Spec spec, String previousStatus) {
+      return new SpecResolution(spec, true, previousStatus);
+    }
+  }
+
+  /**
    * Picks the spec to dispatch. Enforces that {@code --spec} only targets pending specs unless
    * {@code --restart} is set, in which case the spec's status is reset to {@code pending} and a
-   * {@code restarted} audit event is appended.
-   *
-   * @return the spec to dispatch, or {@code null} when no {@code --spec} is given and no pending
-   *     spec is ready
+   * {@code restarted} audit event is appended. Returns a {@link SpecResolution} so the caller can
+   * distinguish "picked next pending" from "reset a non-pending spec" without re-querying the
+   * workspace.
    */
-  static Spec resolveSpec(
+  static SpecResolution resolveSpec(
       String specId,
       boolean restart,
       List<Spec> specs,
@@ -331,14 +371,15 @@ public final class DispatchCommand implements Runnable {
       String host)
       throws Exception {
     if (specId == null) {
-      return SpecDirectory.nextReady(specs);
+      var next = SpecDirectory.nextReady(specs);
+      return next == null ? SpecResolution.none() : SpecResolution.of(next);
     }
     var found = SpecDirectory.findById(specs, specId);
     if (found == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
     if ("pending".equals(found.status())) {
-      return found;
+      return SpecResolution.of(found);
     }
     if (!restart) {
       throw new IllegalStateException(
@@ -354,7 +395,61 @@ public final class DispatchCommand implements Runnable {
         specId,
         SpecAuditEvent.restarted(
             SpecAuditEvent.SAIL_AGENT, host, "restarted from " + found.status()));
-    return found;
+    return SpecResolution.restarted(found, found.status());
+  }
+
+  /**
+   * Publishes a lifecycle {@link Event} to the running sail-api so SSE subscribers, webhook
+   * reactors, and the audit JSONL all see the same dispatch story regardless of which surface (CLI
+   * or HTTP) kicked it off. Failures are non-fatal: a sail-api outage must not block the dispatch
+   * itself, since {@code spec.yaml} + {@code audit.jsonl} are the source of truth. Dry-run skips
+   * publishing entirely because no real state change happened.
+   */
+  private void publishLifecycle(String type, String specId, Map<String, Object> data) {
+    if (dryRun) {
+      return;
+    }
+    try {
+      if (eventPublisher == null) {
+        eventPublisher = SailEventPublisher.localDefault();
+      }
+      eventPublisher.publish(
+          Event.of(name, specId, type, Event.SAIL_AGENT, HostInfo.hostname(), data));
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      warnLifecyclePublishFailed(type, e);
+    } catch (Exception e) {
+      warnLifecyclePublishFailed(type, e);
+    }
+  }
+
+  private void warnLifecyclePublishFailed(String type, Exception cause) {
+    if (json) {
+      return;
+    }
+    System.err.println(
+        Banner.errorLine(
+            "Could not publish "
+                + type
+                + " event ("
+                + cause.getMessage()
+                + "). sail-api may be unreachable; the dispatch itself is unaffected and"
+                + " audit.jsonl is authoritative.",
+            Ansi.AUTO));
+  }
+
+  /**
+   * Builds the {@code spec_dispatched} data payload. Order matches the HTTP path in {@code
+   * SailApiOperations#publishDispatched} so a downstream consumer sees the same field ordering
+   * regardless of which surface initiated the dispatch.
+   */
+  static Map<String, Object> dispatchedEventData(String branchName, boolean background) {
+    var data = new LinkedHashMap<String, Object>();
+    if (branchName != null && !branchName.isBlank()) {
+      data.put("branch", branchName);
+    }
+    data.put("mode", background ? "background" : "foreground");
+    return data;
   }
 
   private void ensureSailSetup(ShellExecutor shell, String container) {

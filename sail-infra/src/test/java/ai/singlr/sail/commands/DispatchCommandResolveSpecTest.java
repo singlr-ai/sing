@@ -31,21 +31,24 @@ class DispatchCommandResolveSpecTest {
     var workspace = workspace(new ScriptedShellExecutor());
     var audit = audit(new ScriptedShellExecutor());
 
-    var picked = DispatchCommand.resolveSpec(null, false, specs, workspace, audit, HOST);
+    var resolution = DispatchCommand.resolveSpec(null, false, specs, workspace, audit, HOST);
 
-    assertNotNull(picked);
-    assertEquals("oauth-flow", picked.id());
+    assertNotNull(resolution.spec());
+    assertEquals("oauth-flow", resolution.spec().id());
+    assertFalse(resolution.restarted());
+    assertNull(resolution.previousStatus());
   }
 
   @Test
-  void autoSelectReturnsNullWhenNoPendingSpecs() throws Exception {
+  void autoSelectReturnsNullSpecWhenNoPendingSpecs() throws Exception {
     var specs = List.of(specWith("done-spec", "done"));
     var workspace = workspace(new ScriptedShellExecutor());
     var audit = audit(new ScriptedShellExecutor());
 
-    var picked = DispatchCommand.resolveSpec(null, false, specs, workspace, audit, HOST);
+    var resolution = DispatchCommand.resolveSpec(null, false, specs, workspace, audit, HOST);
 
-    assertNull(picked);
+    assertNull(resolution.spec());
+    assertFalse(resolution.restarted());
   }
 
   @Test
@@ -54,9 +57,11 @@ class DispatchCommandResolveSpecTest {
     var workspace = workspace(new ScriptedShellExecutor());
     var audit = audit(new ScriptedShellExecutor());
 
-    var picked = DispatchCommand.resolveSpec("oauth-flow", false, specs, workspace, audit, HOST);
+    var resolution =
+        DispatchCommand.resolveSpec("oauth-flow", false, specs, workspace, audit, HOST);
 
-    assertEquals("oauth-flow", picked.id());
+    assertEquals("oauth-flow", resolution.spec().id());
+    assertFalse(resolution.restarted());
   }
 
   @Test
@@ -64,11 +69,12 @@ class DispatchCommandResolveSpecTest {
     var specs = List.of(specWith("oauth-flow", "pending"));
     var shell = new ScriptedShellExecutor();
 
-    var picked =
+    var resolution =
         DispatchCommand.resolveSpec(
             "oauth-flow", true, specs, workspace(shell), audit(shell), HOST);
 
-    assertEquals("oauth-flow", picked.id());
+    assertEquals("oauth-flow", resolution.spec().id());
+    assertFalse(resolution.restarted(), "pending spec already pending — nothing to restart");
     assertTrue(shell.invocations().isEmpty(), "pending spec + --restart should be a no-op");
   }
 
@@ -132,9 +138,14 @@ class DispatchCommandResolveSpecTest {
     var workspace = workspace(shell);
     var audit = audit(shell);
 
-    var picked = DispatchCommand.resolveSpec("oauth-flow", true, specs, workspace, audit, HOST);
+    var resolution = DispatchCommand.resolveSpec("oauth-flow", true, specs, workspace, audit, HOST);
 
-    assertEquals("oauth-flow", picked.id());
+    assertEquals("oauth-flow", resolution.spec().id());
+    assertTrue(resolution.restarted(), "non-pending spec + --restart must mark restarted=true");
+    assertEquals(
+        "in_progress",
+        resolution.previousStatus(),
+        "previousStatus must carry the pre-reset status so the caller can publish spec_restarted");
     var cmds = shell.invocations();
     var sawWriteMetadata =
         cmds.stream().anyMatch(c -> c.contains("printf '%s' ") && c.contains("spec.yaml"));

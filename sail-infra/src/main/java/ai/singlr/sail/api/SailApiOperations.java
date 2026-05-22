@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.api;
 
+import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecDirectory;
@@ -590,11 +591,7 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   private static String branchName(SailYaml config, Spec spec) {
-    if (config.agent() == null || !config.agent().autoBranch()) {
-      return "";
-    }
-    var prefix = config.agent().branchPrefix() != null ? config.agent().branchPrefix() : "sail/";
-    return spec.branch() != null ? spec.branch() : prefix + spec.id();
+    return BranchPolicy.branchName(config, spec);
   }
 
   private String createSnapshotIfNeeded(String project, SailYaml config) {
