@@ -119,6 +119,7 @@
                                 <buildArg>--no-fallback</buildArg>
                                 <buildArg>-march=compatibility</buildArg>
                                 <buildArg>-H:+AddAllCharsets</buildArg>
+                                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
                             </buildArgs>
                         </configuration>
                     </plugin>
