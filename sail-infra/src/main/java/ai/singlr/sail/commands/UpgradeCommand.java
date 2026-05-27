@@ -309,7 +309,7 @@ public final class UpgradeCommand implements Runnable {
           }
         }
       }
-    } catch (Exception e) {
+    } catch (Throwable e) {
       if (!json) {
         System.err.println(
             "    Database migration skipped: "
