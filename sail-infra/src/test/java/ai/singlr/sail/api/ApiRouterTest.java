@@ -537,6 +537,121 @@ class ApiRouterTest {
     assertEquals("audit", stats.subscribers().getFirst().name());
   }
 
+  @Test
+  void globalSpecsListReturnsEmptyArray() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"specs\": []"));
+      assertTrue(response.body().contains("\"total\": 0"));
+    }
+  }
+
+  @Test
+  void globalSpecsListAcceptsFilterParams() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs?status=pending&assignee=uday&q=auth", "token");
+      assertEquals(200, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecCreateReturns201() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/specs",
+              "token",
+              "{\"id\": \"auth\", \"title\": \"OAuth flow\", \"status\": \"draft\"}");
+      assertEquals(201, response.statusCode());
+      assertTrue(response.body().contains("\"id\": \"auth\""));
+      assertTrue(response.body().contains("\"title\": \"OAuth flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecGetReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"id\": \"auth-flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecUpdateReturns200() throws Exception {
+    try (var server = server()) {
+      var response = put(server, "/v1/specs/auth-flow", "token", "{\"title\": \"Updated\"}");
+      assertEquals(200, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecDeleteReturns200() throws Exception {
+    try (var server = server()) {
+      var response = delete(server, "/v1/specs/auth-flow", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"deleted\": true"));
+    }
+  }
+
+  @Test
+  void globalSpecContentGetReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow/content", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"spec_id\": \"auth-flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecContentSetReturns200() throws Exception {
+    try (var server = server()) {
+      var response =
+          put(
+              server,
+              "/v1/specs/auth-flow/content",
+              "token",
+              "{\"body\": \"# Spec\", \"plan\": \"## Plan\"}");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"body\": \"# Spec\""));
+    }
+  }
+
+  @Test
+  void globalSpecBoardReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/board", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"pending\": 0"));
+    }
+  }
+
+  @Test
+  void globalSpecsRequireAuth() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs", null);
+      assertEquals(401, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecInvalidIdReturns422() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/Bad_Name!", "token");
+      assertEquals(422, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecPostMethodNotAllowedOnDetail() throws Exception {
+    try (var server = server()) {
+      var response = post(server, "/v1/specs/auth-flow", "token", "{}");
+      assertEquals(405, response.statusCode());
+    }
+  }
+
   private static SailApiServer server() throws IOException {
     var server = new SailApiServer("127.0.0.1", 0, new FakeOperations(), "token");
     server.start();
@@ -558,6 +673,29 @@ class ApiRouterTest {
         HttpRequest.newBuilder(uri(server, path))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (token != null) {
+      builder.header("Authorization", "Bearer " + token);
+    }
+    return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static HttpResponse<String> put(
+      SailApiServer server, String path, String token, String body) throws Exception {
+    var builder =
+        HttpRequest.newBuilder(uri(server, path))
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(body));
+    if (token != null) {
+      builder.header("Authorization", "Bearer " + token);
+    }
+    return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static HttpResponse<String> delete(SailApiServer server, String path, String token)
+      throws Exception {
+    var builder =
+        HttpRequest.newBuilder(uri(server, path))
+            .method("DELETE", HttpRequest.BodyPublishers.noBody());
     if (token != null) {
       builder.header("Authorization", "Bearer " + token);
     }
