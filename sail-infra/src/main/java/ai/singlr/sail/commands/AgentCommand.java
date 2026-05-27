@@ -15,6 +15,8 @@ import picocli.CommandLine.Command;
       AgentLaunchCommand.class,
       RunCommand.class,
       AgentAttachCommand.class,
+      AgentStreamCommand.class,
+      AgentSessionsCommand.class,
       AgentStatusCommand.class,
       AgentStopCommand.class,
       AgentLogCommand.class,

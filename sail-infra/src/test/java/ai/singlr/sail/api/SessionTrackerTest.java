@@ -127,6 +127,36 @@ class SessionTrackerTest {
   }
 
   @Test
+  void startedWithStringPid() {
+    tracker.onEvent(
+        Event.of(
+            "proj",
+            null,
+            Event.WellKnownTypes.AGENT_SESSION_STARTED,
+            "codex",
+            "host",
+            Map.of("pid", "9999")));
+
+    var session = sessionStore.latestForProject("proj").orElseThrow();
+    assertEquals(9999, session.pid());
+  }
+
+  @Test
+  void startedWithInvalidPid() {
+    tracker.onEvent(
+        Event.of(
+            "proj",
+            null,
+            Event.WellKnownTypes.AGENT_SESSION_STARTED,
+            "codex",
+            "host",
+            Map.of("pid", "not-a-number")));
+
+    var session = sessionStore.latestForProject("proj").orElseThrow();
+    assertNull(session.pid());
+  }
+
+  @Test
   void startedWithMinimalData() {
     tracker.onEvent(
         Event.of("proj", null, Event.WellKnownTypes.AGENT_SESSION_STARTED, "codex", "host"));
