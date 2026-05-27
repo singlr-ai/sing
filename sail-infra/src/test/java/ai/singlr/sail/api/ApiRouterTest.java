@@ -537,6 +537,121 @@ class ApiRouterTest {
     assertEquals("audit", stats.subscribers().getFirst().name());
   }
 
+  @Test
+  void globalSpecsListReturnsEmptyArray() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"specs\": []"));
+      assertTrue(response.body().contains("\"total\": 0"));
+    }
+  }
+
+  @Test
+  void globalSpecsListAcceptsFilterParams() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs?status=pending&assignee=uday&q=auth", "token");
+      assertEquals(200, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecCreateReturns201() throws Exception {
+    try (var server = server()) {
+      var response =
+          post(
+              server,
+              "/v1/specs",
+              "token",
+              "{\"id\": \"auth\", \"title\": \"OAuth flow\", \"status\": \"draft\"}");
+      assertEquals(201, response.statusCode());
+      assertTrue(response.body().contains("\"id\": \"auth\""));
+      assertTrue(response.body().contains("\"title\": \"OAuth flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecGetReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"id\": \"auth-flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecUpdateReturns200() throws Exception {
+    try (var server = server()) {
+      var response = put(server, "/v1/specs/auth-flow", "token", "{\"title\": \"Updated\"}");
+      assertEquals(200, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecDeleteReturns200() throws Exception {
+    try (var server = server()) {
+      var response = delete(server, "/v1/specs/auth-flow", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"deleted\": true"));
+    }
+  }
+
+  @Test
+  void globalSpecContentGetReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow/content", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"spec_id\": \"auth-flow\""));
+    }
+  }
+
+  @Test
+  void globalSpecContentSetReturns200() throws Exception {
+    try (var server = server()) {
+      var response =
+          put(
+              server,
+              "/v1/specs/auth-flow/content",
+              "token",
+              "{\"body\": \"# Spec\", \"plan\": \"## Plan\"}");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"body\": \"# Spec\""));
+    }
+  }
+
+  @Test
+  void globalSpecBoardReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/board", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"pending\": 0"));
+    }
+  }
+
+  @Test
+  void globalSpecsRequireAuth() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs", null);
+      assertEquals(401, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecInvalidIdReturns422() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/Bad_Name!", "token");
+      assertEquals(422, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecPostMethodNotAllowedOnDetail() throws Exception {
+    try (var server = server()) {
+      var response = post(server, "/v1/specs/auth-flow", "token", "{}");
+      assertEquals(405, response.statusCode());
+    }
+  }
+
   private static SailApiServer server() throws IOException {
     var server = new SailApiServer("127.0.0.1", 0, new FakeOperations(), "token");
     server.start();
@@ -558,6 +673,29 @@ class ApiRouterTest {
         HttpRequest.newBuilder(uri(server, path))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (token != null) {
+      builder.header("Authorization", "Bearer " + token);
+    }
+    return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static HttpResponse<String> put(
+      SailApiServer server, String path, String token, String body) throws Exception {
+    var builder =
+        HttpRequest.newBuilder(uri(server, path))
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(body));
+    if (token != null) {
+      builder.header("Authorization", "Bearer " + token);
+    }
+    return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static HttpResponse<String> delete(SailApiServer server, String path, String token)
+      throws Exception {
+    var builder =
+        HttpRequest.newBuilder(uri(server, path))
+            .method("DELETE", HttpRequest.BodyPublishers.noBody());
     if (token != null) {
       builder.header("Authorization", "Bearer " + token);
     }
@@ -702,6 +840,98 @@ class ApiRouterTest {
     @Override
     public Result<EventBusStatsResponse> eventBusStats() {
       return Result.success(new EventBusStatsResponse(0L, 0L, java.util.List.of()));
+    }
+
+    @Override
+    public Result<GlobalSpecsListResponse> globalSpecs(
+        ai.singlr.sail.store.SpecStore.SpecFilter filter) {
+      return Result.success(new GlobalSpecsListResponse(java.util.List.of(), 0));
+    }
+
+    @Override
+    public Result<GlobalSpecDetailResponse> globalSpec(String specId) {
+      return Result.success(
+          new GlobalSpecDetailResponse(
+              new GlobalSpecView(
+                  specId,
+                  "Test",
+                  "pending",
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  java.util.List.of(),
+                  java.util.List.of(),
+                  null,
+                  "",
+                  ""),
+              null,
+              null));
+    }
+
+    @Override
+    public Result<GlobalSpecCreatedResponse> createGlobalSpec(SpecCreateRequest request) {
+      return Result.success(
+          new GlobalSpecCreatedResponse(
+              new GlobalSpecView(
+                  request.id(),
+                  request.title(),
+                  request.status(),
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  java.util.List.of(),
+                  java.util.List.of(),
+                  null,
+                  "",
+                  "")));
+    }
+
+    @Override
+    public Result<GlobalSpecUpdatedResponse> updateGlobalSpec(
+        String specId, SpecUpdateRequest request) {
+      return Result.success(
+          new GlobalSpecUpdatedResponse(
+              new GlobalSpecView(
+                  specId,
+                  "Updated",
+                  "pending",
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  java.util.List.of(),
+                  java.util.List.of(),
+                  null,
+                  "",
+                  "")));
+    }
+
+    @Override
+    public Result<GlobalSpecDeletedResponse> deleteGlobalSpec(String specId) {
+      return Result.success(new GlobalSpecDeletedResponse(specId));
+    }
+
+    @Override
+    public Result<GlobalSpecContentResponse> globalSpecContent(String specId) {
+      return Result.success(new GlobalSpecContentResponse(specId, "", ""));
+    }
+
+    @Override
+    public Result<GlobalSpecContentResponse> setGlobalSpecContent(
+        String specId, SpecContentRequest request) {
+      return Result.success(new GlobalSpecContentResponse(specId, request.body(), request.plan()));
+    }
+
+    @Override
+    public Result<GlobalBoardResponse> globalBoard() {
+      return Result.success(
+          new GlobalBoardResponse(
+              new ai.singlr.sail.store.SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null)));
     }
   }
 

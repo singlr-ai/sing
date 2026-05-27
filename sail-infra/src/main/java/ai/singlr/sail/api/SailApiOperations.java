@@ -26,6 +26,7 @@ import ai.singlr.sail.engine.ShellExec;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SnapshotManager;
 import ai.singlr.sail.engine.SpecWorkspace;
+import ai.singlr.sail.store.SpecStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +49,7 @@ public final class SailApiOperations implements ApiOperations {
   private final WatcherLauncher watcherLauncher;
   private final EventBus eventBus;
   private final AuditPersister auditPersister;
+  private final SpecStore specStore;
 
   public SailApiOperations() {
     this(new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR);
@@ -64,7 +66,23 @@ public final class SailApiOperations implements ApiOperations {
   /** Construct with explicit event-bus wiring; used by {@link SailApiServer}. */
   public SailApiOperations(
       ShellExec shell, String file, EventBus eventBus, AuditPersister auditPersister) {
-    this(shell, file, SailApiOperations::launchWatcherProcess, eventBus, auditPersister);
+    this(shell, file, SailApiOperations::launchWatcherProcess, eventBus, auditPersister, null);
+  }
+
+  /** Construct with database-backed spec store; used by the control plane server. */
+  public SailApiOperations(
+      ShellExec shell,
+      String file,
+      EventBus eventBus,
+      EventSubscriber auditSubscriber,
+      SpecStore specStore) {
+    this(
+        shell,
+        file,
+        SailApiOperations::launchWatcherProcess,
+        eventBus,
+        auditSubscriber instanceof AuditPersister ap ? ap : null,
+        specStore);
   }
 
   SailApiOperations(
@@ -73,11 +91,22 @@ public final class SailApiOperations implements ApiOperations {
       WatcherLauncher watcherLauncher,
       EventBus eventBus,
       AuditPersister auditPersister) {
+    this(shell, file, watcherLauncher, eventBus, auditPersister, null);
+  }
+
+  SailApiOperations(
+      ShellExec shell,
+      String file,
+      WatcherLauncher watcherLauncher,
+      EventBus eventBus,
+      AuditPersister auditPersister,
+      SpecStore specStore) {
     this.shell = shell;
     this.file = file;
     this.watcherLauncher = watcherLauncher;
     this.eventBus = eventBus;
     this.auditPersister = auditPersister;
+    this.specStore = specStore;
   }
 
   @Override
@@ -861,6 +890,183 @@ public final class SailApiOperations implements ApiOperations {
       return e.failure().asFailure();
     } catch (Exception e) {
       return Result.failure(ErrorCode.INTERNAL, "sail API operation failed.", e);
+    }
+  }
+
+  @Override
+  public Result<GlobalSpecsListResponse> globalSpecs(SpecStore.SpecFilter filter) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          var specs = specStore.list(filter).stream().map(GlobalSpecView::from).toList();
+          return new GlobalSpecsListResponse(specs, specs.size());
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecDetailResponse> globalSpec(String specId) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          var row =
+              specStore
+                  .findById(specId)
+                  .orElseThrow(
+                      () ->
+                          new ApiException(
+                              ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
+          var content = specStore.getContent(specId).orElse(null);
+          return new GlobalSpecDetailResponse(
+              GlobalSpecView.from(row),
+              content != null ? content.body() : null,
+              content != null ? content.plan() : null);
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecCreatedResponse> createGlobalSpec(SpecCreateRequest request) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          if (request.id() == null || request.id().isBlank()) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "spec id is required.");
+          }
+          if (request.title() == null || request.title().isBlank()) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "spec title is required.");
+          }
+          NameValidator.requireValidSpecId(request.id());
+          var row =
+              new SpecStore.SpecRow(
+                  request.id(),
+                  request.title(),
+                  request.status(),
+                  request.assignee(),
+                  request.agent(),
+                  request.model(),
+                  request.reasoningEffort(),
+                  request.branch(),
+                  request.priority(),
+                  null,
+                  "",
+                  "",
+                  request.dependsOn(),
+                  request.repos());
+          specStore.create(row);
+          if (request.body() != null || request.plan() != null) {
+            specStore.setContent(
+                request.id(),
+                Objects.requireNonNullElse(request.body(), ""),
+                Objects.requireNonNullElse(request.plan(), ""));
+          }
+          var created = specStore.findById(request.id()).orElseThrow();
+          return new GlobalSpecCreatedResponse(GlobalSpecView.from(created));
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecUpdatedResponse> updateGlobalSpec(
+      String specId, SpecUpdateRequest request) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          var existing =
+              specStore
+                  .findById(specId)
+                  .orElseThrow(
+                      () ->
+                          new ApiException(
+                              ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
+          var updated =
+              new SpecStore.SpecRow(
+                  specId,
+                  request.title() != null ? request.title() : existing.title(),
+                  request.status() != null ? request.status() : existing.status(),
+                  request.assignee() != null ? request.assignee() : existing.assignee(),
+                  request.agent() != null ? request.agent() : existing.agent(),
+                  request.model() != null ? request.model() : existing.model(),
+                  request.reasoningEffort() != null
+                      ? request.reasoningEffort()
+                      : existing.reasoningEffort(),
+                  request.branch() != null ? request.branch() : existing.branch(),
+                  request.priority() != null ? request.priority() : existing.priority(),
+                  existing.createdBy(),
+                  existing.createdAt(),
+                  existing.updatedAt(),
+                  request.dependsOn() != null ? request.dependsOn() : existing.dependsOn(),
+                  request.repos() != null ? request.repos() : existing.repos());
+          specStore.update(updated);
+          var result = specStore.findById(specId).orElseThrow();
+          return new GlobalSpecUpdatedResponse(GlobalSpecView.from(result));
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecDeletedResponse> deleteGlobalSpec(String specId) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          specStore
+              .findById(specId)
+              .orElseThrow(
+                  () ->
+                      new ApiException(
+                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
+          specStore.delete(specId);
+          return new GlobalSpecDeletedResponse(specId);
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecContentResponse> globalSpecContent(String specId) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          specStore
+              .findById(specId)
+              .orElseThrow(
+                  () ->
+                      new ApiException(
+                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
+          var content = specStore.getContent(specId).orElse(new SpecStore.SpecContent("", "", ""));
+          return new GlobalSpecContentResponse(specId, content.body(), content.plan());
+        });
+  }
+
+  @Override
+  public Result<GlobalSpecContentResponse> setGlobalSpecContent(
+      String specId, SpecContentRequest request) {
+    return safe(
+        () -> {
+          requireSpecStore();
+          specStore
+              .findById(specId)
+              .orElseThrow(
+                  () ->
+                      new ApiException(
+                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
+          specStore.setContent(
+              specId,
+              Objects.requireNonNullElse(request.body(), ""),
+              Objects.requireNonNullElse(request.plan(), ""));
+          var content = specStore.getContent(specId).orElseThrow();
+          return new GlobalSpecContentResponse(specId, content.body(), content.plan());
+        });
+  }
+
+  @Override
+  public Result<GlobalBoardResponse> globalBoard() {
+    return safe(
+        () -> {
+          requireSpecStore();
+          return new GlobalBoardResponse(specStore.board());
+        });
+  }
+
+  private void requireSpecStore() {
+    if (specStore == null) {
+      throw new ApiException(
+          ErrorCode.INTERNAL,
+          "Spec store not available. Start the server with 'sail server start'.");
     }
   }
 

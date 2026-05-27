@@ -1,0 +1,318 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail.store;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class SpecStoreTest {
+
+  @TempDir Path tempDir;
+  private Sqlite db;
+  private SpecStore store;
+
+  @BeforeEach
+  void setUp() {
+    db = Sqlite.open(tempDir.resolve("test.db"));
+    new SchemaManager(db).migrate();
+    store = new SpecStore(db);
+  }
+
+  @AfterEach
+  void tearDown() {
+    if (db != null) db.close();
+  }
+
+  private SpecStore.SpecRow spec(String id, String title, String status) {
+    return new SpecStore.SpecRow(
+        id, title, status, null, null, null, null, null, 0, null, "", "", List.of(), List.of());
+  }
+
+  @Test
+  void createAndFindById() {
+    store.create(spec("auth", "OAuth flow", "pending"));
+
+    var found = store.findById("auth");
+    assertTrue(found.isPresent());
+    assertEquals("auth", found.get().id());
+    assertEquals("OAuth flow", found.get().title());
+    assertEquals("pending", found.get().status());
+  }
+
+  @Test
+  void findByIdReturnsEmptyForMissing() {
+    assertTrue(store.findById("nonexistent").isEmpty());
+  }
+
+  @Test
+  void createWithDependenciesAndRepos() {
+    store.create(spec("base", "Base feature", "done"));
+    var spec =
+        new SpecStore.SpecRow(
+            "derived",
+            "Derived feature",
+            "pending",
+            "uday",
+            "claude-code",
+            null,
+            null,
+            "feat/derived",
+            10,
+            "uday",
+            "",
+            "",
+            List.of("base"),
+            List.of("backend", "frontend"));
+    store.create(spec);
+
+    var found = store.findById("derived").orElseThrow();
+    assertEquals(List.of("base"), found.dependsOn());
+    assertEquals(List.of("backend", "frontend"), found.repos());
+    assertEquals("uday", found.assignee());
+    assertEquals("claude-code", found.agent());
+    assertEquals("feat/derived", found.branch());
+    assertEquals(10, found.priority());
+  }
+
+  @Test
+  void listAll() {
+    store.create(spec("a", "First", "pending"));
+    store.create(spec("b", "Second", "in_progress"));
+    store.create(spec("c", "Third", "done"));
+
+    var all = store.list(SpecStore.SpecFilter.all());
+    assertEquals(3, all.size());
+  }
+
+  @Test
+  void listFilterByStatus() {
+    store.create(spec("a", "First", "pending"));
+    store.create(spec("b", "Second", "in_progress"));
+    store.create(spec("c", "Third", "done"));
+
+    var pending = store.list(new SpecStore.SpecFilter("pending", null, null, null));
+    assertEquals(1, pending.size());
+    assertEquals("a", pending.getFirst().id());
+  }
+
+  @Test
+  void listFilterByMultipleStatuses() {
+    store.create(spec("a", "First", "pending"));
+    store.create(spec("b", "Second", "in_progress"));
+    store.create(spec("c", "Third", "done"));
+
+    var active = store.list(new SpecStore.SpecFilter("pending,in_progress", null, null, null));
+    assertEquals(2, active.size());
+  }
+
+  @Test
+  void listFilterByAssignee() {
+    var assigned =
+        new SpecStore.SpecRow(
+            "a",
+            "Assigned",
+            "pending",
+            "uday",
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            List.of(),
+            List.of());
+    store.create(assigned);
+    store.create(spec("b", "Unassigned", "pending"));
+
+    var result = store.list(new SpecStore.SpecFilter(null, "uday", null, null));
+    assertEquals(1, result.size());
+    assertEquals("a", result.getFirst().id());
+  }
+
+  @Test
+  void listFilterBySearch() {
+    store.create(spec("oauth-flow", "OAuth 2.0 authorization", "pending"));
+    store.create(spec("payment", "Payment integration", "pending"));
+
+    var result = store.list(new SpecStore.SpecFilter(null, null, null, "oauth"));
+    assertEquals(1, result.size());
+    assertEquals("oauth-flow", result.getFirst().id());
+  }
+
+  @Test
+  void updateSpec() {
+    store.create(spec("a", "Original", "draft"));
+
+    var updated =
+        new SpecStore.SpecRow(
+            "a",
+            "Updated",
+            "pending",
+            "bob",
+            null,
+            null,
+            null,
+            "feat/a",
+            5,
+            null,
+            "",
+            "",
+            List.of(),
+            List.of("backend"));
+    store.update(updated);
+
+    var found = store.findById("a").orElseThrow();
+    assertEquals("Updated", found.title());
+    assertEquals("pending", found.status());
+    assertEquals("bob", found.assignee());
+    assertEquals("feat/a", found.branch());
+    assertEquals(5, found.priority());
+    assertEquals(List.of("backend"), found.repos());
+  }
+
+  @Test
+  void updateStatus() {
+    store.create(spec("a", "Test", "pending"));
+    store.updateStatus("a", "in_progress");
+
+    var found = store.findById("a").orElseThrow();
+    assertEquals("in_progress", found.status());
+  }
+
+  @Test
+  void deleteSpec() {
+    store.create(spec("a", "Doomed", "draft"));
+    store.delete("a");
+    assertTrue(store.findById("a").isEmpty());
+  }
+
+  @Test
+  void setAndGetContent() {
+    store.create(spec("a", "Test", "draft"));
+    store.setContent("a", "# Spec body\n\nDetails here.", "## Plan\n\n1. Step one");
+
+    var content = store.getContent("a").orElseThrow();
+    assertEquals("# Spec body\n\nDetails here.", content.body());
+    assertEquals("## Plan\n\n1. Step one", content.plan());
+  }
+
+  @Test
+  void setContentUpdatesExisting() {
+    store.create(spec("a", "Test", "draft"));
+    store.setContent("a", "v1", "");
+    store.setContent("a", "v2", "plan v2");
+
+    var content = store.getContent("a").orElseThrow();
+    assertEquals("v2", content.body());
+    assertEquals("plan v2", content.plan());
+  }
+
+  @Test
+  void readySpecsRespectsDependencies() {
+    store.create(spec("base", "Base", "pending"));
+    var dependent =
+        new SpecStore.SpecRow(
+            "child",
+            "Child",
+            "pending",
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            List.of("base"),
+            List.of());
+    store.create(dependent);
+
+    var ready = store.readySpecs();
+    assertEquals(1, ready.size());
+    assertEquals("base", ready.getFirst().id());
+  }
+
+  @Test
+  void readySpecsIncludesWhenDependenciesDone() {
+    store.create(spec("base", "Base", "done"));
+    var dependent =
+        new SpecStore.SpecRow(
+            "child",
+            "Child",
+            "pending",
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            List.of("base"),
+            List.of());
+    store.create(dependent);
+
+    var ready = store.readySpecs();
+    assertEquals(1, ready.size());
+    assertEquals("child", ready.getFirst().id());
+  }
+
+  @Test
+  void boardSummary() {
+    store.create(spec("a", "A", "draft"));
+    store.create(spec("b", "B", "pending"));
+    store.create(spec("c", "C", "pending"));
+    store.create(spec("d", "D", "in_progress"));
+    store.create(spec("e", "E", "review"));
+    store.create(spec("f", "F", "done"));
+
+    var board = store.board();
+    assertEquals(1, board.draft());
+    assertEquals(2, board.pending());
+    assertEquals(1, board.inProgress());
+    assertEquals(1, board.review());
+    assertEquals(1, board.done());
+    assertEquals("b", board.nextReadyId());
+  }
+
+  @Test
+  void deleteCascadesDependenciesAndContent() {
+    store.create(spec("base", "Base", "done"));
+    var child =
+        new SpecStore.SpecRow(
+            "child",
+            "Child",
+            "pending",
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            List.of("base"),
+            List.of("backend"));
+    store.create(child);
+    store.setContent("child", "body", "plan");
+
+    store.delete("child");
+
+    assertTrue(store.findById("child").isEmpty());
+    assertTrue(store.getContent("child").isEmpty());
+  }
+}
