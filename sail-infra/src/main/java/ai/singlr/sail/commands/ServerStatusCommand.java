@@ -1,0 +1,46 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail.commands;
+
+import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.Sqlite;
+import ai.singlr.sail.store.TokenStore;
+import java.nio.file.Files;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Help.Ansi;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Spec;
+
+@Command(name = "status", description = "Show Sail server status.", mixinStandardHelpOptions = true)
+public final class ServerStatusCommand implements Runnable {
+
+  @Spec private CommandSpec spec;
+
+  @Override
+  public void run() {
+    CliCommand.run(spec, this::execute);
+  }
+
+  private void execute() {
+    var dbPath = SailPaths.sailDir().resolve("sail.db");
+    if (!Files.exists(dbPath)) {
+      System.out.println(
+          Ansi.AUTO.string("  @|yellow ⚠|@ Server not initialized. Run 'sail server init'."));
+      return;
+    }
+
+    try (var db = Sqlite.open(dbPath)) {
+      var schema = new SchemaManager(db);
+      var tokens = new TokenStore(db).list();
+
+      System.out.println(Ansi.AUTO.string("  @|bold Sail Server|@"));
+      System.out.println("    Database:       " + dbPath);
+      System.out.println("    Schema version: " + schema.currentVersion());
+      System.out.println("    API tokens:     " + tokens.size());
+    }
+  }
+}

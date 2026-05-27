@@ -6,6 +6,7 @@
 package ai.singlr.sail.api;
 
 import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.store.TokenStore;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -47,6 +48,28 @@ public final class SailApiServer implements AutoCloseable {
     this(host, port, operations, token, eventBus, auditPersister, SailPaths.apiSocketPath());
   }
 
+  /**
+   * Construct with database-backed token auth. Used by the control plane server ({@code sail server
+   * start}).
+   */
+  public SailApiServer(
+      String host,
+      int port,
+      ApiOperations operations,
+      TokenStore tokenStore,
+      EventBus eventBus,
+      EventSubscriber auditSubscriber)
+      throws IOException {
+    this(
+        host,
+        port,
+        operations,
+        new TokenAuth(tokenStore),
+        eventBus,
+        auditSubscriber,
+        SailPaths.apiSocketPath());
+  }
+
   /** Test / advanced constructor that lets the caller pick the UDS path. */
   public SailApiServer(
       String host,
@@ -57,17 +80,28 @@ public final class SailApiServer implements AutoCloseable {
       AuditPersister auditPersister,
       Path socketPath)
       throws IOException {
+    this(host, port, operations, new BearerAuth(token), eventBus, auditPersister, socketPath);
+  }
+
+  private SailApiServer(
+      String host,
+      int port,
+      ApiOperations operations,
+      ApiAuth auth,
+      EventBus eventBus,
+      EventSubscriber auditSubscriber,
+      Path socketPath)
+      throws IOException {
     this.eventBus = eventBus;
-    this.auditPersister = auditPersister;
+    this.auditPersister = auditSubscriber instanceof AuditPersister ap ? ap : null;
     this.persisterSubscription =
-        eventBus != null && auditPersister != null ? eventBus.subscribe(auditPersister) : null;
+        eventBus != null && auditSubscriber != null ? eventBus.subscribe(auditSubscriber) : null;
     this.webhookSubscription =
         eventBus != null ? eventBus.subscribe(WebhookReactor.withDefaultResolver()) : null;
     this.specLifecycleSubscription =
         eventBus != null ? eventBus.subscribe(SpecLifecycleReactor.withDefaults()) : null;
     server = HttpServer.create(new InetSocketAddress(host, port), 32);
     executor = Executors.newVirtualThreadPerTaskExecutor();
-    var auth = new BearerAuth(token);
     server.createContext("/", new ApiRouter(operations, auth));
     if (eventBus != null) {
       sseHandler = new SseHandler(eventBus, auth);

@@ -11,6 +11,7 @@ import ai.singlr.sail.commands.ClientInitCommand;
 import ai.singlr.sail.commands.EventsCommand;
 import ai.singlr.sail.commands.HostCommand;
 import ai.singlr.sail.commands.ProjectCommand;
+import ai.singlr.sail.commands.ServerCommand;
 import ai.singlr.sail.commands.SpecCommand;
 import ai.singlr.sail.commands.UpgradeCommand;
 import ai.singlr.sail.engine.Banner;
@@ -27,6 +28,7 @@ import picocli.CommandLine.Help.Ansi;
       ClientInitCommand.class,
       HostCommand.class,
       ProjectCommand.class,
+      ServerCommand.class,
       SpecCommand.class,
       AgentCommand.class,
       ApiCommand.class,

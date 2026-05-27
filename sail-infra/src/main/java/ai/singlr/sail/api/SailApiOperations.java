@@ -26,6 +26,7 @@ import ai.singlr.sail.engine.ShellExec;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SnapshotManager;
 import ai.singlr.sail.engine.SpecWorkspace;
+import ai.singlr.sail.store.SpecStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +49,7 @@ public final class SailApiOperations implements ApiOperations {
   private final WatcherLauncher watcherLauncher;
   private final EventBus eventBus;
   private final AuditPersister auditPersister;
+  private final SpecStore specStore;
 
   public SailApiOperations() {
     this(new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR);
@@ -64,7 +66,23 @@ public final class SailApiOperations implements ApiOperations {
   /** Construct with explicit event-bus wiring; used by {@link SailApiServer}. */
   public SailApiOperations(
       ShellExec shell, String file, EventBus eventBus, AuditPersister auditPersister) {
-    this(shell, file, SailApiOperations::launchWatcherProcess, eventBus, auditPersister);
+    this(shell, file, SailApiOperations::launchWatcherProcess, eventBus, auditPersister, null);
+  }
+
+  /** Construct with database-backed spec store; used by the control plane server. */
+  public SailApiOperations(
+      ShellExec shell,
+      String file,
+      EventBus eventBus,
+      EventSubscriber auditSubscriber,
+      SpecStore specStore) {
+    this(
+        shell,
+        file,
+        SailApiOperations::launchWatcherProcess,
+        eventBus,
+        auditSubscriber instanceof AuditPersister ap ? ap : null,
+        specStore);
   }
 
   SailApiOperations(
@@ -73,11 +91,22 @@ public final class SailApiOperations implements ApiOperations {
       WatcherLauncher watcherLauncher,
       EventBus eventBus,
       AuditPersister auditPersister) {
+    this(shell, file, watcherLauncher, eventBus, auditPersister, null);
+  }
+
+  SailApiOperations(
+      ShellExec shell,
+      String file,
+      WatcherLauncher watcherLauncher,
+      EventBus eventBus,
+      AuditPersister auditPersister,
+      SpecStore specStore) {
     this.shell = shell;
     this.file = file;
     this.watcherLauncher = watcherLauncher;
     this.eventBus = eventBus;
     this.auditPersister = auditPersister;
+    this.specStore = specStore;
   }
 
   @Override

@@ -56,16 +56,16 @@ public final class SseHandler implements HttpHandler {
   static final long POLL_MILLIS = 1_000L;
 
   private final EventBus bus;
-  private final BearerAuth auth;
+  private final ApiAuth auth;
   private final Semaphore connectionPermits;
   private final int maxConnections;
   private final LongAdder rejected = new LongAdder();
 
-  public SseHandler(EventBus bus, BearerAuth auth) {
+  public SseHandler(EventBus bus, ApiAuth auth) {
     this(bus, auth, DEFAULT_MAX_CONNECTIONS);
   }
 
-  public SseHandler(EventBus bus, BearerAuth auth, int maxConnections) {
+  public SseHandler(EventBus bus, ApiAuth auth, int maxConnections) {
     this.bus = Objects.requireNonNull(bus, "bus");
     this.auth = Objects.requireNonNull(auth, "auth");
     if (maxConnections <= 0) {

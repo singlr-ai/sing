@@ -9,7 +9,7 @@ import com.sun.net.httpserver.HttpExchange;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
-public final class BearerAuth {
+public final class BearerAuth implements ApiAuth {
 
   private final byte[] expected;
 
