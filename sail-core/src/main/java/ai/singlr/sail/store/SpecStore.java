@@ -267,7 +267,7 @@ public final class SpecStore {
         row.text(0),
         row.text(1),
         row.text(2),
-        SpecStatus.fromWire(row.text(3)),
+        SpecStatus.fromLegacy(row.text(3)),
         row.text(4),
         row.text(5),
         row.text(6),

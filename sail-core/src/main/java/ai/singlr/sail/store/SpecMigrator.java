@@ -88,6 +88,7 @@ public final class SpecMigrator {
     var skipped = 0;
     var errors = new ArrayList<String>();
     var created = new ArrayList<SpecImport>();
+    var seenInBatch = new java.util.HashSet<String>();
 
     for (var imp : imports) {
       var spec = imp.spec();
@@ -96,9 +97,14 @@ public final class SpecMigrator {
         continue;
       }
       if (store.findById(spec.id()).isPresent()) {
+        if (seenInBatch.contains(spec.id())) {
+          errors.add(
+              spec.id() + ": duplicate spec id across projects; keeping the first occurrence");
+        }
         skipped++;
         continue;
       }
+      seenInBatch.add(spec.id());
       try {
         store.create(baseRow(spec, imp.project()));
         var body = Objects.requireNonNullElse(imp.body(), "");

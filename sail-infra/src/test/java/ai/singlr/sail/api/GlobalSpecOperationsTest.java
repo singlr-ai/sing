@@ -76,6 +76,51 @@ class GlobalSpecOperationsTest {
   }
 
   @Test
+  void createRejectsInvalidModel() {
+    var ex =
+        assertThrows(
+            ApiException.class, () -> ops.create(createReq(Map.of("model", "bad model!"))));
+    assertEquals(ErrorCode.INVALID_REQUEST, ex.failure().errorCode());
+  }
+
+  @Test
+  void createRejectsInvalidReasoningEffort() {
+    assertThrows(
+        ApiException.class, () -> ops.create(createReq(Map.of("reasoning_effort", "huge"))));
+  }
+
+  @Test
+  void createAcceptsValidModelAndReasoning() {
+    var created =
+        ops.create(createReq(Map.of("model", "claude-opus-4", "reasoning_effort", "high")));
+    assertEquals("auth", created.spec().id());
+  }
+
+  @Test
+  void updateRejectsInvalidModel() {
+    ops.create(createReq(Map.of()));
+    assertThrows(
+        ApiException.class,
+        () -> ops.update("auth", SpecUpdateRequest.fromMap(Map.of("model", "bad model!"))));
+  }
+
+  @Test
+  void updateAcceptsValidModel() {
+    ops.create(createReq(Map.of()));
+    var updated = ops.update("auth", SpecUpdateRequest.fromMap(Map.of("model", "claude-opus-4")));
+    assertEquals("claude-opus-4", updated.spec().model());
+  }
+
+  @Test
+  void listRejectsInvalidStatusFilter() {
+    var ex =
+        assertThrows(
+            ApiException.class,
+            () -> ops.list(new SpecStore.SpecFilter(null, "bogus", null, null, null)));
+    assertEquals(ErrorCode.INVALID_REQUEST, ex.failure().errorCode());
+  }
+
+  @Test
   void getMissingThrowsNotFound() {
     var ex = assertThrows(ApiException.class, () -> ops.get("ghost"));
     assertEquals(ErrorCode.SPEC_NOT_FOUND, ex.failure().errorCode());

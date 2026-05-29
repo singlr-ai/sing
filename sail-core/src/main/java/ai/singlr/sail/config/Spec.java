@@ -178,7 +178,8 @@ public record Spec(
     return agent;
   }
 
-  private static String validatedModel(String model) {
+  /** Validates a model id (or returns null when blank). Throws on shell-unsafe values. */
+  public static String validatedModel(String model) {
     if (model == null || model.isBlank()) {
       return null;
     }
@@ -189,7 +190,8 @@ public record Spec(
     return model;
   }
 
-  private static String validatedReasoningEffort(String reasoningEffort) {
+  /** Validates a reasoning-effort value (or returns null when blank). Throws if not allowed. */
+  public static String validatedReasoningEffort(String reasoningEffort) {
     if (reasoningEffort == null || reasoningEffort.isBlank()) {
       return null;
     }

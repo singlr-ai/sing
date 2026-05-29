@@ -10,6 +10,10 @@ import ai.singlr.sail.engine.SailPaths;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Resolves server connection details. Resolution order for URL: {@code --server} flag → {@code
@@ -62,8 +66,21 @@ public record ServerConnectionConfig(String serverUrl, String token) {
       throws IOException {
     var yaml = "server: " + serverUrl + "\ntoken: " + token + "\n";
     Files.createDirectories(configPath.getParent());
+    Files.setPosixFilePermissions(configPath.getParent(), OWNER_ONLY_DIR);
+    if (!Files.exists(configPath)) {
+      Files.createFile(configPath, PosixFilePermissions.asFileAttribute(OWNER_ONLY_FILE));
+    }
     Files.writeString(configPath, yaml);
+    Files.setPosixFilePermissions(configPath, OWNER_ONLY_FILE);
   }
+
+  private static final Set<PosixFilePermission> OWNER_ONLY_FILE =
+      EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
+  private static final Set<PosixFilePermission> OWNER_ONLY_DIR =
+      EnumSet.of(
+          PosixFilePermission.OWNER_READ,
+          PosixFilePermission.OWNER_WRITE,
+          PosixFilePermission.OWNER_EXECUTE);
 
   private static String envOrProperty(String name) {
     var env = System.getenv(name);

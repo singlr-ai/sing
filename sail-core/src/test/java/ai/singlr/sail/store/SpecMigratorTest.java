@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecStatus;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -247,6 +248,48 @@ class SpecMigratorTest {
     assertEquals(2, result.imported());
     assertTrue(result.errors().isEmpty(), () -> "unexpected errors: " + result.errors());
     assertEquals(List.of("zzz-provider"), store.findById("aaa-consumer").get().dependsOn());
+  }
+
+  @Test
+  void duplicateSpecIdAcrossProjectsKeepsFirstAndReports() {
+    var a =
+        new Spec(
+            "dup",
+            "manatee",
+            "From manatee",
+            SpecStatus.PENDING,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            null,
+            null,
+            null);
+    var b =
+        new Spec(
+            "dup",
+            "kubera",
+            "From kubera",
+            SpecStatus.PENDING,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            null,
+            null,
+            null);
+
+    var result =
+        migrator.importSpecs(
+            List.of(
+                new SpecMigrator.SpecImport(a, "manatee", "", ""),
+                new SpecMigrator.SpecImport(b, "kubera", "", "")));
+
+    assertEquals(1, result.imported());
+    assertEquals(1, result.skipped());
+    assertEquals(1, result.errors().size());
+    assertTrue(result.errors().getFirst().contains("duplicate spec id across projects"));
+    assertEquals("manatee", store.findById("dup").orElseThrow().project());
   }
 
   @Test

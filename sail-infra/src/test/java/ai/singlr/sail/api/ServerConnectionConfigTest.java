@@ -111,6 +111,20 @@ class ServerConnectionConfigTest {
   }
 
   @Test
+  void saveLocalConfigWritesTokenFileOwnerOnly() throws IOException {
+    var configFile = tempDir.resolve("secret-config.yaml");
+    ServerConnectionConfig.saveLocalConfig("http://localhost:7070", "secret-token", configFile);
+
+    var perms = Files.getPosixFilePermissions(configFile);
+    assertEquals(
+        java.util.Set.of(
+            java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+            java.nio.file.attribute.PosixFilePermission.OWNER_WRITE),
+        perms,
+        "token file must not be group/world readable");
+  }
+
+  @Test
   void saveLocalConfigCreatesParentDirectories() throws IOException {
     var configFile = tempDir.resolve("deep/nested/config.yaml");
     ServerConnectionConfig.saveLocalConfig("http://localhost:7070", "tok", configFile);

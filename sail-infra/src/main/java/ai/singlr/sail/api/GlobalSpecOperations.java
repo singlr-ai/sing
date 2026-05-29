@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.api;
 
+import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.store.SpecStore;
@@ -26,8 +27,12 @@ final class GlobalSpecOperations {
 
   GlobalSpecsListResponse list(SpecStore.SpecFilter filter) {
     requireStore();
-    var specs = specStore.list(filter).stream().map(GlobalSpecView::from).toList();
-    return new GlobalSpecsListResponse(specs, specs.size());
+    try {
+      var specs = specStore.list(filter).stream().map(GlobalSpecView::from).toList();
+      return new GlobalSpecsListResponse(specs, specs.size());
+    } catch (IllegalArgumentException e) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
+    }
   }
 
   GlobalSpecDetailResponse get(String specId) {
@@ -63,8 +68,8 @@ final class GlobalSpecOperations {
             parseStatus(request.status(), SpecStatus.PENDING),
             request.assignee(),
             request.agent(),
-            request.model(),
-            request.reasoningEffort(),
+            validModel(request.model()),
+            validReasoning(request.reasoningEffort()),
             request.branch(),
             request.priority(),
             null,
@@ -94,9 +99,9 @@ final class GlobalSpecOperations {
             parseStatus(request.status(), existing.status()),
             request.assignee() != null ? request.assignee() : existing.assignee(),
             request.agent() != null ? request.agent() : existing.agent(),
-            request.model() != null ? request.model() : existing.model(),
+            request.model() != null ? validModel(request.model()) : existing.model(),
             request.reasoningEffort() != null
-                ? request.reasoningEffort()
+                ? validReasoning(request.reasoningEffort())
                 : existing.reasoningEffort(),
             request.branch() != null ? request.branch() : existing.branch(),
             request.priority() != null ? request.priority() : existing.priority(),
@@ -153,6 +158,22 @@ final class GlobalSpecOperations {
       throw new ApiException(
           ErrorCode.INTERNAL,
           "Spec store not available. Start the server with 'sail server start'.");
+    }
+  }
+
+  private static String validModel(String model) {
+    try {
+      return Spec.validatedModel(model);
+    } catch (IllegalArgumentException e) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
+    }
+  }
+
+  private static String validReasoning(String reasoningEffort) {
+    try {
+      return Spec.validatedReasoningEffort(reasoningEffort);
+    } catch (IllegalArgumentException e) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
     }
   }
 
