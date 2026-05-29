@@ -89,6 +89,7 @@ class BranchPolicyTest {
   }
 
   private static Spec spec(String id, String branch) {
-    return new Spec(id, id, "pending", null, List.of(), List.of(), null, null, null, branch);
+    return new Spec(
+        id, "test-project", id, "pending", null, List.of(), List.of(), null, null, null, branch);
   }
 }

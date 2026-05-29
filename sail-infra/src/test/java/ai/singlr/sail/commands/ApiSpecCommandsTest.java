@@ -67,13 +67,29 @@ class ApiSpecCommandsTest {
     try {
       System.setProperty("SAIL_SERVER", serverUrl());
       System.setProperty("SAIL_TOKEN", token);
-      new CommandLine(new SpecCommand()).execute(args);
+      new CommandLine(new SpecCommand()).execute(withDefaultProject(args));
       return buffer.toString(StandardCharsets.UTF_8);
     } finally {
       System.setOut(original);
       System.clearProperty("SAIL_SERVER");
       System.clearProperty("SAIL_TOKEN");
     }
+  }
+
+  private static String[] withDefaultProject(String[] args) {
+    if (args.length == 0 || !"create".equals(args[0])) {
+      return args;
+    }
+    for (var arg : args) {
+      if ("--project".equals(arg)) {
+        return args;
+      }
+    }
+    var expanded = new String[args.length + 2];
+    System.arraycopy(args, 0, expanded, 0, args.length);
+    expanded[args.length] = "--project";
+    expanded[args.length + 1] = "test";
+    return expanded;
   }
 
   @Test

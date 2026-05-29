@@ -19,6 +19,9 @@ import java.util.List;
  */
 public final class SpecMigrator {
 
+  /** Bucket assigned to imported specs that don't declare a {@code project:} key. */
+  public static final String UNASSIGNED_PROJECT = "unassigned";
+
   private final SpecStore store;
 
   public SpecMigrator(SpecStore store) {
@@ -28,6 +31,15 @@ public final class SpecMigrator {
   public record MigrationResult(int imported, int skipped, List<String> errors) {}
 
   public MigrationResult importFromDirectory(Path specsDir) {
+    return importFromDirectory(specsDir, UNASSIGNED_PROJECT);
+  }
+
+  /**
+   * Imports specs from {@code specsDir}. Each spec whose {@code spec.yaml} omits {@code project:}
+   * is assigned to {@code defaultProject}, so the FDE can re-bucket later via {@code sail spec
+   * edit}.
+   */
+  public MigrationResult importFromDirectory(Path specsDir, String defaultProject) {
     if (!Files.isDirectory(specsDir)) {
       return new MigrationResult(0, 0, List.of());
     }
@@ -49,7 +61,7 @@ public final class SpecMigrator {
         }
 
         try {
-          var result = importSpec(specDir, specId);
+          var result = importSpec(specDir, specId, defaultProject);
           if (result) {
             imported++;
           } else {
@@ -67,7 +79,8 @@ public final class SpecMigrator {
   }
 
   @SuppressWarnings("unchecked")
-  private boolean importSpec(Path specDir, String specId) throws IOException {
+  private boolean importSpec(Path specDir, String specId, String defaultProject)
+      throws IOException {
     var specYaml = specDir.resolve("spec.yaml");
     var map = YamlUtil.parseFile(specYaml);
     if (!map.containsKey("id")) {
@@ -76,12 +89,14 @@ public final class SpecMigrator {
 
     var spec = Spec.fromMap(map);
     var status = mapLegacyStatus(spec.status());
+    var project = spec.project() != null ? spec.project() : defaultProject;
     var dependsOn = spec.dependsOn() != null ? spec.dependsOn() : List.<String>of();
     var repos = spec.repos() != null ? spec.repos() : List.<String>of();
 
     var row =
         new SpecStore.SpecRow(
             spec.id(),
+            project,
             spec.title(),
             status,
             spec.assignee(),

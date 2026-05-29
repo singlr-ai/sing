@@ -62,7 +62,7 @@ public interface ApiOperations {
 
   Result<GlobalSpecContentResponse> setGlobalSpecContent(String specId, SpecContentRequest request);
 
-  Result<GlobalBoardResponse> globalBoard();
+  Result<GlobalBoardResponse> globalBoard(String project);
 
   Result<SessionListResponse> agentSessions(String project);
 }

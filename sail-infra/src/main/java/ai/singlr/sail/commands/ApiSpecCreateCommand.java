@@ -9,6 +9,7 @@ import ai.singlr.sail.api.SailApiClient;
 import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.NameValidator;
+import ai.singlr.sail.engine.SailPaths;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -27,6 +28,13 @@ public final class ApiSpecCreateCommand implements Runnable {
 
   @Option(names = "--title", required = true, description = "Spec title.")
   private String title;
+
+  @Option(
+      names = "--project",
+      description =
+          "Client project this spec belongs to. Inferred from sail.yaml in the current"
+              + " directory tree when omitted.")
+  private String project;
 
   @Option(names = "--status", description = "Initial status.", defaultValue = "draft")
   private String status;
@@ -71,9 +79,15 @@ public final class ApiSpecCreateCommand implements Runnable {
   private void execute() throws Exception {
     NameValidator.requireValidSpecId(id);
     var config = ServerConnectionConfig.resolve(server, token);
+    var resolvedProject = project != null ? project : projectFromCwd();
+    if (resolvedProject == null) {
+      throw new IllegalStateException(
+          "--project is required: no sail.yaml found in the current directory tree.");
+    }
 
     var body = new LinkedHashMap<String, Object>();
     body.put("id", id);
+    body.put("project", resolvedProject);
     body.put("title", title);
     body.put("status", status);
     if (assignee != null) body.put("assignee", assignee);
@@ -90,8 +104,23 @@ public final class ApiSpecCreateCommand implements Runnable {
       if (json) {
         System.out.println(YamlUtil.dumpJson(new LinkedHashMap<>(result)));
       } else {
-        System.out.println(Ansi.AUTO.string("  @|green ✓|@ Spec created: " + id));
+        System.out.println(
+            Ansi.AUTO.string(
+                "  @|green ✓|@ Spec created: " + id + " @|faint (" + resolvedProject + ")|@"));
       }
+    }
+  }
+
+  static String projectFromCwd() {
+    var yaml = SailPaths.findSailYamlUpward(Path.of(".")).orElse(null);
+    if (yaml == null) {
+      return null;
+    }
+    try {
+      var name = (String) YamlUtil.parseFile(yaml).get("name");
+      return name == null || name.isBlank() ? null : name;
+    } catch (Exception e) {
+      return null;
     }
   }
 }

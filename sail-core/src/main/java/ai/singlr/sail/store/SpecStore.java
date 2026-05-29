@@ -24,6 +24,7 @@ public final class SpecStore {
 
   public record SpecRow(
       String id,
+      String project,
       String title,
       String status,
       String assignee,
@@ -40,9 +41,10 @@ public final class SpecStore {
 
   public record SpecContent(String body, String plan, String updatedAt) {}
 
-  public record SpecFilter(String status, String assignee, String repo, String search) {
+  public record SpecFilter(
+      String project, String status, String assignee, String repo, String search) {
     public static SpecFilter all() {
-      return new SpecFilter(null, null, null, null);
+      return new SpecFilter(null, null, null, null, null);
     }
   }
 
@@ -61,10 +63,11 @@ public final class SpecStore {
         () -> {
           db.execute(
               """
-              INSERT INTO specs (id, title, status, assignee, agent, model, reasoning_effort,
-                  branch, priority, created_by, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              INSERT INTO specs (id, project, title, status, assignee, agent, model,
+                  reasoning_effort, branch, priority, created_by, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
               spec.id(),
+              spec.project(),
               spec.title(),
               spec.status(),
               spec.assignee(),
@@ -88,7 +91,7 @@ public final class SpecStore {
   public Optional<SpecRow> findById(String id) {
     return db.queryOne(
             """
-            SELECT id, title, status, assignee, agent, model, reasoning_effort,
+            SELECT id, project, title, status, assignee, agent, model, reasoning_effort,
                 branch, priority, created_by, created_at, updated_at
             FROM specs WHERE id = ?""",
             this::mapSpec,
@@ -97,9 +100,9 @@ public final class SpecStore {
   }
 
   public List<SpecRow> list(SpecFilter filter) {
-    var sql = new StringBuilder("SELECT DISTINCT s.id, s.title, s.status, s.assignee, s.agent,");
+    var sql = new StringBuilder("SELECT DISTINCT s.id, s.project, s.title, s.status, s.assignee,");
     sql.append(
-        " s.model, s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at,"
+        " s.agent, s.model, s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at,"
             + " s.updated_at FROM specs s");
     var params = new ArrayList<>();
     var where = new ArrayList<String>();
@@ -108,6 +111,10 @@ public final class SpecStore {
       sql.append(" JOIN spec_repos sr ON sr.spec_id = s.id");
       where.add("sr.repo = ?");
       params.add(filter.repo());
+    }
+    if (filter.project() != null) {
+      where.add("s.project = ?");
+      params.add(filter.project());
     }
     if (filter.status() != null) {
       var statuses = filter.status().split(",");
@@ -130,7 +137,7 @@ public final class SpecStore {
     if (!where.isEmpty()) {
       sql.append(" WHERE ").append(String.join(" AND ", where));
     }
-    sql.append(" ORDER BY s.priority DESC, s.created_at ASC");
+    sql.append(" ORDER BY s.project ASC, s.priority DESC, s.created_at ASC");
 
     return db.query(sql.toString(), this::mapSpec, params.toArray()).stream()
         .map(this::hydrate)
@@ -143,9 +150,10 @@ public final class SpecStore {
         () -> {
           db.execute(
               """
-              UPDATE specs SET title = ?, status = ?, assignee = ?, agent = ?, model = ?,
-                  reasoning_effort = ?, branch = ?, priority = ?, updated_at = ?
+              UPDATE specs SET project = ?, title = ?, status = ?, assignee = ?, agent = ?,
+                  model = ?, reasoning_effort = ?, branch = ?, priority = ?, updated_at = ?
               WHERE id = ?""",
+              spec.project(),
               spec.title(),
               spec.status(),
               spec.assignee(),
@@ -201,8 +209,8 @@ public final class SpecStore {
     return db
         .query(
             """
-            SELECT s.id, s.title, s.status, s.assignee, s.agent, s.model, s.reasoning_effort,
-                s.branch, s.priority, s.created_by, s.created_at, s.updated_at
+            SELECT s.id, s.project, s.title, s.status, s.assignee, s.agent, s.model,
+                s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at, s.updated_at
             FROM specs s
             WHERE s.status = 'pending'
             AND NOT EXISTS (
@@ -218,10 +226,18 @@ public final class SpecStore {
   }
 
   public BoardSummary board() {
+    return board(null);
+  }
+
+  public BoardSummary board(String projectFilter) {
+    var sql = "SELECT status, COUNT(*) FROM specs WHERE status != 'archived'";
     var counts =
-        db.query(
-            "SELECT status, COUNT(*) FROM specs WHERE status != 'archived' GROUP BY status",
-            row -> new Object[] {row.text(0), row.integer(1)});
+        projectFilter == null
+            ? db.query(sql + " GROUP BY status", row -> new Object[] {row.text(0), row.integer(1)})
+            : db.query(
+                sql + " AND project = ? GROUP BY status",
+                row -> new Object[] {row.text(0), row.integer(1)},
+                projectFilter);
     var draft = 0;
     var pending = 0;
     var inProgress = 0;
@@ -255,10 +271,11 @@ public final class SpecStore {
         row.text(5),
         row.text(6),
         row.text(7),
-        row.isNull(8) ? 0 : (int) row.integer(8),
-        row.text(9),
+        row.text(8),
+        row.isNull(9) ? 0 : (int) row.integer(9),
         row.text(10),
         row.text(11),
+        row.text(12),
         List.of(),
         List.of());
   }
@@ -273,6 +290,7 @@ public final class SpecStore {
         db.query("SELECT repo FROM spec_repos WHERE spec_id = ?", row -> row.text(0), spec.id());
     return new SpecRow(
         spec.id(),
+        spec.project(),
         spec.title(),
         spec.status(),
         spec.assignee(),

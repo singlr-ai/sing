@@ -30,6 +30,7 @@ class ReviewStoreTest {
     specStore.create(
         new SpecStore.SpecRow(
             "auth",
+            "test-project",
             "OAuth flow",
             "in_progress",
             null,

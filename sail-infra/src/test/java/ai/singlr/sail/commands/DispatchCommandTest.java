@@ -143,6 +143,7 @@ class DispatchCommandTest {
     var spec =
         new Spec(
             "ui",
+            "test-project",
             "Polish UI",
             "pending",
             null,

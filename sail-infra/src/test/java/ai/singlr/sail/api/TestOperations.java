@@ -136,8 +136,20 @@ class TestOperations implements ApiOperations {
     return Result.success(
         new GlobalSpecDetailResponse(
             new GlobalSpecView(
-                specId, "Test", "pending", null, null, null, null, 0, List.of(), List.of(), null,
-                "", ""),
+                specId,
+                "test-project",
+                "Test",
+                "pending",
+                null,
+                null,
+                null,
+                null,
+                0,
+                List.of(),
+                List.of(),
+                null,
+                "",
+                ""),
             null,
             null));
   }
@@ -148,6 +160,7 @@ class TestOperations implements ApiOperations {
         new GlobalSpecCreatedResponse(
             new GlobalSpecView(
                 request.id(),
+                request.project(),
                 request.title(),
                 request.status(),
                 null,
@@ -168,8 +181,20 @@ class TestOperations implements ApiOperations {
     return Result.success(
         new GlobalSpecUpdatedResponse(
             new GlobalSpecView(
-                specId, "Updated", "pending", null, null, null, null, 0, List.of(), List.of(), null,
-                "", "")));
+                specId,
+                "test-project",
+                "Updated",
+                "pending",
+                null,
+                null,
+                null,
+                null,
+                0,
+                List.of(),
+                List.of(),
+                null,
+                "",
+                "")));
   }
 
   @Override
@@ -189,7 +214,7 @@ class TestOperations implements ApiOperations {
   }
 
   @Override
-  public Result<GlobalBoardResponse> globalBoard() {
+  public Result<GlobalBoardResponse> globalBoard(String project) {
     return Result.success(
         new GlobalBoardResponse(new SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null)));
   }

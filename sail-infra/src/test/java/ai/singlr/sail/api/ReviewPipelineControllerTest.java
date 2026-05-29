@@ -48,6 +48,7 @@ class ReviewPipelineControllerTest {
     specStore.create(
         new SpecStore.SpecRow(
             id,
+            "test-project",
             "Test spec",
             status,
             null,

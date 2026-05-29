@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
  * spec.md} with the detailed description.
  *
  * @param id directory name and unique identifier
+ * @param project client project this spec belongs to (nullable when loaded from legacy file-based
+ *     specs that pre-date the project column; control-plane callers must always supply it)
  * @param title short human-readable title
  * @param status lifecycle state: pending, in_progress, review, done
  * @param assignee engineer responsible (nullable, matches git identity)
@@ -32,6 +34,7 @@ import java.util.regex.Pattern;
  */
 public record Spec(
     String id,
+    String project,
     String title,
     String status,
     String assignee,
@@ -53,7 +56,7 @@ public record Spec(
       String assignee,
       List<String> dependsOn,
       String branch) {
-    this(id, title, status, assignee, dependsOn, List.of(), null, null, null, branch);
+    this(id, null, title, status, assignee, dependsOn, List.of(), null, null, null, branch);
   }
 
   public Spec(
@@ -64,7 +67,7 @@ public record Spec(
       List<String> dependsOn,
       List<String> repos,
       String branch) {
-    this(id, title, status, assignee, dependsOn, repos, null, null, null, branch);
+    this(id, null, title, status, assignee, dependsOn, repos, null, null, null, branch);
   }
 
   public Spec(
@@ -76,7 +79,7 @@ public record Spec(
       List<String> repos,
       String agent,
       String branch) {
-    this(id, title, status, assignee, dependsOn, repos, agent, null, null, branch);
+    this(id, null, title, status, assignee, dependsOn, repos, agent, null, null, branch);
   }
 
   @SuppressWarnings("unchecked")
@@ -86,6 +89,7 @@ public record Spec(
       throw new IllegalArgumentException("spec.id is required");
     }
     NameValidator.requireValidSpecId(id);
+    var project = (String) map.get("project");
     var title = Objects.requireNonNullElse((String) map.get("title"), "");
     var status = Objects.requireNonNullElse((String) map.get("status"), "pending");
     var assignee = (String) map.get("assignee");
@@ -97,6 +101,7 @@ public record Spec(
     var branch = (String) map.get("branch");
     return new Spec(
         id,
+        project,
         title,
         status,
         assignee,
@@ -111,6 +116,9 @@ public record Spec(
   public Map<String, Object> toMap() {
     var map = new LinkedHashMap<String, Object>();
     map.put("id", id);
+    if (project != null) {
+      map.put("project", project);
+    }
     if (!title.isBlank()) {
       map.put("title", title);
     }

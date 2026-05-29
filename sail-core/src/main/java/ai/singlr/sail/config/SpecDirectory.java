@@ -102,6 +102,7 @@ public final class SpecDirectory {
                 spec.id().equals(specId)
                     ? new Spec(
                         spec.id(),
+                        spec.project(),
                         spec.title(),
                         newStatus,
                         spec.assignee(),

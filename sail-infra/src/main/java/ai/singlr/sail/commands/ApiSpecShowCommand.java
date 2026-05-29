@@ -58,6 +58,9 @@ public final class ApiSpecShowCommand implements Runnable {
 
       var spec = (Map<String, Object>) result.get("spec");
       System.out.println(Ansi.AUTO.string("  @|bold Spec:|@ " + spec.get("id")));
+      if (spec.get("project") != null) {
+        System.out.println(Ansi.AUTO.string("  @|bold Project:|@ " + spec.get("project")));
+      }
       System.out.println(Ansi.AUTO.string("  @|bold Title:|@ " + spec.get("title")));
       System.out.println(Ansi.AUTO.string("  @|bold Status:|@ " + spec.get("status")));
       if (spec.get("assignee") != null) {

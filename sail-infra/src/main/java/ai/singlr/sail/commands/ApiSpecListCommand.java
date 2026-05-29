@@ -23,6 +23,11 @@ import picocli.CommandLine.Spec;
     mixinStandardHelpOptions = true)
 public final class ApiSpecListCommand implements Runnable {
 
+  @Option(
+      names = "--project",
+      description = "Filter by client project. Inferred from cwd's sail.yaml when omitted.")
+  private String project;
+
   @Option(names = "--status", description = "Filter by status (comma-separated).")
   private String status;
 
@@ -56,8 +61,10 @@ public final class ApiSpecListCommand implements Runnable {
   @SuppressWarnings("unchecked")
   private void execute() throws Exception {
     var config = ServerConnectionConfig.resolve(server, token);
+    var resolvedProject = project != null ? project : ApiSpecCreateCommand.projectFromCwd();
     try (var client = new SailApiClient(config.serverUrl(), config.token())) {
       var params = new StringBuilder("/v1/specs?");
+      if (resolvedProject != null) params.append("project=").append(resolvedProject).append("&");
       if (status != null) params.append("status=").append(status).append("&");
       if (assignee != null) params.append("assignee=").append(assignee).append("&");
       if (repo != null) params.append("repo=").append(repo).append("&");
@@ -75,18 +82,34 @@ public final class ApiSpecListCommand implements Runnable {
 
       var specs = (List<Map<String, Object>>) result.get("specs");
       if (specs == null || specs.isEmpty()) {
-        System.out.println(Ansi.AUTO.string("  @|faint No specs found.|@"));
+        var scope = resolvedProject != null ? " for project '" + resolvedProject + "'" : "";
+        System.out.println(Ansi.AUTO.string("  @|faint No specs found" + scope + ".|@"));
         return;
       }
 
-      var statusOrder = List.of("draft", "pending", "in_progress", "review", "done");
-      for (var statusName : statusOrder) {
-        var matching = specs.stream().filter(s -> statusName.equals(s.get("status"))).toList();
-        if (matching.isEmpty()) continue;
+      printGroupedByProjectAndStatus(specs);
+    }
+  }
 
+  @SuppressWarnings("unchecked")
+  private void printGroupedByProjectAndStatus(List<Map<String, Object>> specs) {
+    var statusOrder = List.of("draft", "pending", "in_progress", "review", "done");
+    var byProject = new java.util.LinkedHashMap<String, List<Map<String, Object>>>();
+    for (var spec : specs) {
+      var proj = (String) spec.getOrDefault("project", "unassigned");
+      byProject.computeIfAbsent(proj, k -> new java.util.ArrayList<>()).add(spec);
+    }
+    for (var projectGroup : byProject.entrySet()) {
+      System.out.println(Ansi.AUTO.string("  @|bold,cyan ▸ " + projectGroup.getKey() + "|@"));
+      for (var statusName : statusOrder) {
+        var matching =
+            projectGroup.getValue().stream()
+                .filter(s -> statusName.equals(s.get("status")))
+                .toList();
+        if (matching.isEmpty()) continue;
         System.out.println(
             Ansi.AUTO.string(
-                "  @|bold,"
+                "    @|bold,"
                     + statusColor(statusName)
                     + " "
                     + formatStatusLabel(statusName)
@@ -101,10 +124,10 @@ public final class ApiSpecListCommand implements Runnable {
           var depsStr = deps.isEmpty() ? "" : " @|faint ← " + String.join(", ", deps) + "|@";
           var reposStr = repos.isEmpty() ? "" : " @|faint [" + String.join(", ", repos) + "]|@";
           System.out.println(
-              Ansi.AUTO.string("  • @|bold " + id + "|@  " + title + reposStr + depsStr));
+              Ansi.AUTO.string("    • @|bold " + id + "|@  " + title + reposStr + depsStr));
         }
-        System.out.println();
       }
+      System.out.println();
     }
   }
 

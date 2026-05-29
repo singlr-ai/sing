@@ -507,6 +507,7 @@ public final class DispatchCommand implements Runnable {
   private static Spec withTargetRepos(Spec spec, List<SailYaml.Repo> targetRepos) {
     return new Spec(
         spec.id(),
+        spec.project(),
         spec.title(),
         spec.status(),
         spec.assignee(),

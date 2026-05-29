@@ -612,6 +612,7 @@ public final class SailApiOperations implements ApiOperations {
   private static Spec withTargetRepos(Spec spec, List<SailYaml.Repo> targetRepos) {
     return new Spec(
         spec.id(),
+        spec.project(),
         spec.title(),
         spec.status(),
         spec.assignee(),
@@ -967,9 +968,16 @@ public final class SailApiOperations implements ApiOperations {
             throw new ApiException(ErrorCode.INVALID_REQUEST, "spec title is required.");
           }
           NameValidator.requireValidSpecId(request.id());
+          if (request.project() == null || request.project().isBlank()) {
+            throw new ApiException(
+                ErrorCode.INVALID_REQUEST,
+                "spec project is required.",
+                "Pass --project <name> or run from a directory containing sail.yaml.");
+          }
           var row =
               new SpecStore.SpecRow(
                   request.id(),
+                  request.project(),
                   request.title(),
                   request.status(),
                   request.assignee(),
@@ -1011,6 +1019,7 @@ public final class SailApiOperations implements ApiOperations {
           var updated =
               new SpecStore.SpecRow(
                   specId,
+                  request.project() != null ? request.project() : existing.project(),
                   request.title() != null ? request.title() : existing.title(),
                   request.status() != null ? request.status() : existing.status(),
                   request.assignee() != null ? request.assignee() : existing.assignee(),
@@ -1086,11 +1095,11 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   @Override
-  public Result<GlobalBoardResponse> globalBoard() {
+  public Result<GlobalBoardResponse> globalBoard(String project) {
     return safe(
         () -> {
           requireSpecStore();
-          return new GlobalBoardResponse(specStore.board());
+          return new GlobalBoardResponse(specStore.board(project));
         });
   }
 

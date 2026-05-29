@@ -90,6 +90,28 @@ public final class SailPaths {
   }
 
   /**
+   * Walks up from {@code start} (defaulting to the current working directory) looking for a {@code
+   * sail.yaml}. Returns the directory containing it, or empty if none is found before reaching the
+   * filesystem root or the user's home directory (whichever comes first). Pure I/O-free helper for
+   * callers that pull additional metadata out of the descriptor.
+   */
+  public static java.util.Optional<Path> findSailYamlUpward(Path start) {
+    var home = Path.of(System.getProperty("user.home"));
+    var dir = start.toAbsolutePath().normalize();
+    while (dir != null) {
+      var candidate = dir.resolve(PROJECT_DESCRIPTOR);
+      if (Files.isRegularFile(candidate)) {
+        return java.util.Optional.of(candidate);
+      }
+      if (dir.equals(home)) {
+        return java.util.Optional.empty();
+      }
+      dir = dir.getParent();
+    }
+    return java.util.Optional.empty();
+  }
+
+  /**
    * Expands a leading {@code ~} to the current user's home directory. Returns the path unchanged if
    * it does not start with {@code ~/}.
    */

@@ -1025,6 +1025,7 @@ class ApiRouterTest {
           new GlobalSpecDetailResponse(
               new GlobalSpecView(
                   specId,
+                  "test-project",
                   "Test",
                   "pending",
                   null,
@@ -1047,6 +1048,7 @@ class ApiRouterTest {
           new GlobalSpecCreatedResponse(
               new GlobalSpecView(
                   request.id(),
+                  request.project(),
                   request.title(),
                   request.status(),
                   null,
@@ -1068,6 +1070,7 @@ class ApiRouterTest {
           new GlobalSpecUpdatedResponse(
               new GlobalSpecView(
                   specId,
+                  "test-project",
                   "Updated",
                   "pending",
                   null,
@@ -1099,7 +1102,7 @@ class ApiRouterTest {
     }
 
     @Override
-    public Result<GlobalBoardResponse> globalBoard() {
+    public Result<GlobalBoardResponse> globalBoard(String project) {
       return Result.success(
           new GlobalBoardResponse(
               new ai.singlr.sail.store.SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null)));

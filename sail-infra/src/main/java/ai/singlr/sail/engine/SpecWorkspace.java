@@ -80,6 +80,7 @@ public final class SpecWorkspace {
     var updated =
         new Spec(
             spec.id(),
+            spec.project(),
             spec.title(),
             newStatus,
             spec.assignee(),

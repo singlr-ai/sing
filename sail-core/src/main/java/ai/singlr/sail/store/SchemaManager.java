@@ -150,7 +150,9 @@ public final class SchemaManager {
               completed_at TEXT
           )""",
           "CREATE INDEX IF NOT EXISTS idx_agent_sessions_project ON agent_sessions(project)",
-          "CREATE INDEX IF NOT EXISTS idx_agent_sessions_spec ON agent_sessions(spec_id)");
+          "CREATE INDEX IF NOT EXISTS idx_agent_sessions_spec ON agent_sessions(spec_id)",
+          "ALTER TABLE specs ADD COLUMN project TEXT NOT NULL DEFAULT 'unassigned'",
+          "CREATE INDEX IF NOT EXISTS idx_specs_project ON specs(project)");
 
   private final Sqlite db;
 

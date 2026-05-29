@@ -428,6 +428,7 @@ record SubscriberStatsView(String name, int capacity, int depth, long dropped) i
 
 record SpecCreateRequest(
     String id,
+    String project,
     String title,
     String status,
     String assignee,
@@ -445,6 +446,7 @@ record SpecCreateRequest(
   static SpecCreateRequest fromMap(Map<String, Object> map) {
     return new SpecCreateRequest(
         (String) map.get("id"),
+        (String) map.get("project"),
         (String) map.get("title"),
         (String) map.getOrDefault("status", "draft"),
         (String) map.get("assignee"),
@@ -461,6 +463,7 @@ record SpecCreateRequest(
 }
 
 record SpecUpdateRequest(
+    String project,
     String title,
     String status,
     String assignee,
@@ -475,6 +478,7 @@ record SpecUpdateRequest(
   @SuppressWarnings("unchecked")
   static SpecUpdateRequest fromMap(Map<String, Object> map) {
     return new SpecUpdateRequest(
+        (String) map.get("project"),
         (String) map.get("title"),
         (String) map.get("status"),
         (String) map.get("assignee"),
@@ -496,6 +500,7 @@ record SpecContentRequest(String body, String plan) {
 
 record GlobalSpecView(
     String id,
+    String project,
     String title,
     String status,
     String assignee,
@@ -512,6 +517,7 @@ record GlobalSpecView(
   static GlobalSpecView from(SpecStore.SpecRow row) {
     return new GlobalSpecView(
         row.id(),
+        row.project(),
         row.title(),
         row.status(),
         row.assignee(),
@@ -530,6 +536,7 @@ record GlobalSpecView(
   public Map<String, Object> toMap() {
     var m = new LinkedHashMap<String, Object>();
     m.put("id", id);
+    m.put("project", project);
     m.put("title", title);
     m.put("status", status);
     if (assignee != null) m.put("assignee", assignee);

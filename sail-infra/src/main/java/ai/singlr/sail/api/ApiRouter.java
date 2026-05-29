@@ -176,6 +176,7 @@ public final class ApiRouter implements HttpHandler {
           yield ApiResponse.from(
               operations.globalSpecs(
                   new SpecStore.SpecFilter(
+                      params.values().get("project"),
                       params.values().get("status"),
                       params.values().get("assignee"),
                       params.values().get("repo"),
@@ -191,7 +192,8 @@ public final class ApiRouter implements HttpHandler {
       var segment = request.segments().get(2);
       if (BOARD.equals(segment)) {
         requireMethod(request, GET);
-        return ApiResponse.from(operations.globalBoard());
+        var params = QueryParameters.from(request.uri());
+        return ApiResponse.from(operations.globalBoard(params.values().get("project")));
       }
       var specId = segment;
       NameValidator.requireValidSpecId(specId);

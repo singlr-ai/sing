@@ -18,6 +18,11 @@ import picocli.CommandLine.Spec;
 @Command(name = "board", description = "Show spec board summary.", mixinStandardHelpOptions = true)
 public final class ApiSpecBoardCommand implements Runnable {
 
+  @Option(
+      names = "--project",
+      description = "Scope the board to one client project. Inferred from cwd's sail.yaml.")
+  private String project;
+
   @Option(names = "--server", description = "Server URL.")
   private String server;
 
@@ -36,15 +41,19 @@ public final class ApiSpecBoardCommand implements Runnable {
 
   private void execute() throws Exception {
     var config = ServerConnectionConfig.resolve(server, token);
+    var resolvedProject = project != null ? project : ApiSpecCreateCommand.projectFromCwd();
+    var path =
+        resolvedProject != null ? "/v1/specs/board?project=" + resolvedProject : "/v1/specs/board";
     try (var client = new SailApiClient(config.serverUrl(), config.token())) {
-      var result = client.get("/v1/specs/board");
+      var result = client.get(path);
 
       if (json) {
         System.out.println(YamlUtil.dumpJson(new LinkedHashMap<>(result)));
         return;
       }
 
-      System.out.println(Ansi.AUTO.string("  @|bold Spec Board|@"));
+      var scope = resolvedProject != null ? " — " + resolvedProject : "";
+      System.out.println(Ansi.AUTO.string("  @|bold Spec Board" + scope + "|@"));
       System.out.println(Ansi.AUTO.string("    @|faint Draft:|@       " + result.get("draft")));
       System.out.println(Ansi.AUTO.string("    @|white Pending:|@     " + result.get("pending")));
       System.out.println(

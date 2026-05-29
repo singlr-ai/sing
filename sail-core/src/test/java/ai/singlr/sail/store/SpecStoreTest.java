@@ -33,8 +33,13 @@ class SpecStoreTest {
   }
 
   private SpecStore.SpecRow spec(String id, String title, String status) {
+    return spec(id, "test-project", title, status);
+  }
+
+  private SpecStore.SpecRow spec(String id, String project, String title, String status) {
     return new SpecStore.SpecRow(
-        id, title, status, null, null, null, null, null, 0, null, "", "", List.of(), List.of());
+        id, project, title, status, null, null, null, null, null, 0, null, "", "", List.of(),
+        List.of());
   }
 
   @Test
@@ -59,6 +64,7 @@ class SpecStoreTest {
     var spec =
         new SpecStore.SpecRow(
             "derived",
+            "test-project",
             "Derived feature",
             "pending",
             "uday",
@@ -99,7 +105,7 @@ class SpecStoreTest {
     store.create(spec("b", "Second", "in_progress"));
     store.create(spec("c", "Third", "done"));
 
-    var pending = store.list(new SpecStore.SpecFilter("pending", null, null, null));
+    var pending = store.list(new SpecStore.SpecFilter(null, "pending", null, null, null));
     assertEquals(1, pending.size());
     assertEquals("a", pending.getFirst().id());
   }
@@ -110,7 +116,8 @@ class SpecStoreTest {
     store.create(spec("b", "Second", "in_progress"));
     store.create(spec("c", "Third", "done"));
 
-    var active = store.list(new SpecStore.SpecFilter("pending,in_progress", null, null, null));
+    var active =
+        store.list(new SpecStore.SpecFilter(null, "pending,in_progress", null, null, null));
     assertEquals(2, active.size());
   }
 
@@ -119,6 +126,7 @@ class SpecStoreTest {
     var assigned =
         new SpecStore.SpecRow(
             "a",
+            "test-project",
             "Assigned",
             "pending",
             "uday",
@@ -135,7 +143,7 @@ class SpecStoreTest {
     store.create(assigned);
     store.create(spec("b", "Unassigned", "pending"));
 
-    var result = store.list(new SpecStore.SpecFilter(null, "uday", null, null));
+    var result = store.list(new SpecStore.SpecFilter(null, null, "uday", null, null));
     assertEquals(1, result.size());
     assertEquals("a", result.getFirst().id());
   }
@@ -145,7 +153,7 @@ class SpecStoreTest {
     store.create(spec("oauth-flow", "OAuth 2.0 authorization", "pending"));
     store.create(spec("payment", "Payment integration", "pending"));
 
-    var result = store.list(new SpecStore.SpecFilter(null, null, null, "oauth"));
+    var result = store.list(new SpecStore.SpecFilter(null, null, null, null, "oauth"));
     assertEquals(1, result.size());
     assertEquals("oauth-flow", result.getFirst().id());
   }
@@ -157,6 +165,7 @@ class SpecStoreTest {
     var updated =
         new SpecStore.SpecRow(
             "a",
+            "test-project",
             "Updated",
             "pending",
             "bob",
@@ -224,6 +233,7 @@ class SpecStoreTest {
     var dependent =
         new SpecStore.SpecRow(
             "child",
+            "test-project",
             "Child",
             "pending",
             null,
@@ -250,6 +260,7 @@ class SpecStoreTest {
     var dependent =
         new SpecStore.SpecRow(
             "child",
+            "test-project",
             "Child",
             "pending",
             null,
@@ -294,6 +305,7 @@ class SpecStoreTest {
     var child =
         new SpecStore.SpecRow(
             "child",
+            "test-project",
             "Child",
             "pending",
             null,
