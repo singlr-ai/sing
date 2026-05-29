@@ -12,6 +12,7 @@ import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecAuditEvent;
 import ai.singlr.sail.config.SpecDirectory;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.AgentCli;
 import ai.singlr.sail.engine.AgentSession;
@@ -378,7 +379,7 @@ public final class DispatchCommand implements Runnable {
     if (found == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
-    if ("pending".equals(found.status())) {
+    if (found.status() == SpecStatus.PENDING) {
       return SpecResolution.of(found);
     }
     if (!restart) {
@@ -386,7 +387,7 @@ public final class DispatchCommand implements Runnable {
           "Spec '"
               + specId
               + "' is not pending (current status: "
-              + found.status()
+              + found.status().wire()
               + "). A spec is dispatched only when pending. To dispatch it again, pass --restart"
               + " (this resets status to pending and records the restart in audit.jsonl).");
     }
@@ -394,8 +395,8 @@ public final class DispatchCommand implements Runnable {
     audit.append(
         specId,
         SpecAuditEvent.restarted(
-            SpecAuditEvent.SAIL_AGENT, host, "restarted from " + found.status()));
-    return SpecResolution.restarted(found, found.status());
+            SpecAuditEvent.SAIL_AGENT, host, "restarted from " + found.status().wire()));
+    return SpecResolution.restarted(found, found.status().wire());
   }
 
   /**

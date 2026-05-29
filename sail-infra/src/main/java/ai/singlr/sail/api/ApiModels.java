@@ -519,7 +519,7 @@ record GlobalSpecView(
         row.id(),
         row.project(),
         row.title(),
-        row.status(),
+        row.status().wire(),
         row.assignee(),
         row.agent(),
         row.model(),

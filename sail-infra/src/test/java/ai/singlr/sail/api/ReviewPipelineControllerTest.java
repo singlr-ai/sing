@@ -8,6 +8,7 @@ package ai.singlr.sail.api;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.ReviewPipelineConfig;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.store.Finding;
 import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SchemaManager;
@@ -50,7 +51,7 @@ class ReviewPipelineControllerTest {
             id,
             "test-project",
             "Test spec",
-            status,
+            SpecStatus.fromWire(status),
             null,
             null,
             null,
@@ -136,6 +137,21 @@ class ReviewPipelineControllerTest {
   }
 
   @Test
+  void reusesOneExecutorAcrossEventsAndShutsItDownOnClose() {
+    var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
+    createSpec("auth", "in_progress");
+    createSpec("billing", "in_progress");
+
+    ctrl.onEvent(agentStoppedEvent("auth"));
+    ctrl.onEvent(agentStoppedEvent("billing"));
+    var executor = ctrl.pipelineExecutor();
+    assertFalse(executor.isShutdown(), "shared executor should stay open while running");
+
+    ctrl.close();
+    assertTrue(executor.isShutdown(), "close() must shut the shared executor down");
+  }
+
+  @Test
   void filterAcceptsAgentSessionStoppedWithSpec() {
     var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
     var event = agentStoppedEvent("auth");
@@ -163,7 +179,7 @@ class ReviewPipelineControllerTest {
 
     ctrl.onEvent(agentStoppedEvent("auth"));
 
-    assertEquals("pending", specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.PENDING, specStore.findById("auth").orElseThrow().status());
     assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
   }
 
@@ -184,7 +200,7 @@ class ReviewPipelineControllerTest {
     ctrl.awaitCompletion(5000);
 
     var spec = specStore.findById("auth").orElseThrow();
-    assertTrue("review".equals(spec.status()) || "done".equals(spec.status()));
+    assertTrue(spec.status() == SpecStatus.REVIEW || spec.status() == SpecStatus.DONE);
   }
 
   @Test
@@ -201,7 +217,7 @@ class ReviewPipelineControllerTest {
     var review = reviewStore.latestReviewForSpec("auth").orElseThrow();
     assertEquals("passed", review.status());
     assertEquals(1, review.iteration());
-    assertEquals("done", specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
   }
 
   @Test
@@ -324,7 +340,7 @@ class ReviewPipelineControllerTest {
 
     ctrl.onEvent(agentStoppedEvent("auth"));
 
-    assertEquals("review", specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.REVIEW, specStore.findById("auth").orElseThrow().status());
     assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
   }
 
@@ -336,7 +352,7 @@ class ReviewPipelineControllerTest {
 
     ctrl.onEvent(agentStoppedEvent("auth"));
 
-    assertEquals("review", specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.REVIEW, specStore.findById("auth").orElseThrow().status());
     assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
   }
 
@@ -478,7 +494,7 @@ class ReviewPipelineControllerTest {
   @Test
   void executePipelinePublishesEventsWhenBusProvided() {
     createSpec("auth", "in_progress");
-    specStore.updateStatus("auth", "review");
+    specStore.updateStatus("auth", SpecStatus.REVIEW);
     var reviewId = reviewStore.createReview("auth", 1);
     reviewStore.updateReviewStatus(reviewId, "running");
     reviewStore.createStage(reviewId, "security", "agent");
@@ -508,7 +524,7 @@ class ReviewPipelineControllerTest {
     assertTrue(latch.await(5, TimeUnit.SECONDS));
     ctrl.awaitCompletion(5000);
 
-    specStore.updateStatus("auth", "in_progress");
+    specStore.updateStatus("auth", SpecStatus.IN_PROGRESS);
     var reviewBefore = reviewStore.reviewsForSpec("auth").size();
     ctrl.onEvent(agentStoppedEvent("auth"));
     ctrl.awaitCompletion(5000);

@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * @param project client project this spec belongs to (nullable when loaded from legacy file-based
  *     specs that pre-date the project column; control-plane callers must always supply it)
  * @param title short human-readable title
- * @param status lifecycle state: pending, in_progress, review, done
+ * @param status lifecycle state (see {@link SpecStatus})
  * @param assignee engineer responsible (nullable, matches git identity)
  * @param dependsOn IDs of specs that must be done first
  * @param repos repository paths this spec should branch and work in
@@ -36,7 +36,7 @@ public record Spec(
     String id,
     String project,
     String title,
-    String status,
+    SpecStatus status,
     String assignee,
     List<String> dependsOn,
     List<String> repos,
@@ -52,7 +52,7 @@ public record Spec(
   public Spec(
       String id,
       String title,
-      String status,
+      SpecStatus status,
       String assignee,
       List<String> dependsOn,
       String branch) {
@@ -62,7 +62,7 @@ public record Spec(
   public Spec(
       String id,
       String title,
-      String status,
+      SpecStatus status,
       String assignee,
       List<String> dependsOn,
       List<String> repos,
@@ -73,7 +73,7 @@ public record Spec(
   public Spec(
       String id,
       String title,
-      String status,
+      SpecStatus status,
       String assignee,
       List<String> dependsOn,
       List<String> repos,
@@ -91,7 +91,8 @@ public record Spec(
     NameValidator.requireValidSpecId(id);
     var project = (String) map.get("project");
     var title = Objects.requireNonNullElse((String) map.get("title"), "");
-    var status = Objects.requireNonNullElse((String) map.get("status"), "pending");
+    var statusRaw = (String) map.get("status");
+    var status = statusRaw == null ? SpecStatus.PENDING : SpecStatus.fromLegacy(statusRaw);
     var assignee = (String) map.get("assignee");
     var dependsOn = (List<String>) map.get("depends_on");
     var repos = reposFromMap(map);
@@ -122,7 +123,7 @@ public record Spec(
     if (!title.isBlank()) {
       map.put("title", title);
     }
-    map.put("status", status);
+    map.put("status", status.wire());
     if (assignee != null) {
       map.put("assignee", assignee);
     }

@@ -8,6 +8,7 @@ package ai.singlr.sail.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.ScriptedShellExecutor;
 import ai.singlr.sail.engine.ShellExec;
 import ai.singlr.sail.engine.SpecAudit;
@@ -174,7 +175,7 @@ class DispatchCommandResolveSpecTest {
   }
 
   private static Spec specWith(String id, String status) {
-    return new Spec(id, "Title for " + id, status, null, List.of(), null);
+    return new Spec(id, "Title for " + id, SpecStatus.fromWire(status), null, List.of(), null);
   }
 
   private static SpecWorkspace workspace(ShellExec shell) {

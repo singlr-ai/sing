@@ -162,7 +162,7 @@ public final class SpecMigrator {
         spec.id(),
         project,
         spec.title(),
-        mapLegacyStatus(spec.status()),
+        spec.status(),
         spec.assignee(),
         spec.agent(),
         spec.model(),
@@ -174,13 +174,5 @@ public final class SpecMigrator {
         "",
         List.of(),
         repos);
-  }
-
-  private static String mapLegacyStatus(String status) {
-    return switch (status) {
-      case "pending", "in_progress", "review", "done" -> status;
-      case "archive", "archived" -> "archived";
-      default -> "draft";
-    };
   }
 }

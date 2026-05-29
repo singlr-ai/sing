@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.SpecStatus;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,7 +71,7 @@ class SpecMigratorTest {
     var found = store.findById("auth-flow");
     assertTrue(found.isPresent());
     assertEquals("OAuth 2.0 flow", found.get().title());
-    assertEquals("pending", found.get().status());
+    assertEquals(SpecStatus.PENDING, found.get().status());
   }
 
   @Test
@@ -157,7 +158,7 @@ class SpecMigratorTest {
 
     var found = store.findById("old");
     assertTrue(found.isPresent());
-    assertEquals("archived", found.get().status());
+    assertEquals(SpecStatus.ARCHIVED, found.get().status());
   }
 
   @Test

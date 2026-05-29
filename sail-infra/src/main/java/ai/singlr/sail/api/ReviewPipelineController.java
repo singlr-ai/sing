@@ -8,6 +8,7 @@ package ai.singlr.sail.api;
 import ai.singlr.sail.config.ReviewPipelineConfig;
 import ai.singlr.sail.config.ReviewPipelineConfig.StageConfig;
 import ai.singlr.sail.config.ReviewPipelineConfig.StageType;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.FindingParser;
 import ai.singlr.sail.engine.FixTaskBuilder;
 import ai.singlr.sail.engine.ReviewPromptBuilder;
@@ -43,6 +44,8 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
   private final java.util.concurrent.ConcurrentHashMap<
           String, java.util.concurrent.CompletableFuture<Void>>
       inFlight = new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.ExecutorService pipelineExecutor =
+      java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
 
   public ReviewPipelineController(
       SpecStore specStore,
@@ -79,7 +82,13 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       awaitCompletion(5000);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
+    } finally {
+      pipelineExecutor.close();
     }
+  }
+
+  java.util.concurrent.ExecutorService pipelineExecutor() {
+    return pipelineExecutor;
   }
 
   @Override
@@ -112,9 +121,9 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
     var spec = specStore.findById(specId);
     if (spec.isEmpty()) return;
 
-    if (!"in_progress".equals(spec.get().status())) return;
+    if (spec.get().status() != SpecStatus.IN_PROGRESS) return;
 
-    specStore.updateStatus(specId, "review");
+    specStore.updateStatus(specId, SpecStatus.REVIEW);
 
     var config = configResolver.apply(event.project());
     if (config == null || config.stages().isEmpty()) return;
@@ -138,8 +147,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
 
     var future =
         java.util.concurrent.CompletableFuture.runAsync(
-            () -> executePipeline(reviewId, config, event.project(), specId),
-            java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
+            () -> executePipeline(reviewId, config, event.project(), specId), pipelineExecutor);
     inFlight.put(reviewId, future);
     future.whenComplete((v, ex) -> inFlight.remove(reviewId));
   }
@@ -168,7 +176,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       }
 
       reviewStore.updateReviewStatus(reviewId, "passed");
-      specStore.updateStatus(specId, "done");
+      specStore.updateStatus(specId, SpecStatus.DONE);
       publishEvent(project, specId, "review_completed", null);
 
     } catch (Exception e) {
@@ -239,7 +247,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
     if (spec.isEmpty()) return;
 
     var fixTask = FixTaskBuilder.build(spec.get().title(), findings);
-    specStore.updateStatus(specId, "in_progress");
+    specStore.updateStatus(specId, SpecStatus.IN_PROGRESS);
     publishEvent(project, specId, "review_iteration_started", null);
 
     try {
@@ -253,7 +261,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
 
   private void escalate(String specId, String reviewId) {
     reviewStore.updateReviewStatus(reviewId, "escalated");
-    specStore.updateStatus(specId, "review");
+    specStore.updateStatus(specId, SpecStatus.REVIEW);
     publishEvent(null, specId, "review_escalated", null);
   }
 

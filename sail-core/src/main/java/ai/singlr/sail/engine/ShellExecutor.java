@@ -11,9 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Thin wrapper around {@link ProcessBuilder} that implements {@link ShellExec}. Supports dry-run
@@ -55,8 +55,12 @@ public final class ShellExecutor implements ShellExec {
     var process = pb.start();
     process.getOutputStream().close();
 
-    var stdoutFuture = CompletableFuture.supplyAsync(() -> readFully(process.getInputStream()));
-    var stderrFuture = CompletableFuture.supplyAsync(() -> readFully(process.getErrorStream()));
+    var stdout = new AtomicReference<String>("");
+    var stderr = new AtomicReference<String>("");
+    var stdoutThread =
+        Thread.ofVirtual().start(() -> stdout.set(readFully(process.getInputStream())));
+    var stderrThread =
+        Thread.ofVirtual().start(() -> stderr.set(readFully(process.getErrorStream())));
 
     var finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
     if (!finished) {
@@ -65,9 +69,9 @@ public final class ShellExecutor implements ShellExec {
           "Command timed out after " + timeout.toSeconds() + "s: " + String.join(" ", command));
     }
 
-    var stdout = stdoutFuture.join();
-    var stderr = stderrFuture.join();
-    return new Result(process.exitValue(), stdout, stderr);
+    stdoutThread.join();
+    stderrThread.join();
+    return new Result(process.exitValue(), stdout.get(), stderr.get());
   }
 
   @Override

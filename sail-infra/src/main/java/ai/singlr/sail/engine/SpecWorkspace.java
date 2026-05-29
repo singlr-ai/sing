@@ -2,6 +2,7 @@ package ai.singlr.sail.engine;
 
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecDirectory;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,7 +73,8 @@ public final class SpecWorkspace {
 
   public Spec updateStatus(String specId, String newStatus)
       throws IOException, InterruptedException, TimeoutException {
-    SpecDirectory.requireValidStatus(newStatus);
+    var status = SpecStatus.fromWire(newStatus);
+    SpecDirectory.requireSettableStatus(status);
     var spec = readSpec(specId);
     if (spec == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
@@ -82,7 +84,7 @@ public final class SpecWorkspace {
             spec.id(),
             spec.project(),
             spec.title(),
-            newStatus,
+            status,
             spec.assignee(),
             spec.dependsOn(),
             spec.repos(),

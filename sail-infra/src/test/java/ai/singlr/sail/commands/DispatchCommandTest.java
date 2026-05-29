@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import ai.singlr.sail.Sail;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -99,7 +100,7 @@ class DispatchCommandTest {
 
   @Test
   void buildTaskPromptIncludesSpecDetails() {
-    var spec = new Spec("oauth-flow", "Implement OAuth", "pending", null, List.of(), null);
+    var spec = new Spec("oauth-flow", "Implement OAuth", SpecStatus.PENDING, null, List.of(), null);
     var description = "Build Google OAuth integration with PKCE flow.";
 
     var prompt = DispatchCommand.buildTaskPrompt(spec, description, "specs");
@@ -112,7 +113,7 @@ class DispatchCommandTest {
 
   @Test
   void buildTaskPromptContainsSpecIdAndDescription() {
-    var spec = new Spec("auth", "Auth", "pending", null, List.of(), null);
+    var spec = new Spec("auth", "Auth", SpecStatus.PENDING, null, List.of(), null);
 
     var prompt = DispatchCommand.buildTaskPrompt(spec, "Details", "my-specs");
 
@@ -122,7 +123,7 @@ class DispatchCommandTest {
 
   @Test
   void buildTaskPromptIncludesFullDescription() {
-    var spec = new Spec("setup", "Setup DB", "pending", null, List.of(), null);
+    var spec = new Spec("setup", "Setup DB", SpecStatus.PENDING, null, List.of(), null);
     var longDescription =
         """
         Create PostgreSQL schema with:
@@ -145,7 +146,7 @@ class DispatchCommandTest {
             "ui",
             "test-project",
             "Polish UI",
-            "pending",
+            SpecStatus.PENDING,
             null,
             List.of(),
             List.of("chorus"),

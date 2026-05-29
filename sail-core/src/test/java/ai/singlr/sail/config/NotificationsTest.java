@@ -24,6 +24,16 @@ class NotificationsTest {
   }
 
   @Test
+  void eventsListIsImmutable() {
+    var mutable = new java.util.ArrayList<String>(List.of("agent_exited"));
+    var n = Notifications.fromMap(Map.of("url", "https://ntfy.sh/test", "events", mutable));
+
+    assertThrows(UnsupportedOperationException.class, () -> n.events().add("snapshot_created"));
+    mutable.add("snapshot_created");
+    assertEquals(List.of("agent_exited"), n.events());
+  }
+
+  @Test
   void fromMapRejectsUnknownEvent() {
     var ex =
         assertThrows(

@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.SpecStatus;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -38,7 +39,20 @@ class SpecStoreTest {
 
   private SpecStore.SpecRow spec(String id, String project, String title, String status) {
     return new SpecStore.SpecRow(
-        id, project, title, status, null, null, null, null, null, 0, null, "", "", List.of(),
+        id,
+        project,
+        title,
+        SpecStatus.fromWire(status),
+        null,
+        null,
+        null,
+        null,
+        null,
+        0,
+        null,
+        "",
+        "",
+        List.of(),
         List.of());
   }
 
@@ -50,7 +64,7 @@ class SpecStoreTest {
     assertTrue(found.isPresent());
     assertEquals("auth", found.get().id());
     assertEquals("OAuth flow", found.get().title());
-    assertEquals("pending", found.get().status());
+    assertEquals(SpecStatus.PENDING, found.get().status());
   }
 
   @Test
@@ -66,7 +80,7 @@ class SpecStoreTest {
             "derived",
             "test-project",
             "Derived feature",
-            "pending",
+            SpecStatus.PENDING,
             "uday",
             "claude-code",
             null,
@@ -128,7 +142,7 @@ class SpecStoreTest {
             "a",
             "test-project",
             "Assigned",
-            "pending",
+            SpecStatus.PENDING,
             "uday",
             null,
             null,
@@ -167,7 +181,7 @@ class SpecStoreTest {
             "a",
             "test-project",
             "Updated",
-            "pending",
+            SpecStatus.PENDING,
             "bob",
             null,
             null,
@@ -183,7 +197,7 @@ class SpecStoreTest {
 
     var found = store.findById("a").orElseThrow();
     assertEquals("Updated", found.title());
-    assertEquals("pending", found.status());
+    assertEquals(SpecStatus.PENDING, found.status());
     assertEquals("bob", found.assignee());
     assertEquals("feat/a", found.branch());
     assertEquals(5, found.priority());
@@ -193,10 +207,10 @@ class SpecStoreTest {
   @Test
   void updateStatus() {
     store.create(spec("a", "Test", "pending"));
-    store.updateStatus("a", "in_progress");
+    store.updateStatus("a", SpecStatus.IN_PROGRESS);
 
     var found = store.findById("a").orElseThrow();
-    assertEquals("in_progress", found.status());
+    assertEquals(SpecStatus.IN_PROGRESS, found.status());
   }
 
   @Test
@@ -235,7 +249,7 @@ class SpecStoreTest {
             "child",
             "test-project",
             "Child",
-            "pending",
+            SpecStatus.PENDING,
             null,
             null,
             null,
@@ -262,7 +276,7 @@ class SpecStoreTest {
             "child",
             "test-project",
             "Child",
-            "pending",
+            SpecStatus.PENDING,
             null,
             null,
             null,
@@ -307,7 +321,7 @@ class SpecStoreTest {
             "child",
             "test-project",
             "Child",
-            "pending",
+            SpecStatus.PENDING,
             null,
             null,
             null,

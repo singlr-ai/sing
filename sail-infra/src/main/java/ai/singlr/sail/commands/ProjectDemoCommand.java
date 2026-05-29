@@ -22,6 +22,7 @@ import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.WorkspaceFiles;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -302,7 +303,8 @@ public final class ProjectDemoCommand implements Runnable {
               : new ProcessBuilder("git", "config", "--global", key);
       pb.redirectErrorStream(true);
       var process = pb.start();
-      var output = new String(process.getInputStream().readAllBytes()).strip();
+      var output =
+          new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
       var exitCode = process.waitFor();
       return exitCode == 0 && !output.isEmpty() ? output : null;
     } catch (Exception e) {

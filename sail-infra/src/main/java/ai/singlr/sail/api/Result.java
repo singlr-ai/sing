@@ -8,7 +8,6 @@ package ai.singlr.sail.api;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@SuppressWarnings("unchecked")
 public sealed interface Result<T> permits Result.Success, Result.Failure {
 
   record Success<T>(T value, int code) implements Result<T> {}
@@ -48,17 +47,17 @@ public sealed interface Result<T> permits Result.Success, Result.Failure {
   }
 
   default T orThrow() {
-    if (this instanceof Success<?>) {
-      return ((Success<T>) this).value();
-    }
-    var failure = (Failure<T>) this;
-    throw new IllegalStateException(failure.fullError(), failure.cause());
+    return switch (this) {
+      case Success<T> s -> s.value();
+      case Failure<T> f -> throw new IllegalStateException(f.fullError(), f.cause());
+    };
   }
 
   default T value() {
     return null;
   }
 
+  @SuppressWarnings("unchecked")
   default int code() {
     var failure = (Failure<T>) this;
     return failure.errorCode().httpCode();
@@ -85,8 +84,7 @@ public sealed interface Result<T> permits Result.Success, Result.Failure {
   }
 
   default <U> Result<U> asFailure() {
-    if (this instanceof Failure<?>) {
-      var failure = (Failure<T>) this;
+    if (this instanceof Failure<?> failure) {
       return new Failure<>(
           failure.errorCode(),
           failure.errorMessage(),

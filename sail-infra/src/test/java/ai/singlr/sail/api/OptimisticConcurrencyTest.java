@@ -7,6 +7,7 @@ package ai.singlr.sail.api;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.store.EventStore;
 import ai.singlr.sail.store.SchemaManager;
@@ -53,7 +54,7 @@ class OptimisticConcurrencyTest {
             "auth",
             "manatee",
             "Auth flow",
-            "draft",
+            SpecStatus.DRAFT,
             null,
             null,
             null,

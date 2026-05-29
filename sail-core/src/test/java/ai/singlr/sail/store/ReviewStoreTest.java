@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.config.SpecStatus;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -32,7 +33,7 @@ class ReviewStoreTest {
             "auth",
             "test-project",
             "OAuth flow",
-            "in_progress",
+            SpecStatus.IN_PROGRESS,
             null,
             null,
             null,

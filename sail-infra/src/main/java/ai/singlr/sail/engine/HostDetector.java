@@ -6,6 +6,7 @@
 package ai.singlr.sail.engine;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -131,7 +132,8 @@ public final class HostDetector {
       var pb = new ProcessBuilder("hostname");
       pb.redirectErrorStream(true);
       var process = pb.start();
-      var output = new String(process.getInputStream().readAllBytes()).strip();
+      var output =
+          new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
       process.waitFor();
       if (!output.isEmpty()) {
         return output;

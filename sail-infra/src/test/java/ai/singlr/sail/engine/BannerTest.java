@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -947,9 +948,9 @@ class BannerTest {
             "3h 42m",
             "sail/20260302-010000",
             List.of(
-                new Spec("auth", "Implement JWT", "done", null, List.of(), null),
-                new Spec("tests", "Write tests", "done", null, List.of("auth"), null),
-                new Spec("docs", "Update docs", "pending", null, List.of(), null)),
+                new Spec("auth", "Implement JWT", SpecStatus.DONE, null, List.of(), null),
+                new Spec("tests", "Write tests", SpecStatus.DONE, null, List.of("auth"), null),
+                new Spec("docs", "Update docs", SpecStatus.PENDING, null, List.of(), null)),
             18,
             47,
             false,

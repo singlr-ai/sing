@@ -21,6 +21,10 @@ import java.util.Set;
  */
 public record Notifications(String url, List<String> events) {
 
+  public Notifications {
+    events = events == null ? null : List.copyOf(events);
+  }
+
   /**
    * Known event types that can trigger notifications. Includes both legacy names (kept for
    * backwards-compatibility with existing sail.yaml files) and the new bus event types that flow

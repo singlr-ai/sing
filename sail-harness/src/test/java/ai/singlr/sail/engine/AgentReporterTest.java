@@ -8,6 +8,7 @@ package ai.singlr.sail.engine;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.SailYaml;
+import ai.singlr.sail.config.SpecStatus;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.List;
@@ -60,8 +61,8 @@ class AgentReporterTest {
     assertEquals("Completed", report.sessionStatus());
     assertEquals("sail/snap-20260302", report.branch());
     assertEquals(2, report.specs().size());
-    assertEquals("done", report.specs().getFirst().status());
-    assertEquals("done", report.specs().get(1).status());
+    assertEquals(SpecStatus.DONE, report.specs().getFirst().status());
+    assertEquals(SpecStatus.DONE, report.specs().get(1).status());
     assertEquals("Write tests", report.specs().get(1).title());
     assertEquals(18, report.commitCount());
     assertFalse(report.guardrailTriggered());
@@ -271,7 +272,7 @@ class AgentReporterTest {
             "sail/snap",
             List.of(
                 new ai.singlr.sail.config.Spec(
-                    "auth", "Implement JWT", "done", null, List.of(), null)),
+                    "auth", "Implement JWT", SpecStatus.DONE, null, List.of(), null)),
             18,
             47,
             false,

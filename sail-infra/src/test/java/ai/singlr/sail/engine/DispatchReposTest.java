@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecStatus;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,7 @@ class DispatchReposTest {
     var targets =
         DispatchRepos.resolve(
             config("sing", "chorus"),
-            new Spec("ui", "UI", "pending", null, List.of(), List.of("chorus"), "feat/ui"),
+            new Spec("ui", "UI", SpecStatus.PENDING, null, List.of(), List.of("chorus"), "feat/ui"),
             List.of());
 
     assertEquals(List.of("chorus"), targets.stream().map(SailYaml.Repo::path).toList());
@@ -32,7 +33,7 @@ class DispatchReposTest {
     var targets =
         DispatchRepos.resolve(
             config("sing", "chorus"),
-            new Spec("ui", "UI", "pending", null, List.of(), List.of("sing"), "feat/ui"),
+            new Spec("ui", "UI", SpecStatus.PENDING, null, List.of(), List.of("sing"), "feat/ui"),
             List.of("chorus"));
 
     assertEquals(List.of("chorus"), targets.stream().map(SailYaml.Repo::path).toList());
@@ -43,7 +44,7 @@ class DispatchReposTest {
     var targets =
         DispatchRepos.resolve(
             config("sing"),
-            new Spec("ui", "UI", "pending", null, List.of(), List.of(), "feat/ui"),
+            new Spec("ui", "UI", SpecStatus.PENDING, null, List.of(), List.of(), "feat/ui"),
             List.of());
 
     assertEquals(List.of("sing"), targets.stream().map(SailYaml.Repo::path).toList());
@@ -54,7 +55,7 @@ class DispatchReposTest {
     var targets =
         DispatchRepos.resolve(
             config("sing", "chorus"),
-            new Spec("ui", "UI", "pending", null, List.of(), List.of(), "feat/ui"),
+            new Spec("ui", "UI", SpecStatus.PENDING, null, List.of(), List.of(), "feat/ui"),
             List.of());
 
     assertTrue(targets.isEmpty());
@@ -67,7 +68,8 @@ class DispatchReposTest {
         () ->
             DispatchRepos.resolve(
                 config("sing"),
-                new Spec("ui", "UI", "pending", null, List.of(), List.of("chorus"), "feat/ui"),
+                new Spec(
+                    "ui", "UI", SpecStatus.PENDING, null, List.of(), List.of("chorus"), "feat/ui"),
                 List.of()));
   }
 

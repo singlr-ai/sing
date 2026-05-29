@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.store;
 
+import ai.singlr.sail.config.SpecStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,7 @@ public final class SpecStore {
       String id,
       String project,
       String title,
-      String status,
+      SpecStatus status,
       String assignee,
       String agent,
       String model,
@@ -69,7 +70,7 @@ public final class SpecStore {
               spec.id(),
               spec.project(),
               spec.title(),
-              spec.status(),
+              spec.status().wire(),
               spec.assignee(),
               spec.agent(),
               spec.model(),
@@ -121,7 +122,7 @@ public final class SpecStore {
       var placeholders = String.join(",", "?".repeat(statuses.length).split(""));
       where.add("s.status IN (" + placeholders + ")");
       for (var s : statuses) {
-        params.add(s.strip());
+        params.add(SpecStatus.fromWire(s.strip()).wire());
       }
     }
     if (filter.assignee() != null) {
@@ -155,7 +156,7 @@ public final class SpecStore {
               WHERE id = ?""",
               spec.project(),
               spec.title(),
-              spec.status(),
+              spec.status().wire(),
               spec.assignee(),
               spec.agent(),
               spec.model(),
@@ -171,10 +172,10 @@ public final class SpecStore {
         });
   }
 
-  public void updateStatus(String id, String status) {
+  public void updateStatus(String id, SpecStatus status) {
     db.execute(
         "UPDATE specs SET status = ?, updated_at = ? WHERE id = ?",
-        status,
+        status.wire(),
         Instant.now().toString(),
         id);
   }
@@ -266,7 +267,7 @@ public final class SpecStore {
         row.text(0),
         row.text(1),
         row.text(2),
-        row.text(3),
+        SpecStatus.fromWire(row.text(3)),
         row.text(4),
         row.text(5),
         row.text(6),

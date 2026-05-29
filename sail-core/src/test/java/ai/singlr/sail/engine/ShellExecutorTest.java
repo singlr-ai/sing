@@ -45,6 +45,20 @@ class ShellExecutorTest {
   }
 
   @Test
+  void drainsLargeStdoutAndStderrConcurrentlyWithoutDeadlock() throws Exception {
+    var executor = new ShellExecutor(false);
+    var result =
+        executor.exec(
+            List.of("sh", "-c", "yes out | head -c 200000; yes err | head -c 200000 >&2"),
+            null,
+            Duration.ofSeconds(30));
+
+    assertTrue(result.ok());
+    assertEquals(200000, result.stdout().length());
+    assertEquals(200000, result.stderr().length());
+  }
+
+  @Test
   void dryRunDoesNotExecute() throws Exception {
     var executor = new ShellExecutor(true);
     var result = executor.exec(List.of("rm", "-rf", "/should-not-run"));

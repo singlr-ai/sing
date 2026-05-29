@@ -3,6 +3,7 @@ package ai.singlr.sail.engine;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.Spec;
+import ai.singlr.sail.config.SpecStatus;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -161,7 +162,7 @@ class SpecWorkspaceTest {
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onceOnFail("test -e /home/dev/workspace/specs/oauth-flow", "No such file");
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
-    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
+    var spec = new Spec("oauth-flow", "OAuth Flow", SpecStatus.PENDING, null, List.of(), null);
 
     workspace.createSpec(spec, "# OAuth Flow");
 
@@ -181,7 +182,7 @@ class SpecWorkspaceTest {
   void createSpecRejectsDuplicateDirectory() {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/workspace/specs");
-    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
+    var spec = new Spec("oauth-flow", "OAuth Flow", SpecStatus.PENDING, null, List.of(), null);
 
     var error =
         assertThrows(
@@ -199,7 +200,7 @@ class SpecWorkspaceTest {
 
     var updated = workspace.updateStatus("oauth-flow", "review");
 
-    assertEquals("review", updated.status());
+    assertEquals(SpecStatus.REVIEW, updated.status());
     assertTrue(shell.invocations().stream().anyMatch(cmd -> cmd.contains("status: review")));
     assertTrue(
         shell.invocations().stream()
@@ -212,7 +213,7 @@ class SpecWorkspaceTest {
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onceOnFail("test -e /home/dev/specs; touch /tmp/pwned/oauth-flow", "No such file");
     var workspace = new SpecWorkspace(shell, "acme-health", "/home/dev/specs; touch /tmp/pwned");
-    var spec = new Spec("oauth-flow", "OAuth Flow", "pending", null, List.of(), null);
+    var spec = new Spec("oauth-flow", "OAuth Flow", SpecStatus.PENDING, null, List.of(), null);
 
     workspace.createSpec(spec, "# OAuth Flow");
 

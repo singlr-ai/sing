@@ -20,8 +20,9 @@ import java.util.stream.Collectors;
  */
 public final class SpecDirectory {
 
-  public static final Set<String> VALID_STATUSES =
-      Set.of("pending", "in_progress", "review", "done");
+  /** Statuses an engineer may assign by hand via {@code sail spec status}. */
+  public static final Set<SpecStatus> CLI_SETTABLE =
+      Set.of(SpecStatus.PENDING, SpecStatus.IN_PROGRESS, SpecStatus.REVIEW, SpecStatus.DONE);
 
   public record Summary(
       Map<String, Integer> counts, int readyCount, int blockedCount, String nextReadyId) {
@@ -56,14 +57,10 @@ public final class SpecDirectory {
    * @param assignee the engineer's identity to match (nullable for any assignee)
    */
   public static Spec nextReady(List<Spec> specs, String assignee) {
-    var doneIds =
-        specs.stream()
-            .filter(s -> "done".equals(s.status()))
-            .map(Spec::id)
-            .collect(Collectors.toSet());
+    var doneIds = doneIds(specs);
 
     for (var spec : specs) {
-      if (!"pending".equals(spec.status())) {
+      if (spec.status() != SpecStatus.PENDING) {
         continue;
       }
       if (!dependenciesMet(spec, doneIds)) {
@@ -91,8 +88,8 @@ public final class SpecDirectory {
   }
 
   /** Returns a copy of the specs list with the given spec's status updated. */
-  public static List<Spec> updateStatus(List<Spec> specs, String specId, String newStatus) {
-    requireValidStatus(newStatus);
+  public static List<Spec> updateStatus(List<Spec> specs, String specId, SpecStatus newStatus) {
+    requireSettableStatus(newStatus);
     if (findById(specs, specId) == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
@@ -118,7 +115,7 @@ public final class SpecDirectory {
 
   /** Returns true if the spec is pending and all dependencies are done. */
   public static boolean isReady(List<Spec> specs, Spec spec) {
-    if (!"pending".equals(spec.status())) {
+    if (spec.status() != SpecStatus.PENDING) {
       return false;
     }
     var doneIds = doneIds(specs);
@@ -127,7 +124,7 @@ public final class SpecDirectory {
 
   /** Returns true if the spec is pending and is blocked by unmet dependencies. */
   public static boolean isBlocked(List<Spec> specs, Spec spec) {
-    if (!"pending".equals(spec.status()) || spec.dependsOn().isEmpty()) {
+    if (spec.status() != SpecStatus.PENDING || spec.dependsOn().isEmpty()) {
       return false;
     }
     var doneIds = doneIds(specs);
@@ -159,30 +156,33 @@ public final class SpecDirectory {
   /** Returns a map of status counts: {pending: N, in_progress: N, review: N, done: N}. */
   public static Map<String, Integer> statusCounts(List<Spec> specs) {
     var counts = new LinkedHashMap<String, Integer>();
-    counts.put("pending", 0);
-    counts.put("in_progress", 0);
-    counts.put("review", 0);
-    counts.put("done", 0);
+    counts.put(SpecStatus.PENDING.wire(), 0);
+    counts.put(SpecStatus.IN_PROGRESS.wire(), 0);
+    counts.put(SpecStatus.REVIEW.wire(), 0);
+    counts.put(SpecStatus.DONE.wire(), 0);
     for (var spec : specs) {
-      counts.merge(spec.status(), 1, Integer::sum);
+      counts.merge(spec.status().wire(), 1, Integer::sum);
     }
     return counts;
   }
 
-  /** Validates a lifecycle status that can be set by CLI commands. */
-  public static void requireValidStatus(String status) {
-    if (status == null || !VALID_STATUSES.contains(status)) {
+  /** Validates that a status may be assigned by hand via CLI. */
+  public static void requireSettableStatus(SpecStatus status) {
+    if (!CLI_SETTABLE.contains(status)) {
       throw new IllegalArgumentException(
           "Invalid spec status: '"
-              + status
+              + status.wire()
               + "'. Must be one of: "
-              + String.join(", ", VALID_STATUSES));
+              + CLI_SETTABLE.stream()
+                  .map(SpecStatus::wire)
+                  .sorted()
+                  .collect(Collectors.joining(", ")));
     }
   }
 
   private static Set<String> doneIds(List<Spec> specs) {
     return specs.stream()
-        .filter(s -> "done".equals(s.status()))
+        .filter(s -> s.status() == SpecStatus.DONE)
         .map(Spec::id)
         .collect(Collectors.toSet());
   }

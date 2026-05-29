@@ -8,6 +8,7 @@ package ai.singlr.sail.engine;
 import ai.singlr.sail.SailVersion;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
+import ai.singlr.sail.config.SpecStatus;
 import java.io.PrintStream;
 import java.text.NumberFormat;
 import java.time.Duration;
@@ -576,15 +577,17 @@ public final class Banner {
   /** Prints a container status line — green ✓ for running, faint ■ for stopped. */
   public static void printContainerStatus(
       String name, ContainerState state, PrintStream out, Ansi ansi) {
-    if (state instanceof ContainerState.Running r) {
-      var ip = r.ipv4() != null ? " (" + r.ipv4() + ")" : "";
-      out.println(amber(ansi, "  @|green \u2713|@ " + name + " is running" + ip));
-    } else if (state instanceof ContainerState.Stopped) {
-      out.println(amber(ansi, "  @|faint \u25a0 " + name + " is stopped|@"));
-    } else if (state instanceof ContainerState.NotCreated) {
-      out.println(amber(ansi, "  @|faint \u25a0 " + name + " does not exist|@"));
-    } else if (state instanceof ContainerState.Error e) {
-      out.println(amber(ansi, "  @|bold,red \u2717|@ " + name + ": " + e.message()));
+    switch (state) {
+      case ContainerState.Running r -> {
+        var ip = r.ipv4() != null ? " (" + r.ipv4() + ")" : "";
+        out.println(amber(ansi, "  @|green \u2713|@ " + name + " is running" + ip));
+      }
+      case ContainerState.Stopped ignored ->
+          out.println(amber(ansi, "  @|faint \u25a0 " + name + " is stopped|@"));
+      case ContainerState.NotCreated ignored ->
+          out.println(amber(ansi, "  @|faint \u25a0 " + name + " does not exist|@"));
+      case ContainerState.Error e ->
+          out.println(amber(ansi, "  @|bold,red \u2717|@ " + name + ": " + e.message()));
     }
   }
 
@@ -1031,17 +1034,17 @@ public final class Banner {
       for (var spec : report.specs()) {
         var icon =
             switch (spec.status()) {
-              case "done" -> "@|green \u2713|@";
-              case "in_progress" -> "@|yellow \u25cb|@";
-              case "review" -> "@|cyan \u25cb|@";
+              case DONE -> "@|green \u2713|@";
+              case IN_PROGRESS -> "@|yellow \u25cb|@";
+              case REVIEW -> "@|cyan \u25cb|@";
               default -> "@|faint \u25cb|@";
             };
         var idPad = String.format("%-16s", spec.id());
         out.println(amber(ansi, "    " + icon + " " + idPad + spec.title()));
-        if (!spec.dependsOn().isEmpty() && "pending".equals(spec.status())) {
+        if (!spec.dependsOn().isEmpty() && spec.status() == SpecStatus.PENDING) {
           var doneIds =
               report.specs().stream()
-                  .filter(s -> "done".equals(s.status()))
+                  .filter(s -> s.status() == SpecStatus.DONE)
                   .map(ai.singlr.sail.config.Spec::id)
                   .collect(java.util.stream.Collectors.toSet());
           var blocked = spec.dependsOn().stream().filter(d -> !doneIds.contains(d)).toList();
@@ -1093,7 +1096,7 @@ public final class Banner {
         amber(ansi, "    sail agent log " + name + " --tail 50    @|faint # see agent output|@"));
     var remaining =
         report.specs().stream()
-            .filter(s -> "pending".equals(s.status()) || "in_progress".equals(s.status()))
+            .filter(s -> s.status() == SpecStatus.PENDING || s.status() == SpecStatus.IN_PROGRESS)
             .count();
     if (remaining > 0) {
       out.println(

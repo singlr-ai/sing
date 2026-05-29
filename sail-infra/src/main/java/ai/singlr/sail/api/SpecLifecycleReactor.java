@@ -7,6 +7,7 @@ package ai.singlr.sail.api;
 
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.SpecAuditEvent;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExec;
@@ -86,9 +87,7 @@ public final class SpecLifecycleReactor implements EventSubscriber {
         case Event.WellKnownTypes.AGENT_SESSION_STOPPED -> handleStopped(workspace, audit, event);
         case Event.WellKnownTypes.AGENT_SESSION_COMPLETED ->
             audit.append(event.spec(), completedEvent(event));
-        default -> {
-          // filter already excludes other types; no-op for safety
-        }
+        default -> {}
       }
     } catch (Exception e) {
       System.err.println(
@@ -106,7 +105,7 @@ public final class SpecLifecycleReactor implements EventSubscriber {
   private void handleStopped(SpecWorkspace workspace, SpecAudit audit, Event event)
       throws Exception {
     var current = workspace.readSpec(event.spec());
-    if (current != null && "in_progress".equals(current.status())) {
+    if (current != null && current.status() == SpecStatus.IN_PROGRESS) {
       workspace.updateStatus(event.spec(), "review");
     }
     audit.append(event.spec(), stoppedEvent(event));

@@ -9,6 +9,7 @@ import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecDirectory;
+import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.AgentCli;
 import ai.singlr.sail.engine.AgentReporter;
@@ -551,11 +552,22 @@ public final class SailApiOperations implements ApiOperations {
     return spec;
   }
 
+  private static SpecStatus parseStatus(String value, SpecStatus fallback) {
+    if (value == null) {
+      return fallback;
+    }
+    try {
+      return SpecStatus.fromWire(value);
+    } catch (IllegalArgumentException e) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
+    }
+  }
+
   private static SpecView specView(List<Spec> specs, Spec spec) {
     return new SpecView(
         spec.id(),
         spec.title(),
-        spec.status(),
+        spec.status().wire(),
         spec.assignee(),
         spec.dependsOn(),
         spec.repos(),
@@ -794,7 +806,12 @@ public final class SailApiOperations implements ApiOperations {
       }
       var latestTime = OffsetDateTime.parse(snapshots.getLast().createdAt()).toInstant();
       return Instant.now().isAfter(latestTime.plus(SNAPSHOT_INTERVAL));
-    } catch (Exception ignored) {
+    } catch (Exception e) {
+      System.err.println(
+          "  [snapshot] Could not determine snapshot age for '"
+              + project
+              + "', taking one to be safe: "
+              + e.getMessage());
       return true;
     }
   }
@@ -979,7 +996,7 @@ public final class SailApiOperations implements ApiOperations {
                   request.id(),
                   request.project(),
                   request.title(),
-                  request.status(),
+                  parseStatus(request.status(), SpecStatus.PENDING),
                   request.assignee(),
                   request.agent(),
                   request.model(),
@@ -1021,7 +1038,7 @@ public final class SailApiOperations implements ApiOperations {
                   specId,
                   request.project() != null ? request.project() : existing.project(),
                   request.title() != null ? request.title() : existing.title(),
-                  request.status() != null ? request.status() : existing.status(),
+                  parseStatus(request.status(), existing.status()),
                   request.assignee() != null ? request.assignee() : existing.assignee(),
                   request.agent() != null ? request.agent() : existing.agent(),
                   request.model() != null ? request.model() : existing.model(),
@@ -1177,7 +1194,7 @@ public final class SailApiOperations implements ApiOperations {
                               "No human review stage awaiting approval."));
           reviewStore.completeStage(humanStage.id(), "passed");
           reviewStore.updateReviewStatus(reviewId, "passed");
-          specStore.updateStatus(review.specId(), "done");
+          specStore.updateStatus(review.specId(), SpecStatus.DONE);
           return new ReviewApproveResponse(reviewId, true);
         });
   }

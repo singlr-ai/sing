@@ -30,7 +30,7 @@ class SpecTest {
 
     assertEquals("oauth-flow", spec.id());
     assertEquals("Implement OAuth", spec.title());
-    assertEquals("in_progress", spec.status());
+    assertEquals(SpecStatus.IN_PROGRESS, spec.status());
     assertEquals("alice", spec.assignee());
     assertEquals(List.of("setup-db"), spec.dependsOn());
     assertEquals(List.of("chorus"), spec.repos());
@@ -41,7 +41,7 @@ class SpecTest {
   void defaultsStatusToPending() {
     var spec = Spec.fromMap(Map.of("id", "task1"));
 
-    assertEquals("pending", spec.status());
+    assertEquals(SpecStatus.PENDING, spec.status());
   }
 
   @Test
@@ -93,7 +93,8 @@ class SpecTest {
 
   @Test
   void toMapContainsAllFields() {
-    var spec = new Spec("auth", "Implement Auth", "done", "bob", List.of("setup"), "feat/auth");
+    var spec =
+        new Spec("auth", "Implement Auth", SpecStatus.DONE, "bob", List.of("setup"), "feat/auth");
 
     var map = spec.toMap();
 
@@ -147,7 +148,7 @@ class SpecTest {
         new Spec(
             "auth",
             "Implement Auth",
-            "done",
+            SpecStatus.DONE,
             "bob",
             List.of("setup"),
             List.of("chorus"),
@@ -175,7 +176,7 @@ class SpecTest {
 
   @Test
   void toMapOmitsNullAndEmptyFields() {
-    var spec = new Spec("auth", "", "pending", null, List.of(), null);
+    var spec = new Spec("auth", "", SpecStatus.PENDING, null, List.of(), null);
 
     var map = spec.toMap();
 
@@ -190,7 +191,8 @@ class SpecTest {
   @Test
   @SuppressWarnings("unchecked")
   void roundTrips() {
-    var spec = new Spec("auth", "Implement Auth", "review", "alice", List.of("db"), "feat/auth");
+    var spec =
+        new Spec("auth", "Implement Auth", SpecStatus.REVIEW, "alice", List.of("db"), "feat/auth");
 
     var parsed = Spec.fromMap(spec.toMap());
 
