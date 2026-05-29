@@ -105,9 +105,28 @@ public final class SpecWorkspace {
     writeSpecBody(spec.id(), markdown);
   }
 
+  public String readPlanBody(String specId)
+      throws IOException, InterruptedException, TimeoutException {
+    NameValidator.requireValidSpecId(specId);
+    var result =
+        shell.exec(ContainerExec.asDevUser(containerName, List.of("cat", specPlanPath(specId))));
+    if (result.ok()) {
+      return result.stdout().strip();
+    }
+    if (isMissingFile(result)) {
+      return null;
+    }
+    throw new IOException("Failed to read spec plan: " + result.stderr());
+  }
+
   public String specMarkdownPath(String specId) {
     NameValidator.requireValidSpecId(specId);
     return specsDir + "/" + specId + "/spec.md";
+  }
+
+  public String specPlanPath(String specId) {
+    NameValidator.requireValidSpecId(specId);
+    return specsDir + "/" + specId + "/plan.md";
   }
 
   public String specMetadataPath(String specId) {

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Imports file-based specs (specs/&lt;id&gt;/spec.yaml + spec.md) into the SQLite database.
@@ -55,14 +56,8 @@ public final class SpecMigrator {
         if (!Files.exists(specYaml)) continue;
 
         var specId = specDir.getFileName().toString();
-        if (store.findById(specId).isPresent()) {
-          skipped++;
-          continue;
-        }
-
         try {
-          var result = importSpec(specDir, specId, defaultProject);
-          if (result) {
+          if (importFromDirectory(specDir, specId, defaultProject)) {
             imported++;
           } else {
             skipped++;
@@ -78,17 +73,18 @@ public final class SpecMigrator {
     return new MigrationResult(imported, skipped, List.copyOf(errors));
   }
 
-  @SuppressWarnings("unchecked")
-  private boolean importSpec(Path specDir, String specId, String defaultProject)
-      throws IOException {
-    var specYaml = specDir.resolve("spec.yaml");
-    var map = YamlUtil.parseFile(specYaml);
-    if (!map.containsKey("id")) {
-      map.put("id", specId);
+  /**
+   * Imports an already-parsed spec read from any source (filesystem or container shell). Skips —
+   * returning {@code false} — when a spec with the same id already exists. Specs that omit {@code
+   * project:} are bucketed under {@code defaultProject}.
+   */
+  public boolean importSpec(Spec spec, String defaultProject, String body, String plan) {
+    if (spec.id() == null || spec.id().isBlank()) {
+      throw new IllegalArgumentException("Spec is missing an id.");
     }
-
-    var spec = Spec.fromMap(map);
-    var status = mapLegacyStatus(spec.status());
+    if (store.findById(spec.id()).isPresent()) {
+      return false;
+    }
     var project = spec.project() != null ? spec.project() : defaultProject;
     var dependsOn = spec.dependsOn() != null ? spec.dependsOn() : List.<String>of();
     var repos = spec.repos() != null ? spec.repos() : List.<String>of();
@@ -98,7 +94,7 @@ public final class SpecMigrator {
             spec.id(),
             project,
             spec.title(),
-            status,
+            mapLegacyStatus(spec.status()),
             spec.assignee(),
             spec.agent(),
             spec.model(),
@@ -112,15 +108,25 @@ public final class SpecMigrator {
             repos);
     store.create(row);
 
+    var safeBody = Objects.requireNonNullElse(body, "");
+    var safePlan = Objects.requireNonNullElse(plan, "");
+    if (!safeBody.isEmpty() || !safePlan.isEmpty()) {
+      store.setContent(spec.id(), safeBody, safePlan);
+    }
+    return true;
+  }
+
+  private boolean importFromDirectory(Path specDir, String specId, String defaultProject)
+      throws IOException {
+    var map = YamlUtil.parseFile(specDir.resolve("spec.yaml"));
+    map.putIfAbsent("id", specId);
+    var spec = Spec.fromMap(map);
+
     var specMd = specDir.resolve("spec.md");
     var planMd = specDir.resolve("plan.md");
     var body = Files.exists(specMd) ? Files.readString(specMd) : "";
     var plan = Files.exists(planMd) ? Files.readString(planMd) : "";
-    if (!body.isEmpty() || !plan.isEmpty()) {
-      store.setContent(spec.id(), body, plan);
-    }
-
-    return true;
+    return importSpec(spec, defaultProject, body, plan);
   }
 
   private static String mapLegacyStatus(String status) {

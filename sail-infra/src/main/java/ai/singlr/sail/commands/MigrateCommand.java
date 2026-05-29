@@ -5,12 +5,15 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.engine.ContainerManager;
+import ai.singlr.sail.engine.ContainerSpecImporter;
 import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.store.DataMigration;
 import ai.singlr.sail.store.DataMigrator;
-import ai.singlr.sail.store.ImportFileBasedSpecsMigration;
 import ai.singlr.sail.store.MigrationRunner;
 import ai.singlr.sail.store.RebucketSpecsMigration;
+import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -37,8 +40,8 @@ public final class MigrateCommand implements Runnable {
 
   /**
    * Every one-shot data migration tracked in {@code data_migrations}. Add new ones at the bottom.
-   * File-based spec discovery (see {@link ImportFileBasedSpecsMigration}) deliberately runs outside
-   * this registry — it's a repeatable scan, not a one-shot fix-up.
+   * File-based spec discovery (see {@link ContainerSpecImporter}) deliberately runs outside this
+   * registry — it's a repeatable scan, not a one-shot fix-up.
    */
   public static final List<ai.singlr.sail.store.DataMigration> REGISTRY =
       List.of(new RebucketSpecsMigration());
@@ -47,12 +50,6 @@ public final class MigrateCommand implements Runnable {
       names = "--non-interactive",
       description = "Skip prompts; leave ambiguous rows for manual follow-up.")
   private boolean nonInteractive;
-
-  @Option(
-      names = "--workspace",
-      description =
-          "Override the workspace root scanned for file-based specs. Defaults to ~/workspace.")
-  private java.nio.file.Path workspace;
 
   @Option(names = "--json", description = "Output JSON instead of human-readable text.")
   private boolean json;
@@ -65,16 +62,7 @@ public final class MigrateCommand implements Runnable {
   }
 
   private void execute() throws Exception {
-    if (workspace != null) {
-      System.setProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY, workspace.toString());
-    }
-    try {
-      runMigrations(nonInteractive, json);
-    } finally {
-      if (workspace != null) {
-        System.clearProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY);
-      }
-    }
+    runMigrations(nonInteractive, json);
   }
 
   /**
@@ -90,7 +78,11 @@ public final class MigrateCommand implements Runnable {
     }
     try (var db = Sqlite.open(dbPath)) {
       var prompter = nonInteractive ? DataMigration.Prompter.NON_INTERACTIVE : ttyPrompter();
-      var importReport = new ImportFileBasedSpecsMigration().apply(db);
+      var shell = new ShellExecutor(false);
+      var importReport =
+          new ContainerSpecImporter(
+                  shell, new ContainerManager(shell), new SpecStore(db), SailPaths.projectsDir())
+              .importAll();
       var result = MigrationRunner.applyAll(db, REGISTRY, prompter);
       if (!jsonOutput) {
         printSummary(
@@ -108,7 +100,7 @@ public final class MigrateCommand implements Runnable {
       String dbPath,
       int beforeSchema,
       int afterSchema,
-      ImportFileBasedSpecsMigration.Report importReport,
+      ContainerSpecImporter.Report importReport,
       List<DataMigrator.Run> runs) {
     System.out.println(Ansi.AUTO.string("  @|green ✓|@ Database: " + dbPath));
     if (afterSchema > beforeSchema) {
@@ -124,7 +116,7 @@ public final class MigrateCommand implements Runnable {
         || !importReport.notes().isEmpty()) {
       System.out.println(
           Ansi.AUTO.string(
-              "  @|green ✓|@ workspace import: "
+              "  @|green ✓|@ spec import: "
                   + importReport.imported()
                   + " imported, "
                   + importReport.skipped()
