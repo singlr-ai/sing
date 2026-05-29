@@ -9,7 +9,6 @@ import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecDirectory;
-import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.AgentCli;
 import ai.singlr.sail.engine.AgentReporter;
@@ -56,6 +55,8 @@ public final class SailApiOperations implements ApiOperations {
   private final SpecStore specStore;
   private final ReviewStore reviewStore;
   private final SessionStore sessionStore;
+  private final GlobalSpecOperations globalSpecOps;
+  private final ReviewOperations reviewOps;
 
   public SailApiOperations() {
     this(new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR);
@@ -141,6 +142,8 @@ public final class SailApiOperations implements ApiOperations {
     this.specStore = specStore;
     this.reviewStore = reviewStore;
     this.sessionStore = sessionStore;
+    this.globalSpecOps = new GlobalSpecOperations(specStore);
+    this.reviewOps = new ReviewOperations(reviewStore, specStore);
   }
 
   @Override
@@ -553,17 +556,6 @@ public final class SailApiOperations implements ApiOperations {
     return spec;
   }
 
-  private static SpecStatus parseStatus(String value, SpecStatus fallback) {
-    if (value == null) {
-      return fallback;
-    }
-    try {
-      return SpecStatus.fromWire(value);
-    } catch (IllegalArgumentException e) {
-      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
-    }
-  }
-
   private static SpecView specView(List<Spec> specs, Spec spec) {
     return new SpecView(
         spec.id(),
@@ -903,274 +895,64 @@ public final class SailApiOperations implements ApiOperations {
 
   @Override
   public Result<GlobalSpecsListResponse> globalSpecs(SpecStore.SpecFilter filter) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          var specs = specStore.list(filter).stream().map(GlobalSpecView::from).toList();
-          return new GlobalSpecsListResponse(specs, specs.size());
-        });
+    return safe(() -> globalSpecOps.list(filter));
   }
 
   @Override
   public Result<GlobalSpecDetailResponse> globalSpec(String specId) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          var row =
-              specStore
-                  .findById(specId)
-                  .orElseThrow(
-                      () ->
-                          new ApiException(
-                              ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
-          var content = specStore.getContent(specId).orElse(null);
-          return new GlobalSpecDetailResponse(
-              GlobalSpecView.from(row),
-              content != null ? content.body() : null,
-              content != null ? content.plan() : null);
-        });
+    return safe(() -> globalSpecOps.get(specId));
   }
 
   @Override
   public Result<GlobalSpecCreatedResponse> createGlobalSpec(SpecCreateRequest request) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          if (request.id() == null || request.id().isBlank()) {
-            throw new ApiException(ErrorCode.INVALID_REQUEST, "spec id is required.");
-          }
-          if (request.title() == null || request.title().isBlank()) {
-            throw new ApiException(ErrorCode.INVALID_REQUEST, "spec title is required.");
-          }
-          NameValidator.requireValidSpecId(request.id());
-          if (request.project() == null || request.project().isBlank()) {
-            throw new ApiException(
-                ErrorCode.INVALID_REQUEST,
-                "spec project is required.",
-                "Pass --project <name> or run from a directory containing sail.yaml.");
-          }
-          var row =
-              new SpecStore.SpecRow(
-                  request.id(),
-                  request.project(),
-                  request.title(),
-                  parseStatus(request.status(), SpecStatus.PENDING),
-                  request.assignee(),
-                  request.agent(),
-                  request.model(),
-                  request.reasoningEffort(),
-                  request.branch(),
-                  request.priority(),
-                  null,
-                  "",
-                  "",
-                  request.dependsOn(),
-                  request.repos());
-          specStore.create(row);
-          if (request.body() != null || request.plan() != null) {
-            specStore.setContent(
-                request.id(),
-                Objects.requireNonNullElse(request.body(), ""),
-                Objects.requireNonNullElse(request.plan(), ""));
-          }
-          var created = specStore.findById(request.id()).orElseThrow();
-          return new GlobalSpecCreatedResponse(GlobalSpecView.from(created));
-        });
+    return safe(() -> globalSpecOps.create(request));
   }
 
   @Override
   public Result<GlobalSpecUpdatedResponse> updateGlobalSpec(
       String specId, SpecUpdateRequest request) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          var existing =
-              specStore
-                  .findById(specId)
-                  .orElseThrow(
-                      () ->
-                          new ApiException(
-                              ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
-          var updated =
-              new SpecStore.SpecRow(
-                  specId,
-                  request.project() != null ? request.project() : existing.project(),
-                  request.title() != null ? request.title() : existing.title(),
-                  parseStatus(request.status(), existing.status()),
-                  request.assignee() != null ? request.assignee() : existing.assignee(),
-                  request.agent() != null ? request.agent() : existing.agent(),
-                  request.model() != null ? request.model() : existing.model(),
-                  request.reasoningEffort() != null
-                      ? request.reasoningEffort()
-                      : existing.reasoningEffort(),
-                  request.branch() != null ? request.branch() : existing.branch(),
-                  request.priority() != null ? request.priority() : existing.priority(),
-                  existing.createdBy(),
-                  existing.createdAt(),
-                  existing.updatedAt(),
-                  request.dependsOn() != null ? request.dependsOn() : existing.dependsOn(),
-                  request.repos() != null ? request.repos() : existing.repos());
-          specStore.update(updated);
-          var result = specStore.findById(specId).orElseThrow();
-          return new GlobalSpecUpdatedResponse(GlobalSpecView.from(result));
-        });
+    return safe(() -> globalSpecOps.update(specId, request));
   }
 
   @Override
   public Result<GlobalSpecDeletedResponse> deleteGlobalSpec(String specId) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          specStore
-              .findById(specId)
-              .orElseThrow(
-                  () ->
-                      new ApiException(
-                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
-          specStore.delete(specId);
-          return new GlobalSpecDeletedResponse(specId);
-        });
+    return safe(() -> globalSpecOps.delete(specId));
   }
 
   @Override
   public Result<GlobalSpecContentResponse> globalSpecContent(String specId) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          specStore
-              .findById(specId)
-              .orElseThrow(
-                  () ->
-                      new ApiException(
-                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
-          var content = specStore.getContent(specId).orElse(new SpecStore.SpecContent("", "", ""));
-          return new GlobalSpecContentResponse(specId, content.body(), content.plan());
-        });
+    return safe(() -> globalSpecOps.content(specId));
   }
 
   @Override
   public Result<GlobalSpecContentResponse> setGlobalSpecContent(
       String specId, SpecContentRequest request) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          specStore
-              .findById(specId)
-              .orElseThrow(
-                  () ->
-                      new ApiException(
-                          ErrorCode.SPEC_NOT_FOUND, "Spec '" + specId + "' was not found."));
-          specStore.setContent(
-              specId,
-              Objects.requireNonNullElse(request.body(), ""),
-              Objects.requireNonNullElse(request.plan(), ""));
-          var content = specStore.getContent(specId).orElseThrow();
-          return new GlobalSpecContentResponse(specId, content.body(), content.plan());
-        });
+    return safe(() -> globalSpecOps.setContent(specId, request));
   }
 
   @Override
   public Result<GlobalBoardResponse> globalBoard(String project) {
-    return safe(
-        () -> {
-          requireSpecStore();
-          return new GlobalBoardResponse(specStore.board(project));
-        });
+    return safe(() -> globalSpecOps.board(project));
   }
 
   @Override
   public Result<ReviewListResponse> reviewsForSpec(String specId) {
-    return safe(
-        () -> {
-          requireReviewStore();
-          var reviews = reviewStore.reviewsForSpec(specId);
-          var views =
-              reviews.stream()
-                  .map(
-                      r -> {
-                        var stages = reviewStore.stagesForReview(r.id());
-                        var stageViews =
-                            stages.stream()
-                                .map(
-                                    s ->
-                                        StageView.from(
-                                            s, reviewStore.findingsForStage(s.id()).size()))
-                                .toList();
-                        return ReviewView.from(r, stageViews);
-                      })
-                  .toList();
-          return new ReviewListResponse(specId, views);
-        });
+    return safe(() -> reviewOps.listForSpec(specId));
   }
 
   @Override
   public Result<ReviewDetailResponse> reviewDetail(String reviewId) {
-    return safe(
-        () -> {
-          requireReviewStore();
-          var review =
-              reviewStore
-                  .findReview(reviewId)
-                  .orElseThrow(
-                      () ->
-                          new ApiException(
-                              ErrorCode.NOT_FOUND, "Review '" + reviewId + "' not found."));
-          var stages = reviewStore.stagesForReview(reviewId);
-          var stageViews =
-              stages.stream()
-                  .map(s -> StageView.from(s, reviewStore.findingsForStage(s.id()).size()))
-                  .toList();
-          var findings =
-              reviewStore.findingsForReview(reviewId).stream()
-                  .map(ai.singlr.sail.store.Finding::toMap)
-                  .toList();
-          return new ReviewDetailResponse(ReviewView.from(review, stageViews), findings);
-        });
+    return safe(() -> reviewOps.detail(reviewId));
   }
 
   @Override
   public Result<ReviewApproveResponse> approveReview(String reviewId) {
-    return safe(
-        () -> {
-          requireReviewStore();
-          var review =
-              reviewStore
-                  .findReview(reviewId)
-                  .orElseThrow(
-                      () ->
-                          new ApiException(
-                              ErrorCode.NOT_FOUND, "Review '" + reviewId + "' not found."));
-          var stages = reviewStore.stagesForReview(reviewId);
-          var humanStage =
-              stages.stream()
-                  .filter(s -> "human".equals(s.stageType()) && "running".equals(s.status()))
-                  .findFirst()
-                  .orElseThrow(
-                      () ->
-                          new ApiException(
-                              ErrorCode.INVALID_REQUEST,
-                              "No human review stage awaiting approval."));
-          reviewStore.completeStage(humanStage.id(), "passed");
-          reviewStore.updateReviewStatus(reviewId, "passed");
-          specStore.updateStatus(review.specId(), SpecStatus.DONE);
-          return new ReviewApproveResponse(reviewId, true);
-        });
+    return safe(() -> reviewOps.approve(reviewId));
   }
 
   @Override
   public Result<FindingDismissResponse> dismissFinding(String reviewId, String findingId) {
-    return safe(
-        () -> {
-          requireReviewStore();
-          reviewStore
-              .findReview(reviewId)
-              .orElseThrow(
-                  () ->
-                      new ApiException(
-                          ErrorCode.NOT_FOUND, "Review '" + reviewId + "' not found."));
-          reviewStore.resolveFinding(findingId, ai.singlr.sail.store.Finding.Resolution.DISMISSED);
-          return new FindingDismissResponse(findingId, true);
-        });
+    return safe(() -> reviewOps.dismissFinding(reviewId, findingId));
   }
 
   @Override
@@ -1186,22 +968,6 @@ public final class SailApiOperations implements ApiOperations {
               sessionStore.listForProject(project).stream().map(SessionView::from).toList();
           return new SessionListResponse(project, sessions);
         });
-  }
-
-  private void requireReviewStore() {
-    if (reviewStore == null) {
-      throw new ApiException(
-          ErrorCode.INTERNAL,
-          "Review store not available. Start the server with 'sail server start'.");
-    }
-  }
-
-  private void requireSpecStore() {
-    if (specStore == null) {
-      throw new ApiException(
-          ErrorCode.INTERNAL,
-          "Spec store not available. Start the server with 'sail server start'.");
-    }
   }
 
   private record LoadedProject(SailYaml config, ContainerState state) {}
