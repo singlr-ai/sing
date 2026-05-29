@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.config.WebhookUrlSafety;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -41,6 +42,15 @@ public final class WebhookNotifier {
   /** Sends a notification. Best-effort — never throws. */
   public void notify(String event, String project, String title, String message) {
     try {
+      var host = URI.create(url).getHost();
+      if (host == null || WebhookUrlSafety.isPrivateHost(host)) {
+        System.err.println(
+            "  [webhook] Warning: refusing to send to "
+                + redactedUrl(url)
+                + " - host resolves to a private/internal address");
+        return;
+      }
+
       var payload = buildPayload(provider, event, project, title, message);
       var request =
           HttpRequest.newBuilder()

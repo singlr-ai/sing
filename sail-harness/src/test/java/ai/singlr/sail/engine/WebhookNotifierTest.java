@@ -7,6 +7,9 @@ package ai.singlr.sail.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class WebhookNotifierTest {
@@ -163,5 +166,21 @@ class WebhookNotifierTest {
 
     assertTrue(payload.contains("\\\"quotes\\\""));
     assertTrue(payload.contains("Line1\\nLine2"));
+  }
+
+  @Test
+  void notifyRefusesToSendWhenHostResolvesPrivateAtSendTime() {
+    var notifier = new WebhookNotifier("http://127.0.0.1:9/hook");
+    var captured = new ByteArrayOutputStream();
+    var originalErr = System.err;
+    System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+    try {
+      notifier.notify("guardrail_triggered", "acme", "Title", "Message");
+    } finally {
+      System.setErr(originalErr);
+    }
+    var logged = captured.toString(StandardCharsets.UTF_8);
+    assertTrue(logged.contains("refusing to send"), logged);
+    assertFalse(logged.contains("127.0.0.1:9/hook"), "Must not log the unredacted URL");
   }
 }
