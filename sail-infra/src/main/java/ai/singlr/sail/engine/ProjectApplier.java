@@ -265,13 +265,13 @@ public final class ProjectApplier {
       out.println("  [apply] Agent context \u2192 " + file.remotePath());
       var parentDir = file.remotePath().substring(0, file.remotePath().lastIndexOf('/'));
       shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", parentDir)));
-      pushFile(name, file.remotePath(), file.content(), sshUser);
+      pushFile(name, file.remotePath(), file.content());
     }
 
     for (var file : auditFiles) {
       var parentDir = file.remotePath().substring(0, file.remotePath().lastIndexOf('/'));
       shell.exec(ContainerExec.asDevUser(name, List.of("mkdir", "-p", parentDir)));
-      pushFile(name, file.remotePath(), file.content(), sshUser);
+      pushFile(name, file.remotePath(), file.content());
       if (file.executable()) {
         shell.exec(ContainerExec.asDevUser(name, List.of("chmod", "+x", file.remotePath())));
       }
@@ -445,14 +445,8 @@ public final class ProjectApplier {
         name,
         CleanupScripts.CONTAINER_CLEANUP_PATH,
         CleanupScripts.containerCleanupScript(),
-        sshUser,
         "0755");
-    pushFile(
-        name,
-        CleanupScripts.AGENT_CLEANUP_PATH,
-        CleanupScripts.agentCleanupScript(),
-        sshUser,
-        "0755");
+    pushFile(name, CleanupScripts.AGENT_CLEANUP_PATH, CleanupScripts.agentCleanupScript(), "0755");
 
     var newCron = CleanupScripts.buildUpgradedCrontab(existingCron);
     var mktemp =
@@ -461,7 +455,7 @@ public final class ProjectApplier {
       throw new IOException("Failed to create temp file for crontab: " + mktemp.stderr());
     }
     var tmpPath = mktemp.stdout().strip();
-    pushFile(name, tmpPath, newCron, sshUser);
+    pushFile(name, tmpPath, newCron);
     var cronResult =
         shell.exec(List.of("incus", "exec", name, "--", "crontab", "-u", sshUser, tmpPath));
     shell.exec(List.of("incus", "exec", name, "--", "rm", "-f", tmpPath));
@@ -508,7 +502,7 @@ public final class ProjectApplier {
       return;
     }
     var credPath = "/home/" + sshUser + "/.git-credentials";
-    pushFile(name, credPath, credContent, sshUser, "0600");
+    pushFile(name, credPath, credContent, "0600");
     var helperResult =
         shell.exec(
             ContainerExec.asDevUser(
@@ -540,24 +534,23 @@ public final class ProjectApplier {
     shell.exec(ContainerExec.asDevUser(name, List.of("chmod", "700", sshDir)));
 
     var keyContent = Files.readString(sshKeyHostPath);
-    pushFile(name, sshDir + "/id_ed25519", keyContent, sshUser, "0600");
+    pushFile(name, sshDir + "/id_ed25519", keyContent, "0600");
 
     var pubKeyPath = Path.of(sshKeyHostPath + ".pub");
     if (Files.exists(pubKeyPath)) {
       var pubContent = Files.readString(pubKeyPath);
-      pushFile(name, sshDir + "/id_ed25519.pub", pubContent, sshUser);
+      pushFile(name, sshDir + "/id_ed25519.pub", pubContent);
     }
   }
 
   /** Pushes content to a file inside the container via temp file + incus file push + chown. */
-  private void pushFile(String containerName, String remotePath, String content, String sshUser)
+  private void pushFile(String containerName, String remotePath, String content)
       throws IOException, InterruptedException, TimeoutException {
-    pushFile(containerName, remotePath, content, sshUser, null);
+    pushFile(containerName, remotePath, content, null);
   }
 
   /** Pushes content with optional file mode (e.g. "0600" for credentials). */
-  private void pushFile(
-      String containerName, String remotePath, String content, String sshUser, String mode)
+  private void pushFile(String containerName, String remotePath, String content, String mode)
       throws IOException, InterruptedException, TimeoutException {
     var parentDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
     shell.exec(ContainerExec.asDevUser(containerName, List.of("mkdir", "-p", parentDir)));
