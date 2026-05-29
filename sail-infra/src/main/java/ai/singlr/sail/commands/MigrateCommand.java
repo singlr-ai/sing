@@ -5,13 +5,12 @@
 
 package ai.singlr.sail.commands;
 
-import ai.singlr.sail.config.ProjectRegistry;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.store.DataMigration;
 import ai.singlr.sail.store.DataMigrator;
 import ai.singlr.sail.store.ImportFileBasedSpecsMigration;
+import ai.singlr.sail.store.MigrationRunner;
 import ai.singlr.sail.store.RebucketSpecsMigration;
-import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.Sqlite;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -37,11 +36,12 @@ import picocli.CommandLine.Spec;
 public final class MigrateCommand implements Runnable {
 
   /**
-   * Every data migration in registration order. Order matters: imports come first so newly-loaded
-   * specs land in their proper project bucket; rebucket then sweeps anything still loose.
+   * Every one-shot data migration tracked in {@code data_migrations}. Add new ones at the bottom.
+   * File-based spec discovery (see {@link ImportFileBasedSpecsMigration}) deliberately runs outside
+   * this registry — it's a repeatable scan, not a one-shot fix-up.
    */
   public static final List<ai.singlr.sail.store.DataMigration> REGISTRY =
-      List.of(new ImportFileBasedSpecsMigration(), new RebucketSpecsMigration());
+      List.of(new RebucketSpecsMigration());
 
   @Option(
       names = "--non-interactive",
@@ -89,22 +89,27 @@ public final class MigrateCommand implements Runnable {
       throw new IllegalStateException("Could not prepare " + dbPath.getParent(), e);
     }
     try (var db = Sqlite.open(dbPath)) {
-      var schema = new SchemaManager(db);
-      var before = schema.currentVersion();
-      schema.migrate();
-      var after = schema.currentVersion();
       var prompter = nonInteractive ? DataMigration.Prompter.NON_INTERACTIVE : ttyPrompter();
-      var projects = ProjectRegistry.loadFromDisk();
-      var runs = new DataMigrator(db, REGISTRY).run(projects, prompter);
+      var importReport = new ImportFileBasedSpecsMigration().apply(db);
+      var result = MigrationRunner.applyAll(db, REGISTRY, prompter);
       if (!jsonOutput) {
-        printSummary(dbPath.toString(), before, after, runs);
+        printSummary(
+            dbPath.toString(),
+            result.schemaBefore(),
+            result.schemaAfter(),
+            importReport,
+            result.dataRuns());
       }
-      return runs;
+      return result.dataRuns();
     }
   }
 
   private static void printSummary(
-      String dbPath, int beforeSchema, int afterSchema, List<DataMigrator.Run> runs) {
+      String dbPath,
+      int beforeSchema,
+      int afterSchema,
+      ImportFileBasedSpecsMigration.Report importReport,
+      List<DataMigrator.Run> runs) {
     System.out.println(Ansi.AUTO.string("  @|green ✓|@ Database: " + dbPath));
     if (afterSchema > beforeSchema) {
       System.out.println(
@@ -113,6 +118,20 @@ public final class MigrateCommand implements Runnable {
     } else {
       System.out.println(
           Ansi.AUTO.string("    @|faint Schema up to date (version " + afterSchema + ")|@"));
+    }
+    if (importReport.imported() > 0
+        || importReport.skipped() > 0
+        || !importReport.notes().isEmpty()) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|green ✓|@ workspace import: "
+                  + importReport.imported()
+                  + " imported, "
+                  + importReport.skipped()
+                  + " skipped (already present)"));
+      for (var note : importReport.notes()) {
+        System.out.println(note);
+      }
     }
     for (var run : runs) {
       if (run.alreadyApplied()) {

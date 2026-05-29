@@ -5,7 +5,6 @@
 
 package ai.singlr.sail.store;
 
-import ai.singlr.sail.config.ProjectRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,22 +17,33 @@ import java.util.List;
  * found, assigning {@code project = <workspace-dir-name>} so the import comes in already bucketed.
  * Existing rows in the DB are not overwritten — {@link SpecMigrator} skips by id.
  *
- * <p>The scan root defaults to {@code ~/workspace} (the canonical FDE layout) but can be overridden
- * via the {@code sail.migrate.workspace} system property, which {@code sail migrate --workspace
- * <dir>} sets before invoking the data-migrator.
+ * <p>NOT tracked in {@code data_migrations}: this is a discovery operation, not a one-shot schema
+ * fix-up. It runs every time {@code sail migrate} is invoked and is intrinsically idempotent
+ * (skip-by-id). The {@code --workspace} flag overrides the default {@code ~/workspace} scan root
+ * via the {@link #WORKSPACE_PROPERTY} system property.
+ *
+ * <p>Deliberately not invoked from {@link ai.singlr.sail.store.MigrationRunner} or {@code
+ * ServerStartCommand} — the daemon has no business knowing about per-operator workspace paths. Only
+ * {@code sail migrate} drives it.
  */
-public final class ImportFileBasedSpecsMigration implements DataMigration {
+public final class ImportFileBasedSpecsMigration {
 
-  public static final String NAME = "import-workspace-specs-2026-05";
   public static final String WORKSPACE_PROPERTY = "sail.migrate.workspace";
 
-  @Override
-  public String name() {
-    return NAME;
+  /**
+   * Per-run summary surfaced to the {@code sail migrate} CLI for printing.
+   *
+   * @param imported newly-inserted specs
+   * @param skipped specs already in the DB (skip-by-id)
+   * @param notes one line per project workspace the scan touched
+   */
+  public record Report(int imported, int skipped, List<String> notes) {
+    public static Report empty() {
+      return new Report(0, 0, List.of());
+    }
   }
 
-  @Override
-  public Report apply(Sqlite db, ProjectRegistry projects, Prompter prompter) {
+  public Report apply(Sqlite db) {
     var workspace = resolveWorkspace();
     if (workspace == null || !Files.isDirectory(workspace)) {
       return Report.empty();
@@ -72,7 +82,7 @@ public final class ImportFileBasedSpecsMigration implements DataMigration {
     } catch (IOException e) {
       notes.add("  • Failed to list workspace " + workspace + ": " + e.getMessage());
     }
-    return new Report(imported, 0, skipped, List.copyOf(notes));
+    return new Report(imported, skipped, List.copyOf(notes));
   }
 
   private static Path resolveWorkspace() {

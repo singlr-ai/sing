@@ -12,8 +12,9 @@ import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.api.SpecStoreAuditPersister;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
+import ai.singlr.sail.store.DataMigration;
 import ai.singlr.sail.store.EventStore;
-import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.MigrationRunner;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import ai.singlr.sail.store.TokenStore;
@@ -49,7 +50,35 @@ public final class ServerStartCommand implements Runnable {
     Files.createDirectories(dbPath.getParent());
 
     var db = Sqlite.open(dbPath);
-    new SchemaManager(db).migrate();
+    var migrationResult =
+        MigrationRunner.applyAll(
+            db, MigrateCommand.REGISTRY, DataMigration.Prompter.NON_INTERACTIVE);
+    if (migrationResult.schemaAfter() > migrationResult.schemaBefore()) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|green ✓|@ Schema migrated: "
+                  + migrationResult.schemaBefore()
+                  + " → "
+                  + migrationResult.schemaAfter()));
+    }
+    for (var run : migrationResult.dataRuns()) {
+      if (!run.alreadyApplied()
+          && (run.report().applied() > 0
+              || run.report().ambiguous() > 0
+              || run.report().skipped() > 0)) {
+        System.out.println(
+            Ansi.AUTO.string(
+                "  @|green ✓|@ "
+                    + run.name()
+                    + ": "
+                    + run.report().applied()
+                    + " applied, "
+                    + run.report().ambiguous()
+                    + " ambiguous, "
+                    + run.report().skipped()
+                    + " skipped"));
+      }
+    }
 
     var tokenStore = new TokenStore(db);
     var configPath = SailPaths.clientConfigPath();

@@ -7,7 +7,6 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import ai.singlr.sail.config.ProjectRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
@@ -41,14 +40,9 @@ class ImportFileBasedSpecsMigrationTest {
     Files.writeString(specYaml, "id: oauth-flow\ntitle: OAuth flow\nstatus: pending\n");
     System.setProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY, workspace.toString());
 
-    var report =
-        new ImportFileBasedSpecsMigration()
-            .apply(
-                db,
-                ProjectRegistry.loadFromDisk(tempDir.resolve("empty")),
-                DataMigration.Prompter.NON_INTERACTIVE);
+    var report = new ImportFileBasedSpecsMigration().apply(db);
 
-    assertEquals(1, report.applied());
+    assertEquals(1, report.imported());
     var spec = new SpecStore(db).findById("oauth-flow").orElseThrow();
     assertEquals("manatee", spec.project());
     assertEquals("OAuth flow", spec.title());
@@ -75,11 +69,7 @@ class ImportFileBasedSpecsMigrationTest {
     }
     System.setProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY, workspace.toString());
 
-    new ImportFileBasedSpecsMigration()
-        .apply(
-            db,
-            ProjectRegistry.loadFromDisk(tempDir.resolve("empty")),
-            DataMigration.Prompter.NON_INTERACTIVE);
+    new ImportFileBasedSpecsMigration().apply(db);
 
     var store = new SpecStore(db);
     assertEquals("manatee", store.findById("a").orElseThrow().project());
@@ -114,14 +104,9 @@ class ImportFileBasedSpecsMigrationTest {
                 java.util.List.of(),
                 java.util.List.of()));
 
-    var report =
-        new ImportFileBasedSpecsMigration()
-            .apply(
-                db,
-                ProjectRegistry.loadFromDisk(tempDir.resolve("empty")),
-                DataMigration.Prompter.NON_INTERACTIVE);
+    var report = new ImportFileBasedSpecsMigration().apply(db);
 
-    assertEquals(0, report.applied());
+    assertEquals(0, report.imported());
     assertEquals(1, report.skipped());
     var kept = new SpecStore(db).findById("dup").orElseThrow();
     assertEquals("preexisting", kept.project());
@@ -134,14 +119,9 @@ class ImportFileBasedSpecsMigrationTest {
         ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY,
         tempDir.resolve("nonexistent").toString());
 
-    var report =
-        new ImportFileBasedSpecsMigration()
-            .apply(
-                db,
-                ProjectRegistry.loadFromDisk(tempDir.resolve("empty")),
-                DataMigration.Prompter.NON_INTERACTIVE);
+    var report = new ImportFileBasedSpecsMigration().apply(db);
 
-    assertEquals(0, report.applied());
+    assertEquals(0, report.imported());
     assertEquals(0, report.skipped());
   }
 
@@ -151,14 +131,9 @@ class ImportFileBasedSpecsMigrationTest {
     Files.createDirectories(workspace.resolve("just-a-repo"));
     System.setProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY, workspace.toString());
 
-    var report =
-        new ImportFileBasedSpecsMigration()
-            .apply(
-                db,
-                ProjectRegistry.loadFromDisk(tempDir.resolve("empty")),
-                DataMigration.Prompter.NON_INTERACTIVE);
+    var report = new ImportFileBasedSpecsMigration().apply(db);
 
-    assertEquals(0, report.applied());
+    assertEquals(0, report.imported());
     assertTrue(report.notes().isEmpty());
   }
 }

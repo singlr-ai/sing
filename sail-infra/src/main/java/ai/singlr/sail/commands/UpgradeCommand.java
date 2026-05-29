@@ -325,28 +325,43 @@ public final class UpgradeCommand implements Runnable {
     return null;
   }
 
+  /**
+   * Bootstraps the database and runs every pending migration using the NEW binary that was just
+   * installed. The token bootstrap runs in-process (the OLD binary), but every schema and data
+   * migration runs as a sub-process invocation of the freshly-installed binary's {@code sail
+   * migrate --non-interactive}. That's the only way a release's new migrations can execute during
+   * the upgrade itself — the alternative (running migrations from the OLD process's class files)
+   * has bitten us every release since 0.13.4. {@link ServerStartCommand} also runs the same
+   * migrations on every daemon start, so the post-upgrade restart is a second-chance fallback if
+   * the sub-process fails for any reason.
+   */
   private void migrateDatabase(boolean dryRun) {
     var dbPath = SailPaths.sailDir().resolve("sail.db");
+    var binaryPath = SailPaths.binaryPath();
     if (dryRun) {
       if (!json) {
         System.out.println("[dry-run] Would initialize database and create API token at " + dbPath);
         System.out.println(
-            "[dry-run] Would run all pending data migrations (rebucket-specs, etc.)");
+            "[dry-run] Would exec '"
+                + binaryPath
+                + " migrate --non-interactive' to run new-binary migrations.");
       }
       return;
     }
+    bootstrapAdminToken(dbPath);
+    runNewBinaryMigrate(binaryPath);
+  }
+
+  /**
+   * Creates the admin token if the DB is fresh. The token schema hasn't changed since the column
+   * was introduced, so the OLD binary is safe to do this. Everything else (new schema migrations,
+   * new data migrations) is handled by the sub-process that runs the NEW binary.
+   */
+  private void bootstrapAdminToken(java.nio.file.Path dbPath) {
     try {
       Files.createDirectories(dbPath.getParent());
       try (var db = Sqlite.open(dbPath)) {
-        var schema = new SchemaManager(db);
-        var before = schema.currentVersion();
-        schema.migrate();
-        var after = schema.currentVersion();
-        if (!json && after > before) {
-          System.out.println(
-              Ansi.AUTO.string(
-                  "    @|faint Database schema migrated: " + before + " → " + after + "|@"));
-        }
+        new SchemaManager(db).migrate();
         var tokenStore = new TokenStore(db);
         if (tokenStore.list().isEmpty()) {
           var created = tokenStore.create("admin", "admin");
@@ -358,40 +373,44 @@ public final class UpgradeCommand implements Runnable {
           }
         }
       }
-      runDataMigrations();
     } catch (Throwable e) {
       if (!json) {
-        System.err.println(
-            "    Database migration skipped: " + e.getMessage() + ". Run 'sail migrate' manually.");
+        System.err.println("    Token bootstrap skipped: " + e.getMessage());
       }
     }
   }
 
   /**
-   * Runs every pending data migration (rebucket specs, etc.) after the schema is up to date.
-   * Non-interactive so an unattended upgrade never blocks on a prompt; the operator can rerun
-   * {@code sail migrate} interactively afterwards if anything was left ambiguous.
+   * Spawns the just-installed binary's {@code sail migrate --non-interactive}. The sub-process runs
+   * NEW code — that's the whole point. Inherits stdio so the operator sees what migrated. Tolerates
+   * non-zero exits; the {@code sail-api} restart afterwards is a second chance.
    */
-  private void runDataMigrations() {
-    var runs = MigrateCommand.runMigrations(true, json);
-    if (json) {
-      return;
-    }
-    var skipped = 0;
-    var ambiguous = 0;
-    for (var run : runs) {
-      if (run.alreadyApplied()) {
-        continue;
+  private void runNewBinaryMigrate(java.nio.file.Path binaryPath) {
+    try {
+      var process =
+          new ProcessBuilder(binaryPath.toString(), "migrate", "--non-interactive")
+              .inheritIO()
+              .start();
+      var finished = process.waitFor(2, java.util.concurrent.TimeUnit.MINUTES);
+      if (!finished) {
+        process.destroyForcibly();
+        if (!json) {
+          System.err.println(
+              "    Migrate sub-process timed out after 2m. Run 'sail migrate' manually.");
+        }
+      } else if (process.exitValue() != 0 && !json) {
+        System.err.println(
+            "    Migrate sub-process exited with code "
+                + process.exitValue()
+                + ". Run 'sail migrate' manually.");
       }
-      skipped += run.report().skipped();
-      ambiguous += run.report().ambiguous();
-    }
-    if (skipped > 0 || ambiguous > 0) {
-      System.out.println(
-          Ansi.AUTO.string(
-              "    @|yellow ⚠|@ "
-                  + (skipped + ambiguous)
-                  + " data row(s) need manual follow-up — run 'sail migrate' interactively."));
+    } catch (Throwable e) {
+      if (!json) {
+        System.err.println(
+            "    Could not spawn migrate sub-process: "
+                + e.getMessage()
+                + ". The sail-api restart will retry; or run 'sail migrate' manually.");
+      }
     }
   }
 
