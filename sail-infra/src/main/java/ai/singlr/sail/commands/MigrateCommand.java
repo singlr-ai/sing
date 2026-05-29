@@ -9,6 +9,7 @@ import ai.singlr.sail.config.ProjectRegistry;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.store.DataMigration;
 import ai.singlr.sail.store.DataMigrator;
+import ai.singlr.sail.store.ImportFileBasedSpecsMigration;
 import ai.singlr.sail.store.RebucketSpecsMigration;
 import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.Sqlite;
@@ -35,14 +36,23 @@ import picocli.CommandLine.Spec;
     mixinStandardHelpOptions = true)
 public final class MigrateCommand implements Runnable {
 
-  /** Every data migration in registration order. Add new ones at the bottom. */
+  /**
+   * Every data migration in registration order. Order matters: imports come first so newly-loaded
+   * specs land in their proper project bucket; rebucket then sweeps anything still loose.
+   */
   public static final List<ai.singlr.sail.store.DataMigration> REGISTRY =
-      List.of(new RebucketSpecsMigration());
+      List.of(new ImportFileBasedSpecsMigration(), new RebucketSpecsMigration());
 
   @Option(
       names = "--non-interactive",
       description = "Skip prompts; leave ambiguous rows for manual follow-up.")
   private boolean nonInteractive;
+
+  @Option(
+      names = "--workspace",
+      description =
+          "Override the workspace root scanned for file-based specs. Defaults to ~/workspace.")
+  private java.nio.file.Path workspace;
 
   @Option(names = "--json", description = "Output JSON instead of human-readable text.")
   private boolean json;
@@ -55,7 +65,16 @@ public final class MigrateCommand implements Runnable {
   }
 
   private void execute() throws Exception {
-    runMigrations(nonInteractive, json);
+    if (workspace != null) {
+      System.setProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY, workspace.toString());
+    }
+    try {
+      runMigrations(nonInteractive, json);
+    } finally {
+      if (workspace != null) {
+        System.clearProperty(ImportFileBasedSpecsMigration.WORKSPACE_PROPERTY);
+      }
+    }
   }
 
   /**
