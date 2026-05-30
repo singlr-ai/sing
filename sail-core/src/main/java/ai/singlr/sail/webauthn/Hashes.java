@@ -8,13 +8,15 @@ package ai.singlr.sail.webauthn;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/** Hashing helpers for the WebAuthn flow. */
-final class Hashes {
+/** Hashing helpers for the WebAuthn flow (and the session store, which hashes its tokens). */
+public final class Hashes {
 
   private Hashes() {}
 
-  /** SHA-256 of {@code input} — used for the RP ID hash and the clientDataJSON hash. */
-  static byte[] sha256(byte[] input) {
+  /**
+   * SHA-256 of {@code input} — used for the RP ID hash, the clientDataJSON hash, and token hashes.
+   */
+  public static byte[] sha256(byte[] input) {
     return digest("SHA-256", input);
   }
 

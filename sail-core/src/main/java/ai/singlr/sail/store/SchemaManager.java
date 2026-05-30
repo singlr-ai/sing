@@ -184,7 +184,31 @@ public final class SchemaManager {
           )""",
           "ALTER TABLE api_tokens ADD COLUMN fde_id TEXT",
           "ALTER TABLE specs ADD COLUMN updated_by TEXT",
-          "ALTER TABLE reviews ADD COLUMN decided_by TEXT");
+          "ALTER TABLE reviews ADD COLUMN decided_by TEXT",
+          """
+          CREATE TABLE IF NOT EXISTS webauthn_credentials (
+              credential_id TEXT PRIMARY KEY,
+              fde_id TEXT NOT NULL REFERENCES fdes(id) ON DELETE CASCADE,
+              public_key_cose TEXT NOT NULL,
+              cose_algorithm INTEGER NOT NULL,
+              sign_count INTEGER NOT NULL DEFAULT 0,
+              aaguid TEXT,
+              backup_eligible INTEGER NOT NULL DEFAULT 0,
+              backup_state INTEGER NOT NULL DEFAULT 0,
+              label TEXT,
+              created_at TEXT NOT NULL,
+              last_used_at TEXT
+          )""",
+          "CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_fde"
+              + " ON webauthn_credentials(fde_id)",
+          """
+          CREATE TABLE IF NOT EXISTS sessions (
+              token_hash TEXT PRIMARY KEY,
+              fde_id TEXT NOT NULL REFERENCES fdes(id) ON DELETE CASCADE,
+              created_at TEXT NOT NULL,
+              expires_at TEXT NOT NULL,
+              last_used_at TEXT
+          )""");
 
   private final Sqlite db;
 
