@@ -37,7 +37,7 @@ class RelyingPartyTest {
     }
   }
 
-  private final RelyingParty rp = new RelyingParty(RP_ID, Set.of(ORIGIN));
+  private final RelyingParty rp = new RelyingParty(RP_ID, "Sail", Set.of(ORIGIN));
 
   @Test
   void verifiesAndExtractsTheRegisteredCredential() throws Exception {
@@ -140,6 +140,74 @@ class RelyingPartyTest {
         () ->
             rp.finishRegistration(
                 clientJson("webauthn.create", CHALLENGE, ORIGIN), attObj, CHALLENGE));
+  }
+
+  // --- ceremony options ----------------------------------------------------------------------
+
+  @Test
+  void startRegistrationProducesCreationOptions() {
+    var opts =
+        rp.startRegistration(
+            "uid".getBytes(StandardCharsets.UTF_8), "uday", "Uday", java.util.List.of());
+    var pk = opts.publicKey();
+    assertEquals(java.util.Map.of("id", RP_ID, "name", "Sail"), pk.get("rp"));
+    var user = (java.util.Map<?, ?>) pk.get("user");
+    assertEquals("uday", user.get("name"));
+    assertEquals("Uday", user.get("displayName"));
+    assertEquals("none", pk.get("attestation"));
+    var sel = (java.util.Map<?, ?>) pk.get("authenticatorSelection");
+    assertEquals("required", sel.get("residentKey"));
+    assertEquals("required", sel.get("userVerification"));
+    var params = (java.util.List<?>) pk.get("pubKeyCredParams");
+    assertEquals(3, params.size());
+    assertFalse(pk.containsKey("excludeCredentials"));
+    // the challenge field round-trips to the retained raw challenge
+    assertArrayEquals(
+        opts.challenge(), Base64.getUrlDecoder().decode((String) pk.get("challenge")));
+    assertEquals(32, opts.challenge().length);
+    // serializes and re-parses as JSON
+    assertEquals(RP_ID, ((java.util.Map<?, ?>) parseJson(opts.json()).get("rp")).get("id"));
+  }
+
+  @Test
+  void startRegistrationIncludesExcludeCredentials() {
+    var opts =
+        rp.startRegistration(
+            "uid".getBytes(StandardCharsets.UTF_8), "u", "U", java.util.List.of(CRED_ID));
+    var excluded = (java.util.List<?>) opts.publicKey().get("excludeCredentials");
+    assertEquals(1, excluded.size());
+    var d = (java.util.Map<?, ?>) excluded.get(0);
+    assertEquals("public-key", d.get("type"));
+    assertEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(CRED_ID), d.get("id"));
+  }
+
+  @Test
+  void startAssertionProducesRequestOptions() {
+    var opts = rp.startAssertion(java.util.List.of());
+    var pk = opts.publicKey();
+    assertEquals(RP_ID, pk.get("rpId"));
+    assertEquals("required", pk.get("userVerification"));
+    assertFalse(pk.containsKey("allowCredentials"));
+    assertArrayEquals(
+        opts.challenge(), Base64.getUrlDecoder().decode((String) pk.get("challenge")));
+  }
+
+  @Test
+  void startAssertionIncludesAllowCredentials() {
+    var opts = rp.startAssertion(java.util.List.of(CRED_ID));
+    assertEquals(1, ((java.util.List<?>) opts.publicKey().get("allowCredentials")).size());
+  }
+
+  @Test
+  void challengesAreRandomPerCeremony() {
+    assertFalse(
+        java.util.Arrays.equals(
+            rp.startAssertion(java.util.List.of()).challenge(),
+            rp.startAssertion(java.util.List.of()).challenge()));
+  }
+
+  private static java.util.Map<String, Object> parseJson(String json) {
+    return ai.singlr.sail.config.YamlUtil.parseMap(json);
   }
 
   // --- assertion verification ----------------------------------------------------------------
