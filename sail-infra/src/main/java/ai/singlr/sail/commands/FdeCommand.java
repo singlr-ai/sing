@@ -52,6 +52,12 @@ public final class FdeCommand implements Runnable {
     @Option(names = "--email", description = "Email address.")
     private String email;
 
+    @Option(
+        names = "--role",
+        description = "Authorization role: admin, member, or viewer.",
+        defaultValue = FdeStore.DEFAULT_ROLE)
+    private String role;
+
     @Spec private CommandSpec spec;
 
     @Override
@@ -60,8 +66,10 @@ public final class FdeCommand implements Runnable {
           spec,
           () -> {
             try (var db = Sqlite.open(dbPath())) {
-              var fde = new FdeStore(db).add(handle, displayName, email);
-              System.out.println(Ansi.AUTO.string("  @|green ✓|@ FDE added: " + fde.handle()));
+              var fde = new FdeStore(db).add(handle, displayName, email, role);
+              System.out.println(
+                  Ansi.AUTO.string(
+                      "  @|green ✓|@ FDE added: " + fde.handle() + " (" + fde.role() + ")"));
             }
           });
     }
@@ -85,8 +93,11 @@ public final class FdeCommand implements Runnable {
               }
               for (var fde : fdes) {
                 System.out.printf(
-                    "  %-16s  %-20s  %s%n",
-                    fde.handle(), fde.displayName() == null ? "" : fde.displayName(), fde.status());
+                    "  %-16s  %-20s  %-8s  %s%n",
+                    fde.handle(),
+                    fde.displayName() == null ? "" : fde.displayName(),
+                    fde.role(),
+                    fde.status());
               }
             }
           });

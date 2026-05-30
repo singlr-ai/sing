@@ -225,7 +225,8 @@ public final class SchemaManager {
               created_at TEXT NOT NULL,
               expires_at TEXT NOT NULL,
               consumed_at TEXT
-          )""");
+          )""",
+          "ALTER TABLE fdes ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
 
   private final Sqlite db;
 

@@ -109,7 +109,12 @@ public final class SailApiServer implements AutoCloseable {
     this(host, port, operations, auth, eventBus, auditSubscriber, socketPath, null);
   }
 
-  SailApiServer(
+  /**
+   * Full control-plane constructor with a caller-supplied {@link ApiAuth} (e.g. {@link
+   * SessionAwareAuth}, which accepts both login sessions and API tokens), the UDS path, and the
+   * passkey endpoints mounted at {@code /v1/auth} when {@code passkeyHandler} is non-null.
+   */
+  public SailApiServer(
       String host,
       int port,
       ApiOperations operations,

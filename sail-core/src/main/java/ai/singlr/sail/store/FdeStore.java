@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Forward Deployed Engineers — the human principals that own API tokens and are attributed on the
@@ -24,26 +25,42 @@ public final class FdeStore {
     this.db = db;
   }
 
+  public static final String DEFAULT_ROLE = "member";
+  private static final Set<String> ROLES = Set.of("admin", "member", "viewer");
+
   public record Fde(
       String id,
       String handle,
       String displayName,
       String email,
+      String role,
       String status,
       String createdAt) {}
 
-  /**
-   * Creates an FDE with a generated id and {@code active} status. Throws if the handle is taken.
-   */
+  /** Creates an FDE with the default {@code member} role. */
   public Fde add(String handle, String displayName, String email) {
-    var fde = new Fde(generateId(), handle, displayName, email, "active", Instant.now().toString());
+    return add(handle, displayName, email, DEFAULT_ROLE);
+  }
+
+  /**
+   * Creates an FDE with a generated id and {@code active} status. Throws if the handle is taken or
+   * the role is not one of {@code admin}, {@code member}, {@code viewer}.
+   */
+  public Fde add(String handle, String displayName, String email, String role) {
+    if (!ROLES.contains(role)) {
+      throw new IllegalArgumentException(
+          "Invalid role: " + role + ". Must be one of " + ROLES + ".");
+    }
+    var fde =
+        new Fde(generateId(), handle, displayName, email, role, "active", Instant.now().toString());
     db.execute(
-        "INSERT INTO fdes (id, handle, display_name, email, status, created_at)"
-            + " VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO fdes (id, handle, display_name, email, role, status, created_at)"
+            + " VALUES (?, ?, ?, ?, ?, ?, ?)",
         fde.id(),
         fde.handle(),
         fde.displayName(),
         fde.email(),
+        fde.role(),
         fde.status(),
         fde.createdAt());
     return fde;
@@ -62,10 +79,11 @@ public final class FdeStore {
   }
 
   private static final String SELECT =
-      "SELECT id, handle, display_name, email, status, created_at FROM fdes";
+      "SELECT id, handle, display_name, email, role, status, created_at FROM fdes";
 
   private static Fde map(Sqlite.Row row) {
-    return new Fde(row.text(0), row.text(1), row.text(2), row.text(3), row.text(4), row.text(5));
+    return new Fde(
+        row.text(0), row.text(1), row.text(2), row.text(3), row.text(4), row.text(5), row.text(6));
   }
 
   private static String generateId() {

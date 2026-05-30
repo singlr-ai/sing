@@ -38,7 +38,19 @@ class FdeStoreTest {
     assertEquals("uday", fde.handle());
     assertEquals("Uday Chandra", fde.displayName());
     assertEquals("uday@singlr.ai", fde.email());
+    assertEquals("member", fde.role());
     assertEquals("active", fde.status());
+  }
+
+  @Test
+  void addStoresAndRoundTripsExplicitRole() {
+    store.add("admin-user", null, null, "admin");
+    assertEquals("admin", store.byHandle("admin-user").orElseThrow().role());
+  }
+
+  @Test
+  void addRejectsUnknownRole() {
+    assertThrows(IllegalArgumentException.class, () -> store.add("bad", null, null, "superuser"));
   }
 
   @Test

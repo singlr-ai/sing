@@ -9,6 +9,7 @@ import ai.singlr.sail.api.EventBus;
 import ai.singlr.sail.api.SailApiOperations;
 import ai.singlr.sail.api.SailApiServer;
 import ai.singlr.sail.api.ServerConnectionConfig;
+import ai.singlr.sail.api.SessionAwareAuth;
 import ai.singlr.sail.api.SpecStoreAuditPersister;
 import ai.singlr.sail.api.TokenAuth;
 import ai.singlr.sail.api.WebauthnAuthHandler;
@@ -150,9 +151,19 @@ public final class ServerStartCommand implements Runnable {
     var passkeyHandler =
         new WebauthnAuthHandler(
             passkeyService, enrollment, new TokenAuth(tokenStore), enrollOrigin);
+    var auth =
+        new SessionAwareAuth(new AuthSessionStore(db), new FdeStore(db), new TokenAuth(tokenStore));
 
     try (var server =
-        new SailApiServer(host, port, operations, tokenStore, bus, persister, passkeyHandler)) {
+        new SailApiServer(
+            host,
+            port,
+            operations,
+            auth,
+            bus,
+            persister,
+            SailPaths.apiSocketPath(),
+            passkeyHandler)) {
       server.start();
       System.out.println(
           Ansi.AUTO.string(
