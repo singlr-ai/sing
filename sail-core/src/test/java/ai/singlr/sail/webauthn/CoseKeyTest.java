@@ -101,6 +101,19 @@ class CoseKeyTest {
   }
 
   @Test
+  void eddsaAcceptsBothPointSigns() throws Exception {
+    var pub = KeyPairGenerator.getInstance("Ed25519").generateKeyPair().getPublic();
+    var enc = pub.getEncoded();
+    var raw = Arrays.copyOfRange(enc, enc.length - 32, enc.length);
+    var even = raw.clone();
+    even[31] &= 0x7f; // x-sign bit clear
+    var odd = raw.clone();
+    odd[31] |= 0x80; // x-sign bit set
+    assertDoesNotThrow(() -> CoseKey.parse(cose(1L, 1L, 3L, CoseKey.EDDSA, -1L, 6L, -2L, even)));
+    assertDoesNotThrow(() -> CoseKey.parse(cose(1L, 1L, 3L, CoseKey.EDDSA, -1L, 6L, -2L, odd)));
+  }
+
+  @Test
   void rejectsUnsupportedKeyType() {
     var ex =
         assertThrows(

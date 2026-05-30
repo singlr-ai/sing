@@ -71,7 +71,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
       BigInteger.TWO.pow(255).subtract(BigInteger.valueOf(19));
 
   /** Decodes a COSE key map (as produced by {@link Cbor}) into a public key and its algorithm. */
-  public static CoseKey parse(Map<Object, Object> cose) {
+  public static CoseKey parse(Map<?, ?> cose) {
     var kty = readLong(cose, LABEL_KTY, "kty");
     var alg = readLong(cose, LABEL_ALG, "alg");
     var key =
@@ -94,7 +94,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
     };
   }
 
-  private static PublicKey ec2(Map<Object, Object> cose, long alg) {
+  private static PublicKey ec2(Map<?, ?> cose, long alg) {
     if (alg != ES256) {
       throw new IllegalArgumentException("EC2 key requires alg ES256 (-7), got " + alg);
     }
@@ -107,7 +107,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
     return generate("EC", new ECPublicKeySpec(new ECPoint(x, y), P256));
   }
 
-  private static PublicKey rsa(Map<Object, Object> cose, long alg) {
+  private static PublicKey rsa(Map<?, ?> cose, long alg) {
     if (alg != RS256) {
       throw new IllegalArgumentException("RSA key requires alg RS256 (-257), got " + alg);
     }
@@ -116,7 +116,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
     return generate("RSA", new RSAPublicKeySpec(n, e));
   }
 
-  private static PublicKey okp(Map<Object, Object> cose, long alg) {
+  private static PublicKey okp(Map<?, ?> cose, long alg) {
     if (alg != EDDSA) {
       throw new IllegalArgumentException("OKP key requires alg EdDSA (-8), got " + alg);
     }
@@ -158,7 +158,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
     }
   }
 
-  private static byte[] coordinate(Map<Object, Object> cose, long label, String name) {
+  private static byte[] coordinate(Map<?, ?> cose, long label, String name) {
     var bytes = readBytes(cose, label, name);
     if (bytes.length != P256_COORD_LEN) {
       throw new IllegalArgumentException(
@@ -167,7 +167,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
     return bytes;
   }
 
-  private static long readLong(Map<Object, Object> cose, long label, String name) {
+  private static long readLong(Map<?, ?> cose, long label, String name) {
     if (cose.get(label) instanceof Long value) {
       return value;
     }
@@ -175,7 +175,7 @@ public record CoseKey(PublicKey publicKey, long algorithm) {
         "COSE key missing integer " + name + " (label " + label + ")");
   }
 
-  private static byte[] readBytes(Map<Object, Object> cose, long label, String name) {
+  private static byte[] readBytes(Map<?, ?> cose, long label, String name) {
     if (cose.get(label) instanceof byte[] value) {
       return value;
     }
