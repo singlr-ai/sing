@@ -37,6 +37,7 @@ public final class SpecStore {
       String createdBy,
       String createdAt,
       String updatedAt,
+      String updatedBy,
       List<String> dependsOn,
       List<String> repos) {}
 
@@ -65,8 +66,8 @@ public final class SpecStore {
           db.execute(
               """
               INSERT INTO specs (id, project, title, status, assignee, agent, model,
-                  reasoning_effort, branch, priority, created_by, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                  reasoning_effort, branch, priority, created_by, created_at, updated_at, updated_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
               spec.id(),
               spec.project(),
               spec.title(),
@@ -79,7 +80,8 @@ public final class SpecStore {
               spec.priority(),
               spec.createdBy(),
               now,
-              now);
+              now,
+              spec.updatedBy());
           insertDependencies(spec.id(), spec.dependsOn());
           insertRepos(spec.id(), spec.repos());
           db.execute(
@@ -93,7 +95,7 @@ public final class SpecStore {
     return db.queryOne(
             """
             SELECT id, project, title, status, assignee, agent, model, reasoning_effort,
-                branch, priority, created_by, created_at, updated_at
+                branch, priority, created_by, created_at, updated_at, updated_by
             FROM specs WHERE id = ?""",
             this::mapSpec,
             id)
@@ -104,7 +106,7 @@ public final class SpecStore {
     var sql = new StringBuilder("SELECT DISTINCT s.id, s.project, s.title, s.status, s.assignee,");
     sql.append(
         " s.agent, s.model, s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at,"
-            + " s.updated_at FROM specs s");
+            + " s.updated_at, s.updated_by FROM specs s");
     var params = new ArrayList<>();
     var where = new ArrayList<String>();
 
@@ -152,7 +154,8 @@ public final class SpecStore {
           db.execute(
               """
               UPDATE specs SET project = ?, title = ?, status = ?, assignee = ?, agent = ?,
-                  model = ?, reasoning_effort = ?, branch = ?, priority = ?, updated_at = ?
+                  model = ?, reasoning_effort = ?, branch = ?, priority = ?, updated_at = ?,
+                  updated_by = ?
               WHERE id = ?""",
               spec.project(),
               spec.title(),
@@ -164,6 +167,7 @@ public final class SpecStore {
               spec.branch(),
               spec.priority(),
               now,
+              spec.updatedBy(),
               spec.id());
           db.execute("DELETE FROM spec_dependencies WHERE spec_id = ?", spec.id());
           db.execute("DELETE FROM spec_repos WHERE spec_id = ?", spec.id());
@@ -211,7 +215,8 @@ public final class SpecStore {
         .query(
             """
             SELECT s.id, s.project, s.title, s.status, s.assignee, s.agent, s.model,
-                s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at, s.updated_at
+                s.reasoning_effort, s.branch, s.priority, s.created_by, s.created_at, s.updated_at,
+                s.updated_by
             FROM specs s
             WHERE s.status = 'pending'
             AND NOT EXISTS (
@@ -277,6 +282,7 @@ public final class SpecStore {
         row.text(10),
         row.text(11),
         row.text(12),
+        row.text(13),
         List.of(),
         List.of());
   }
@@ -303,6 +309,7 @@ public final class SpecStore {
         spec.createdBy(),
         spec.createdAt(),
         spec.updatedAt(),
+        spec.updatedBy(),
         deps,
         repos);
   }

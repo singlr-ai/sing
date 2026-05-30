@@ -182,7 +182,8 @@ public final class SchemaManager {
                   CHECK (status IN ('active', 'disabled')),
               created_at TEXT NOT NULL
           )""",
-          "ALTER TABLE api_tokens ADD COLUMN fde_id TEXT");
+          "ALTER TABLE api_tokens ADD COLUMN fde_id TEXT",
+          "ALTER TABLE specs ADD COLUMN updated_by TEXT");
 
   private final Sqlite db;
 

@@ -75,6 +75,7 @@ final class GlobalSpecOperations {
             request.createdBy(),
             "",
             "",
+            request.createdBy(),
             request.dependsOn(),
             request.repos());
     specStore.create(row);
@@ -108,6 +109,7 @@ final class GlobalSpecOperations {
             existing.createdBy(),
             existing.createdAt(),
             existing.updatedAt(),
+            request.updatedBy(),
             request.dependsOn() != null ? request.dependsOn() : existing.dependsOn(),
             request.repos() != null ? request.repos() : existing.repos());
     specStore.update(updated);

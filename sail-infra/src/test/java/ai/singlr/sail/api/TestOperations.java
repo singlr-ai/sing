@@ -149,7 +149,8 @@ class TestOperations implements ApiOperations {
                 List.of(),
                 null,
                 "",
-                ""),
+                "",
+                null),
             null,
             null));
   }
@@ -172,7 +173,8 @@ class TestOperations implements ApiOperations {
                 List.of(),
                 null,
                 "",
-                "")));
+                "",
+                null)));
   }
 
   @Override
@@ -194,7 +196,8 @@ class TestOperations implements ApiOperations {
                 List.of(),
                 null,
                 "",
-                "")));
+                "",
+                null)));
   }
 
   @Override

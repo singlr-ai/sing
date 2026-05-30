@@ -56,6 +56,21 @@ class GlobalSpecOperationsTest {
   }
 
   @Test
+  void createSetsUpdatedByToCreator() {
+    ops.create(createReq(Map.of()).withCreatedBy("uday"));
+    assertEquals("uday", ops.get("auth").spec().updatedBy());
+  }
+
+  @Test
+  void updatePersistsUpdatedByWithoutTouchingCreatedBy() {
+    ops.create(createReq(Map.of()).withCreatedBy("uday"));
+    ops.update("auth", SpecUpdateRequest.fromMap(Map.of("title", "Auth v2")).withUpdatedBy("nova"));
+    var spec = ops.get("auth").spec();
+    assertEquals("uday", spec.createdBy());
+    assertEquals("nova", spec.updatedBy());
+  }
+
+  @Test
   void createThenGetRoundTrips() {
     var created = ops.create(createReq(Map.of("status", "pending", "body", "B", "plan", "P")));
     assertEquals("auth", created.spec().id());

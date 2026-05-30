@@ -61,6 +61,7 @@ class ReviewPipelineControllerTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of()));
   }

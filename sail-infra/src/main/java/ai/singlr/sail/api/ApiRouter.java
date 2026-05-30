@@ -206,7 +206,9 @@ public final class ApiRouter implements HttpHandler {
           checkIfMatch(exchange, specId);
           yield ApiResponse.from(
               operations.updateGlobalSpec(
-                  specId, SpecUpdateRequest.fromMap(JsonBody.readMap(exchange))));
+                  specId,
+                  SpecUpdateRequest.fromMap(JsonBody.readMap(exchange))
+                      .withUpdatedBy(actor(exchange))));
         }
         case DELETE -> {
           checkIfMatch(exchange, specId);

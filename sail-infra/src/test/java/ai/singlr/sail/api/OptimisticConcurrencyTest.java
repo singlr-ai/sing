@@ -64,6 +64,7 @@ class OptimisticConcurrencyTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of()));
   }

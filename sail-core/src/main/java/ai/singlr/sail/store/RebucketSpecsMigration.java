@@ -111,6 +111,7 @@ public final class RebucketSpecsMigration implements DataMigration {
             spec.createdBy(),
             spec.createdAt(),
             spec.updatedAt(),
+            spec.updatedBy(),
             spec.dependsOn(),
             spec.repos());
     specStore.update(moved);

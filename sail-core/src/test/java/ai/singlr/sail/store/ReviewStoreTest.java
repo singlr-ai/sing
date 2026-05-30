@@ -43,6 +43,7 @@ class ReviewStoreTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of()));
   }

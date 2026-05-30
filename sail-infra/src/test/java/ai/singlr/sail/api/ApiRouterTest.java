@@ -1037,7 +1037,8 @@ class ApiRouterTest {
                   java.util.List.of(),
                   null,
                   "",
-                  ""),
+                  "",
+                  null),
               null,
               null));
     }
@@ -1060,7 +1061,8 @@ class ApiRouterTest {
                   java.util.List.of(),
                   null,
                   "",
-                  "")));
+                  "",
+                  null)));
     }
 
     @Override
@@ -1082,7 +1084,8 @@ class ApiRouterTest {
                   java.util.List.of(),
                   null,
                   "",
-                  "")));
+                  "",
+                  null)));
     }
 
     @Override

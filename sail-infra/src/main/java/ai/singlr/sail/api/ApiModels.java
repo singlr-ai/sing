@@ -498,7 +498,8 @@ record SpecUpdateRequest(
     String branch,
     Integer priority,
     List<String> dependsOn,
-    List<String> repos) {
+    List<String> repos,
+    String updatedBy) {
 
   @SuppressWarnings("unchecked")
   static SpecUpdateRequest fromMap(Map<String, Object> map) {
@@ -513,7 +514,28 @@ record SpecUpdateRequest(
         (String) map.get("branch"),
         map.containsKey("priority") ? ((Number) map.get("priority")).intValue() : null,
         map.containsKey("depends_on") ? (List<String>) map.get("depends_on") : null,
-        map.containsKey("repos") ? (List<String>) map.get("repos") : null);
+        map.containsKey("repos") ? (List<String>) map.get("repos") : null,
+        null);
+  }
+
+  /**
+   * Returns a copy attributed to {@code actor}. {@code updated_by} is set by the server from the
+   * authenticated principal, never from the request body.
+   */
+  SpecUpdateRequest withUpdatedBy(String actor) {
+    return new SpecUpdateRequest(
+        project,
+        title,
+        status,
+        assignee,
+        agent,
+        model,
+        reasoningEffort,
+        branch,
+        priority,
+        dependsOn,
+        repos,
+        actor);
   }
 }
 
@@ -537,7 +559,8 @@ record GlobalSpecView(
     List<String> repos,
     String createdBy,
     String createdAt,
-    String updatedAt)
+    String updatedAt,
+    String updatedBy)
     implements Mappable {
   static GlobalSpecView from(SpecStore.SpecRow row) {
     return new GlobalSpecView(
@@ -554,7 +577,8 @@ record GlobalSpecView(
         row.repos(),
         row.createdBy(),
         row.createdAt(),
-        row.updatedAt());
+        row.updatedAt(),
+        row.updatedBy());
   }
 
   @Override
@@ -574,6 +598,7 @@ record GlobalSpecView(
     if (createdBy != null) m.put("created_by", createdBy);
     m.put("created_at", createdAt);
     m.put("updated_at", updatedAt);
+    if (updatedBy != null) m.put("updated_by", updatedBy);
     return m;
   }
 }

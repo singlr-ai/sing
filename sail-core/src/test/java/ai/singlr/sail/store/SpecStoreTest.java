@@ -52,6 +52,7 @@ class SpecStoreTest {
         null,
         "",
         "",
+        null,
         List.of(),
         List.of());
   }
@@ -90,6 +91,7 @@ class SpecStoreTest {
             "uday",
             "",
             "",
+            null,
             List.of("base"),
             List.of("backend", "frontend"));
     store.create(spec);
@@ -152,6 +154,7 @@ class SpecStoreTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of());
     store.create(assigned);
@@ -191,6 +194,7 @@ class SpecStoreTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of("backend"));
     store.update(updated);
@@ -259,6 +263,7 @@ class SpecStoreTest {
             null,
             "",
             "",
+            null,
             List.of("base"),
             List.of());
     store.create(dependent);
@@ -286,6 +291,7 @@ class SpecStoreTest {
             null,
             "",
             "",
+            null,
             List.of("base"),
             List.of());
     store.create(dependent);
@@ -331,6 +337,7 @@ class SpecStoreTest {
             null,
             "",
             "",
+            null,
             List.of("base"),
             List.of("backend"));
     store.create(child);

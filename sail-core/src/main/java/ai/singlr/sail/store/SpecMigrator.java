@@ -178,6 +178,7 @@ public final class SpecMigrator {
         spec.assignee(),
         "",
         "",
+        null,
         List.of(),
         repos);
   }

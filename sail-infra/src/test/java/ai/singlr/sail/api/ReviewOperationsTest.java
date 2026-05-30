@@ -48,6 +48,7 @@ class ReviewOperationsTest {
             null,
             "",
             "",
+            null,
             List.of(),
             List.of()));
     ops = new ReviewOperations(reviewStore, specStore);
