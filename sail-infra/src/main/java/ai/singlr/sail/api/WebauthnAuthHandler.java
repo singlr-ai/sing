@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.api;
 
+import ai.singlr.sail.auth.EnrollmentTickets;
 import ai.singlr.sail.auth.PasskeyCeremonies;
 import ai.singlr.sail.auth.PasskeyException;
 import ai.singlr.sail.config.YamlUtil;
@@ -18,10 +19,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Serves the passkey ceremony endpoints under {@code /v1/auth}. Registration ({@code
- * /register/start|finish}) enrolls a passkey for an FDE and requires an authenticated {@link
- * Capability#ADMIN} caller — it is credential management. Login ({@code /login/start|finish}) is
- * unauthenticated by design (the caller has no credential yet) and, on success, mints a session.
+ * Serves the passkey ceremony endpoints under {@code /v1/auth}. An admin mints an enrollment ticket
+ * ({@code POST /register/ticket}); registration ({@code /register/start|finish}) then enrolls a
+ * passkey for an FDE, authorized by either that ticket (so a browser, which cannot carry an
+ * operator token, can enroll) or an authenticated {@link Capability#ADMIN} caller. Login ({@code
+ * /login/start|finish}) is unauthenticated by design (the caller has no credential yet) and, on
+ * success, mints a session.
  *
  * <p>This handler is a thin adapter: it parses the JSON body, base64url-decodes the binary WebAuthn
  * fields, delegates to {@link PasskeyCeremonies}, and maps {@link PasskeyException} to an HTTP
@@ -32,13 +35,22 @@ public final class WebauthnAuthHandler implements HttpHandler {
 
   private static final Base64.Decoder B64URL = Base64.getUrlDecoder();
   private static final Base64.Encoder B64URL_ENC = Base64.getUrlEncoder().withoutPadding();
+  private static final String TICKET_HEADER = "X-Enrollment-Ticket";
 
   private final PasskeyCeremonies ceremonies;
+  private final EnrollmentTickets enrollment;
   private final ApiAuth auth;
+  private final String enrollOrigin;
 
-  public WebauthnAuthHandler(PasskeyCeremonies ceremonies, ApiAuth auth) {
+  public WebauthnAuthHandler(
+      PasskeyCeremonies ceremonies,
+      EnrollmentTickets enrollment,
+      ApiAuth auth,
+      String enrollOrigin) {
     this.ceremonies = ceremonies;
+    this.enrollment = enrollment;
     this.auth = Objects.requireNonNull(auth, "auth");
+    this.enrollOrigin = enrollOrigin;
   }
 
   @Override
@@ -76,6 +88,7 @@ public final class WebauthnAuthHandler implements HttpHandler {
     var path = exchange.getRequestURI().getPath();
     try {
       return switch (path) {
+        case "/v1/auth/register/ticket" -> registerTicket(exchange);
         case "/v1/auth/register/start" -> registerStart(exchange);
         case "/v1/auth/register/finish" -> registerFinish(exchange);
         case "/v1/auth/login/start" -> loginStart(exchange);
@@ -87,27 +100,76 @@ public final class WebauthnAuthHandler implements HttpHandler {
     }
   }
 
-  private ApiResponse registerStart(HttpExchange exchange) throws IOException {
+  private ApiResponse registerTicket(HttpExchange exchange) throws IOException {
     requireAdmin(exchange);
+    var ticket = enrollment.issue(requireString(JsonBody.readMap(exchange), "fde"));
+    var result = new LinkedHashMap<String, Object>();
+    result.put("ticket", ticket.ticket());
+    result.put("fde", ticket.fdeHandle());
+    result.put("expires_at", ticket.expiresAt());
+    if (enrollOrigin != null) {
+      result.put("enroll_url", enrollOrigin + "/enroll?ticket=" + ticket.ticket());
+    }
+    return ApiResponse.ok(result);
+  }
+
+  private ApiResponse registerStart(HttpExchange exchange) throws IOException {
     var body = JsonBody.readMap(exchange);
-    var ceremony = ceremonies.startRegistration(requireString(body, "fde"));
-    return ApiResponse.ok(ceremonyBody(ceremony));
+    var fdeHandle = authorizeEnrollmentStart(exchange, body);
+    return ApiResponse.ok(ceremonyBody(ceremonies.startRegistration(fdeHandle)));
   }
 
   private ApiResponse registerFinish(HttpExchange exchange) throws IOException {
-    requireAdmin(exchange);
     var body = JsonBody.readMap(exchange);
+    var ticket = enrollmentTicket(exchange);
+    if (ticket != null) {
+      requireLiveTicket(ticket);
+    } else {
+      requireAdmin(exchange);
+    }
     var registration =
         ceremonies.finishRegistration(
             requireString(body, "challenge_id"),
             decode(body, "client_data_json"),
             decode(body, "attestation_object"),
             optionalString(body, "label"));
+    if (ticket != null) {
+      enrollment.consume(ticket);
+    }
     var result = new LinkedHashMap<String, Object>();
     result.put("status", "registered");
     result.put("fde", registration.fdeHandle());
     result.put("credential_id", B64URL_ENC.encodeToString(registration.credentialId()));
     return ApiResponse.ok(result);
+  }
+
+  /**
+   * Authorizes a registration start: a valid {@code X-Enrollment-Ticket} binds the ceremony to the
+   * ticket's FDE; otherwise an authenticated {@link Capability#ADMIN} caller registers the FDE
+   * named in the body.
+   */
+  private String authorizeEnrollmentStart(HttpExchange exchange, Map<String, Object> body) {
+    var ticket = enrollmentTicket(exchange);
+    if (ticket != null) {
+      return enrollment.authorize(ticket).orElseThrow(WebauthnAuthHandler::ticketDenied);
+    }
+    requireAdmin(exchange);
+    return requireString(body, "fde");
+  }
+
+  private void requireLiveTicket(String ticket) {
+    if (enrollment.authorize(ticket).isEmpty()) {
+      throw ticketDenied();
+    }
+  }
+
+  private static String enrollmentTicket(HttpExchange exchange) {
+    var value = exchange.getRequestHeaders().getFirst(TICKET_HEADER);
+    return value == null || value.isBlank() ? null : value;
+  }
+
+  private static ApiException ticketDenied() {
+    return new ApiException(ErrorCode.FORBIDDEN, "Enrollment ticket is invalid or expired.");
   }
 
   private ApiResponse loginStart(HttpExchange exchange) throws IOException {

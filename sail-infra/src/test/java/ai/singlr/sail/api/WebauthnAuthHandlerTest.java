@@ -7,11 +7,14 @@ package ai.singlr.sail.api;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.auth.EnrollmentService;
+import ai.singlr.sail.auth.EnrollmentTickets;
 import ai.singlr.sail.auth.PasskeyCeremonies;
 import ai.singlr.sail.auth.PasskeyException;
 import ai.singlr.sail.auth.PasskeyService;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.store.AuthSessionStore;
+import ai.singlr.sail.store.EnrollmentTicketStore;
 import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.PendingChallengeStore;
 import ai.singlr.sail.store.SchemaManager;
@@ -27,6 +30,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +66,15 @@ class WebauthnAuthHandlerTest {
   }
 
   private void startWith(PasskeyCeremonies ceremonies) throws Exception {
+    startWith(
+        ceremonies,
+        ceremonies == null ? null : new FakeEnrollment(),
+        ceremonies == null ? null : ORIGIN);
+  }
+
+  private void startWith(
+      PasskeyCeremonies ceremonies, EnrollmentTickets enrollment, String enrollOrigin)
+      throws Exception {
     server =
         new SailApiServer(
             "127.0.0.1",
@@ -70,7 +83,8 @@ class WebauthnAuthHandlerTest {
             tokenStore,
             new EventBus(),
             null,
-            new WebauthnAuthHandler(ceremonies, new TokenAuth(tokenStore)));
+            new WebauthnAuthHandler(
+                ceremonies, enrollment, new TokenAuth(tokenStore), enrollOrigin));
     server.start();
   }
 
@@ -229,6 +243,77 @@ class WebauthnAuthHandlerTest {
   }
 
   @Test
+  void mintTicketRequiresAdmin() throws Exception {
+    startWith(new FakeCeremonies());
+    assertEquals(401, post("/v1/auth/register/ticket", null, "{\"fde\":\"uday\"}").statusCode());
+    assertEquals(
+        403, post("/v1/auth/register/ticket", viewerToken, "{\"fde\":\"uday\"}").statusCode());
+  }
+
+  @Test
+  void mintTicketReturnsTicketAndEnrollUrl() throws Exception {
+    startWith(new FakeCeremonies());
+    var response = post("/v1/auth/register/ticket", adminToken, "{\"fde\":\"uday\"}");
+    assertEquals(200, response.statusCode());
+    var body = YamlUtil.parseMap(response.body());
+    assertEquals("enr_fake", body.get("ticket"));
+    assertEquals("uday", body.get("fde"));
+    assertEquals(ORIGIN + "/enroll?ticket=enr_fake", body.get("enroll_url"));
+  }
+
+  @Test
+  void mintTicketMissingFdeIsRejected() throws Exception {
+    startWith(new FakeCeremonies());
+    assertEquals(422, post("/v1/auth/register/ticket", adminToken, "{}").statusCode());
+  }
+
+  @Test
+  void mintTicketUnknownFdeIsNotFound() throws Exception {
+    startWith(new FakeCeremonies());
+    assertEquals(
+        404, post("/v1/auth/register/ticket", adminToken, "{\"fde\":\"ghost\"}").statusCode());
+  }
+
+  @Test
+  void mintTicketOmitsUrlWhenOriginUnset() throws Exception {
+    startWith(new FakeCeremonies(), new FakeEnrollment(), null);
+    var body =
+        YamlUtil.parseMap(
+            post("/v1/auth/register/ticket", adminToken, "{\"fde\":\"uday\"}").body());
+    assertFalse(body.containsKey("enroll_url"));
+  }
+
+  @Test
+  void registerStartWithValidTicketNeedsNoToken() throws Exception {
+    startWith(new FakeCeremonies());
+    var response = postWithTicket("/v1/auth/register/start", "enr_valid", "{}");
+    assertEquals(200, response.statusCode());
+    assertEquals("wac_reg", YamlUtil.parseMap(response.body()).get("challenge_id"));
+  }
+
+  @Test
+  void registerStartWithInvalidTicketIsForbidden() throws Exception {
+    startWith(new FakeCeremonies());
+    assertEquals(403, postWithTicket("/v1/auth/register/start", "enr_bad", "{}").statusCode());
+  }
+
+  @Test
+  void registerFinishWithValidTicketSucceeds() throws Exception {
+    startWith(new FakeCeremonies());
+    var body =
+        "{\"challenge_id\":\"wac_reg\",\"client_data_json\":\"AAAA\",\"attestation_object\":\"AAAA\"}";
+    assertEquals(200, postWithTicket("/v1/auth/register/finish", "enr_valid", body).statusCode());
+  }
+
+  @Test
+  void registerFinishWithInvalidTicketIsForbidden() throws Exception {
+    startWith(new FakeCeremonies());
+    var body =
+        "{\"challenge_id\":\"wac_reg\",\"client_data_json\":\"AAAA\",\"attestation_object\":\"AAAA\"}";
+    assertEquals(403, postWithTicket("/v1/auth/register/finish", "enr_bad", body).statusCode());
+  }
+
+  @Test
   void realRoundTripEnrollsAndLogsIn() throws Exception {
     new FdeStore(db).add("uday", null, null);
     var service =
@@ -282,9 +367,102 @@ class WebauthnAuthHandlerTest {
         new AuthSessionStore(db).validate((String) session.get("session_token")).isPresent());
   }
 
+  @Test
+  void realTicketEnrollmentRoundTrip() throws Exception {
+    new FdeStore(db).add("uday", null, null);
+    var service =
+        new PasskeyService(
+            new RelyingParty(RP_ID, "Sail", Set.of(ORIGIN)),
+            new FdeStore(db),
+            new WebauthnCredentialStore(db),
+            new AuthSessionStore(db),
+            new PendingChallengeStore(db));
+    startWith(
+        service, new EnrollmentService(new EnrollmentTicketStore(db), new FdeStore(db)), ORIGIN);
+    var authenticator = new TestAuthenticator(RP_ID);
+
+    var mint =
+        YamlUtil.parseMap(
+            post("/v1/auth/register/ticket", adminToken, "{\"fde\":\"uday\"}").body());
+    var ticket = (String) mint.get("ticket");
+    assertEquals(ORIGIN + "/enroll?ticket=" + ticket, mint.get("enroll_url"));
+
+    var regStart =
+        YamlUtil.parseMap(postWithTicket("/v1/auth/register/start", ticket, "{}").body());
+    var registration = authenticator.register(challengeOf(regStart), ORIGIN);
+    var regFinish =
+        postWithTicket(
+            "/v1/auth/register/finish", ticket, registerFinishBody(regStart, registration));
+    assertEquals(200, regFinish.statusCode(), regFinish.body());
+
+    assertEquals(403, postWithTicket("/v1/auth/register/start", ticket, "{}").statusCode());
+
+    var loginStart = YamlUtil.parseMap(post("/v1/auth/login/start", null, "{}").body());
+    var assertion = authenticator.assertResponse(challengeOf(loginStart), ORIGIN);
+    var loginFinish = post("/v1/auth/login/finish", null, loginFinishBody(loginStart, assertion));
+    assertEquals(200, loginFinish.statusCode(), loginFinish.body());
+    assertEquals("uday", YamlUtil.parseMap(loginFinish.body()).get("fde"));
+  }
+
+  private HttpResponse<String> postWithTicket(String path, String ticket, String body)
+      throws Exception {
+    var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + path));
+    builder.header("X-Enrollment-Ticket", ticket);
+    builder.header("Content-Type", "application/json");
+    builder.method("POST", HttpRequest.BodyPublishers.ofString(body));
+    return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static String registerFinishBody(
+      Map<String, Object> regStart, TestAuthenticator.Registration registration) {
+    return "{\"challenge_id\":\""
+        + regStart.get("challenge_id")
+        + "\",\"client_data_json\":\""
+        + B64URL.encodeToString(registration.clientDataJson())
+        + "\",\"attestation_object\":\""
+        + B64URL.encodeToString(registration.attestationObject())
+        + "\"}";
+  }
+
+  private static String loginFinishBody(
+      Map<String, Object> loginStart, TestAuthenticator.Assertion assertion) {
+    return "{\"challenge_id\":\""
+        + loginStart.get("challenge_id")
+        + "\",\"credential_id\":\""
+        + B64URL.encodeToString(assertion.credentialId())
+        + "\",\"client_data_json\":\""
+        + B64URL.encodeToString(assertion.clientDataJson())
+        + "\",\"authenticator_data\":\""
+        + B64URL.encodeToString(assertion.authenticatorData())
+        + "\",\"signature\":\""
+        + B64URL.encodeToString(assertion.signature())
+        + "\"}";
+  }
+
   private static byte[] challengeOf(Map<String, Object> ceremony) {
     var publicKey = (Map<?, ?>) ceremony.get("public_key");
     return Base64.getUrlDecoder().decode((String) publicKey.get("challenge"));
+  }
+
+  private static final class FakeEnrollment implements EnrollmentTickets {
+
+    @Override
+    public Ticket issue(String fdeHandle) {
+      if ("ghost".equals(fdeHandle)) {
+        throw new PasskeyException(PasskeyException.Kind.NOT_FOUND, "no such fde");
+      }
+      return new Ticket("enr_fake", fdeHandle, "2026-06-01T00:00:00Z");
+    }
+
+    @Override
+    public Optional<String> authorize(String ticket) {
+      return "enr_valid".equals(ticket) ? Optional.of("uday") : Optional.empty();
+    }
+
+    @Override
+    public boolean consume(String ticket) {
+      return "enr_valid".equals(ticket);
+    }
   }
 
   private static final class FakeCeremonies implements PasskeyCeremonies {

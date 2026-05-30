@@ -217,6 +217,14 @@ public final class SchemaManager {
               fde_id TEXT REFERENCES fdes(id) ON DELETE CASCADE,
               created_at TEXT NOT NULL,
               expires_at TEXT NOT NULL
+          )""",
+          """
+          CREATE TABLE IF NOT EXISTS enrollment_tickets (
+              token_hash TEXT PRIMARY KEY,
+              fde_id TEXT NOT NULL REFERENCES fdes(id) ON DELETE CASCADE,
+              created_at TEXT NOT NULL,
+              expires_at TEXT NOT NULL,
+              consumed_at TEXT
           )""");
 
   private final Sqlite db;

@@ -12,6 +12,7 @@ import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.api.SpecStoreAuditPersister;
 import ai.singlr.sail.api.TokenAuth;
 import ai.singlr.sail.api.WebauthnAuthHandler;
+import ai.singlr.sail.auth.EnrollmentService;
 import ai.singlr.sail.auth.PasskeyService;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.WebauthnConfig;
@@ -20,6 +21,7 @@ import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.store.AuthSessionStore;
 import ai.singlr.sail.store.DataMigration;
+import ai.singlr.sail.store.EnrollmentTicketStore;
 import ai.singlr.sail.store.EventStore;
 import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.MigrationRunner;
@@ -140,8 +142,14 @@ public final class ServerStartCommand implements Runnable {
             new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR, bus, persister, specStore);
 
     var webauthn = resolveWebauthn();
-    var passkeyService = webauthn.isConfigured() ? buildPasskeyService(db, webauthn) : null;
-    var passkeyHandler = new WebauthnAuthHandler(passkeyService, new TokenAuth(tokenStore));
+    var configured = webauthn.isConfigured();
+    var passkeyService = configured ? buildPasskeyService(db, webauthn) : null;
+    var enrollment =
+        configured ? new EnrollmentService(new EnrollmentTicketStore(db), new FdeStore(db)) : null;
+    var enrollOrigin = configured ? webauthn.origins().getFirst() : null;
+    var passkeyHandler =
+        new WebauthnAuthHandler(
+            passkeyService, enrollment, new TokenAuth(tokenStore), enrollOrigin);
 
     try (var server =
         new SailApiServer(host, port, operations, tokenStore, bus, persister, passkeyHandler)) {

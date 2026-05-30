@@ -5,9 +5,14 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.auth.EnrollmentService;
+import ai.singlr.sail.config.HostYaml;
+import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.store.EnrollmentTicketStore;
 import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.Sqlite;
+import java.nio.file.Files;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -23,7 +28,7 @@ import picocli.CommandLine.Spec;
     name = "fde",
     description = "Manage Forward Deployed Engineers (FDEs).",
     mixinStandardHelpOptions = true,
-    subcommands = {FdeCommand.Add.class, FdeCommand.ListFdes.class})
+    subcommands = {FdeCommand.Add.class, FdeCommand.ListFdes.class, FdeCommand.Enroll.class})
 public final class FdeCommand implements Runnable {
 
   @Override
@@ -85,6 +90,61 @@ public final class FdeCommand implements Runnable {
               }
             }
           });
+    }
+  }
+
+  @Command(
+      name = "enroll",
+      description = "Mint a one-time passkey enrollment ticket for an FDE.",
+      mixinStandardHelpOptions = true)
+  static final class Enroll implements Runnable {
+
+    @Parameters(index = "0", description = "FDE handle to enroll (must already exist).")
+    private String handle;
+
+    @Spec private CommandSpec spec;
+
+    @Override
+    public void run() {
+      CliCommand.run(
+          spec,
+          () -> {
+            try (var db = Sqlite.open(dbPath())) {
+              var ticket =
+                  new EnrollmentService(new EnrollmentTicketStore(db), new FdeStore(db))
+                      .issue(handle);
+              System.out.println(
+                  Ansi.AUTO.string(
+                      "  @|green ✓|@ Enrollment ticket for "
+                          + ticket.fdeHandle()
+                          + " (expires "
+                          + ticket.expiresAt()
+                          + "):"));
+              System.out.println("    " + ticket.ticket());
+              System.out.println();
+              var origin = enrollOrigin();
+              if (origin != null) {
+                System.out.println("  Open in a browser to enroll a passkey:");
+                System.out.println(
+                    Ansi.AUTO.string(
+                        "    @|cyan " + origin + "/enroll?ticket=" + ticket.ticket() + "|@"));
+              } else {
+                System.out.println(
+                    Ansi.AUTO.string(
+                        "  @|faint No webauthn origin configured; browse to"
+                            + " <origin>/enroll?ticket=<ticket>.|@"));
+              }
+            }
+          });
+    }
+
+    private static String enrollOrigin() throws Exception {
+      var path = SailPaths.hostConfigPath();
+      if (!Files.exists(path)) {
+        return null;
+      }
+      var webauthn = HostYaml.fromMap(YamlUtil.parseFile(path)).webauthn();
+      return webauthn.isConfigured() ? webauthn.origins().getFirst() : null;
     }
   }
 }
