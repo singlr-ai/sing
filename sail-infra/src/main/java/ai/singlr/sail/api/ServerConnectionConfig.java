@@ -62,6 +62,21 @@ public record ServerConnectionConfig(String serverUrl, String token) {
     saveLocalConfig(DEFAULT_URL, token, configPath);
   }
 
+  /**
+   * Persists a login {@code token} (typically a session minted by {@code sail login}) while
+   * preserving the existing configured server URL, so signing in does not repoint the CLI.
+   */
+  public static void saveSessionToken(String token, Path configPath) throws IOException {
+    var serverUrl = DEFAULT_URL;
+    if (Files.exists(configPath)) {
+      var existing = (String) YamlUtil.parseFile(configPath).get("server");
+      if (existing != null && !existing.isBlank()) {
+        serverUrl = existing;
+      }
+    }
+    saveLocalConfig(serverUrl, token, configPath);
+  }
+
   public static void saveLocalConfig(String serverUrl, String token, Path configPath)
       throws IOException {
     var yaml = "server: " + serverUrl + "\ntoken: " + token + "\n";

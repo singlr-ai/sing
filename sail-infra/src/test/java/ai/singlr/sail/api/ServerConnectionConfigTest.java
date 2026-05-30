@@ -36,6 +36,25 @@ class ServerConnectionConfigTest {
   }
 
   @Test
+  void saveSessionTokenPreservesExistingServerUrl() throws IOException {
+    var configPath = tempDir.resolve("config.yaml");
+    ServerConnectionConfig.saveLocalConfig("https://sail.acme.dev", "sail_old", configPath);
+    ServerConnectionConfig.saveSessionToken("sess_new", configPath);
+    var resolved = ServerConnectionConfig.resolve(null, null, configPath);
+    assertEquals("https://sail.acme.dev", resolved.serverUrl());
+    assertEquals("sess_new", resolved.token());
+  }
+
+  @Test
+  void saveSessionTokenDefaultsServerUrlWhenNoConfig() throws IOException {
+    var configPath = tempDir.resolve("fresh-config.yaml");
+    ServerConnectionConfig.saveSessionToken("sess_new", configPath);
+    var resolved = ServerConnectionConfig.resolve(null, null, configPath);
+    assertEquals("http://localhost:7070", resolved.serverUrl());
+    assertEquals("sess_new", resolved.token());
+  }
+
+  @Test
   void defaultUrlIsLocalhostWhenNotProvided() throws IOException {
     var config = ServerConnectionConfig.resolve(null, "some-token", missingConfig());
     assertEquals("http://localhost:7070", config.serverUrl());
