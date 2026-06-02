@@ -9,6 +9,7 @@ import ai.singlr.sail.commands.AgentCommand;
 import ai.singlr.sail.commands.ClientInitCommand;
 import ai.singlr.sail.commands.EventsCommand;
 import ai.singlr.sail.commands.FdeCommand;
+import ai.singlr.sail.commands.GatewayCommand;
 import ai.singlr.sail.commands.HostCommand;
 import ai.singlr.sail.commands.LoginCommand;
 import ai.singlr.sail.commands.MigrateCommand;
@@ -38,6 +39,7 @@ import picocli.CommandLine.Help.Ansi;
       EventsCommand.class,
       MigrateCommand.class,
       UpgradeCommand.class,
+      GatewayCommand.class,
     })
 public final class Sail implements Runnable {
 

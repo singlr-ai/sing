@@ -18,11 +18,15 @@ class CommandTaxonomyTest {
   void rootCommandsAreWorkflowGroups() {
     var command = new CommandLine(new Sail());
 
+    var userFacing =
+        command.getSubcommands().keySet().stream()
+            .filter(name -> !name.startsWith("_"))
+            .collect(java.util.stream.Collectors.toSet());
     assertEquals(
         Set.of(
             "init", "host", "project", "server", "fde", "login", "spec", "agent", "events",
             "migrate", "upgrade"),
-        command.getSubcommands().keySet());
+        userFacing);
   }
 
   @Test
