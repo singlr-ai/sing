@@ -225,6 +225,8 @@ public final class FdeCommand implements Runnable {
                             + fde.handle()
                             + ": "
                             + key.fingerprint()));
+                System.out.println(
+                    Ansi.AUTO.string("  @|faint Run 'sail host keys sync' to apply.|@"));
               }
             });
       }
@@ -292,6 +294,8 @@ public final class FdeCommand implements Runnable {
               try (var db = Sqlite.open(dbPath())) {
                 if (new FdeSshKeyStore(db).remove(fingerprint)) {
                   System.out.println(Ansi.AUTO.string("  @|green ✓|@ Removed key " + fingerprint));
+                  System.out.println(
+                      Ansi.AUTO.string("  @|faint Run 'sail host keys sync' to apply.|@"));
                 } else {
                   System.out.println(
                       Ansi.AUTO.string("  @|yellow ⚠|@ No key with fingerprint " + fingerprint));
