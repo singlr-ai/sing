@@ -165,14 +165,20 @@ class SailPathsTest {
   }
 
   @Test
-  void dataDirUsesConfiguredValueWhenSet() {
-    assertEquals(Path.of("/var/lib/sail"), SailPaths.dataDir("/var/lib/sail"));
+  void dataDirEnvOverrideWinsEvenOverProvisionedSystemDir() {
+    assertEquals(Path.of("/custom/dir"), SailPaths.dataDir("/custom/dir", false));
+    assertEquals(Path.of("/custom/dir"), SailPaths.dataDir("/custom/dir", true));
   }
 
   @Test
-  void dataDirFallsBackToSailDirWhenUnsetOrBlank() {
-    assertEquals(SailPaths.sailDir(), SailPaths.dataDir(null));
-    assertEquals(SailPaths.sailDir(), SailPaths.dataDir("   "));
+  void dataDirAutoDetectsProvisionedSystemDir() {
+    assertEquals(Path.of("/var/lib/sail"), SailPaths.dataDir(null, true));
+  }
+
+  @Test
+  void dataDirFallsBackToSailDirWhenUnsetAndNoSystemDb() {
+    assertEquals(SailPaths.sailDir(), SailPaths.dataDir(null, false));
+    assertEquals(SailPaths.sailDir(), SailPaths.dataDir("   ", false));
   }
 
   @Test

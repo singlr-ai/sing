@@ -27,19 +27,31 @@ public final class SailPaths {
     return SAIL_DIR;
   }
 
+  private static final Path SYSTEM_DATA_DIR = Path.of("/var/lib/sail");
+
   /**
-   * Returns the control-plane data directory: {@code $SAIL_DATA_DIR} when set, otherwise {@link
-   * #sailDir()}. A multi-FDE host points this at a shared system path (e.g. {@code /var/lib/sail})
-   * so the {@code sail} user's SSH gateway and the {@code sail-api} service reach the same
-   * database; when unset, solo/dev installs keep everything under {@code ~/.sail} unchanged.
+   * Returns the control-plane data directory. Resolution: {@code $SAIL_DATA_DIR} when set;
+   * otherwise the shared system directory {@code /var/lib/sail} when it already holds the database
+   * (a host provisioned for SSH-key FDE login); otherwise {@link #sailDir()}. Auto-detecting the
+   * provisioned location matters because every context must agree on the database without relying
+   * on an env var being exported everywhere — the operator's interactive shell, the {@code sail}
+   * user's SSH gateway (a non-login {@code bash -c}), and the {@code sail-api} service all reach
+   * it. Solo/dev installs with no system database keep everything under {@code ~/.sail} unchanged.
    */
   public static Path dataDir() {
-    return dataDir(System.getenv("SAIL_DATA_DIR"));
+    return dataDir(
+        System.getenv("SAIL_DATA_DIR"), Files.isReadable(SYSTEM_DATA_DIR.resolve("sail.db")));
   }
 
-  /** Pure resolver; visible for tests so the lookup can be exercised without setting an env var. */
-  static Path dataDir(String configured) {
-    return configured != null && !configured.isBlank() ? Path.of(configured) : SAIL_DIR;
+  /** Pure resolver; visible for tests so resolution can be exercised without the environment. */
+  static Path dataDir(String configured, boolean provisionedSystemDb) {
+    if (configured != null && !configured.isBlank()) {
+      return Path.of(configured);
+    }
+    if (provisionedSystemDb) {
+      return SYSTEM_DATA_DIR;
+    }
+    return SAIL_DIR;
   }
 
   /** Returns the control-plane database path: {@code <dataDir>/sail.db}. */
