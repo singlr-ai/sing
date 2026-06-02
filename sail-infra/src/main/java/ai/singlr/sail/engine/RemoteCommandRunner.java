@@ -23,7 +23,8 @@ import picocli.CommandLine.Help.Ansi;
  */
 public final class RemoteCommandRunner {
 
-  private static final Set<String> LOCAL_COMMANDS = Set.of("--version", "-V", "upgrade", "init");
+  private static final Set<String> LOCAL_COMMANDS =
+      Set.of("--version", "-V", "upgrade", "init", "login");
   private static final Set<String> INTERACTIVE_COMMANDS = Set.of("shell", "exec");
   private static final Set<String> HOST_ONLY_COMMANDS = Set.of("host");
   private static final int SSH_CONNECTION_FAILURE = 255;
@@ -40,7 +41,8 @@ public final class RemoteCommandRunner {
    * <p>Routes commands into three categories:
    *
    * <ul>
-   *   <li>Local: {@code --version}, {@code upgrade} — run on the client, not forwarded
+   *   <li>Local: {@code --version}, {@code upgrade}, {@code init}, {@code login} — run on the
+   *       client, not forwarded ({@code login} drives the client's browser and a loopback callback)
    *   <li>Host-only: {@code host init}, {@code host config} — error with guidance
    *   <li>Everything else: forwarded to the remote host via SSH
    * </ul>

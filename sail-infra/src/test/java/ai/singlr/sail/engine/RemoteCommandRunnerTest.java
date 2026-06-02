@@ -73,11 +73,12 @@ class RemoteCommandRunnerTest {
   }
 
   @Test
-  void isLocalCommandRecognizesVersionUpgradeAndInit() {
+  void isLocalCommandRecognizesVersionUpgradeInitAndLogin() {
     assertTrue(RemoteCommandRunner.isLocalCommand("--version"));
     assertTrue(RemoteCommandRunner.isLocalCommand("-V"));
     assertTrue(RemoteCommandRunner.isLocalCommand("upgrade"));
     assertTrue(RemoteCommandRunner.isLocalCommand("init"));
+    assertTrue(RemoteCommandRunner.isLocalCommand("login"));
     assertFalse(RemoteCommandRunner.isLocalCommand("spec"));
     assertFalse(RemoteCommandRunner.isLocalCommand("dispatch"));
   }
