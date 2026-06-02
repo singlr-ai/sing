@@ -163,4 +163,20 @@ class SailPathsTest {
   void expandHomeDoesNotExpandMidPath() {
     assertEquals("/some/~/path", SailPaths.expandHome("/some/~/path"));
   }
+
+  @Test
+  void dataDirUsesConfiguredValueWhenSet() {
+    assertEquals(Path.of("/var/lib/sail"), SailPaths.dataDir("/var/lib/sail"));
+  }
+
+  @Test
+  void dataDirFallsBackToSailDirWhenUnsetOrBlank() {
+    assertEquals(SailPaths.sailDir(), SailPaths.dataDir(null));
+    assertEquals(SailPaths.sailDir(), SailPaths.dataDir("   "));
+  }
+
+  @Test
+  void controlPlaneDbIsSailDbUnderDataDir() {
+    assertEquals("sail.db", SailPaths.controlPlaneDb().getFileName().toString());
+  }
 }

@@ -56,7 +56,7 @@ public final class ServerTokenCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
-            try (var db = Sqlite.open(SailPaths.sailDir().resolve("sail.db"))) {
+            try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
               var fdeId = resolveFdeId(db);
               var created = new TokenStore(db).create(name, role, fdeId);
               System.out.println(
@@ -92,7 +92,7 @@ public final class ServerTokenCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
-            try (var db = Sqlite.open(SailPaths.sailDir().resolve("sail.db"))) {
+            try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
               var tokens = new TokenStore(db).list();
               if (tokens.isEmpty()) {
                 System.out.println("  No tokens. Run 'sail server init' to create one.");
@@ -120,7 +120,7 @@ public final class ServerTokenCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
-            try (var db = Sqlite.open(SailPaths.sailDir().resolve("sail.db"))) {
+            try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
               var revoked = new TokenStore(db).revoke(name);
               if (revoked) {
                 System.out.println(Ansi.AUTO.string("  @|green ✓|@ Token '" + name + "' revoked."));

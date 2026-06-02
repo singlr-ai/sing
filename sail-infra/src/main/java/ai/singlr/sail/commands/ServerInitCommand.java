@@ -41,7 +41,7 @@ public final class ServerInitCommand implements Runnable {
   }
 
   private void execute() throws Exception {
-    var dbPath = SailPaths.sailDir().resolve("sail.db");
+    var dbPath = SailPaths.controlPlaneDb();
     Files.createDirectories(dbPath.getParent());
 
     try (var db = Sqlite.open(dbPath)) {

@@ -336,7 +336,7 @@ public final class UpgradeCommand implements Runnable {
    * the sub-process fails for any reason.
    */
   private void migrateDatabase(boolean dryRun) {
-    var dbPath = SailPaths.sailDir().resolve("sail.db");
+    var dbPath = SailPaths.controlPlaneDb();
     var binaryPath = SailPaths.binaryPath();
     if (dryRun) {
       if (!json) {

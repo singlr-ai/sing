@@ -26,7 +26,7 @@ public final class ServerStatusCommand implements Runnable {
   }
 
   private void execute() {
-    var dbPath = SailPaths.sailDir().resolve("sail.db");
+    var dbPath = SailPaths.controlPlaneDb();
     if (!Files.exists(dbPath)) {
       System.out.println(
           Ansi.AUTO.string("  @|yellow ⚠|@ Server not initialized. Run 'sail server init'."));

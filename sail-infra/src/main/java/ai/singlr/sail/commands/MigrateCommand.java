@@ -71,7 +71,7 @@ public final class MigrateCommand implements Runnable {
    * the caller (UpgradeCommand wires this in at the end of the upgrade flow).
    */
   public static List<DataMigrator.Run> runMigrations(boolean nonInteractive, boolean jsonOutput) {
-    var dbPath = SailPaths.sailDir().resolve("sail.db");
+    var dbPath = SailPaths.controlPlaneDb();
     try {
       Files.createDirectories(dbPath.getParent());
     } catch (Exception e) {

@@ -35,7 +35,7 @@ public final class GatewayCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     var original = System.getenv("SSH_ORIGINAL_COMMAND");
-    try (var db = Sqlite.open(SailPaths.sailDir().resolve("sail.db"))) {
+    try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
       var decision =
           SshGateway.authorize(original, fde, new FdeStore(db), new AuthSessionStore(db));
       return switch (decision) {

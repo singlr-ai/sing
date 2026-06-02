@@ -27,6 +27,26 @@ public final class SailPaths {
     return SAIL_DIR;
   }
 
+  /**
+   * Returns the control-plane data directory: {@code $SAIL_DATA_DIR} when set, otherwise {@link
+   * #sailDir()}. A multi-FDE host points this at a shared system path (e.g. {@code /var/lib/sail})
+   * so the {@code sail} user's SSH gateway and the {@code sail-api} service reach the same
+   * database; when unset, solo/dev installs keep everything under {@code ~/.sail} unchanged.
+   */
+  public static Path dataDir() {
+    return dataDir(System.getenv("SAIL_DATA_DIR"));
+  }
+
+  /** Pure resolver; visible for tests so the lookup can be exercised without setting an env var. */
+  static Path dataDir(String configured) {
+    return configured != null && !configured.isBlank() ? Path.of(configured) : SAIL_DIR;
+  }
+
+  /** Returns the control-plane database path: {@code <dataDir>/sail.db}. */
+  public static Path controlPlaneDb() {
+    return dataDir().resolve("sail.db");
+  }
+
   /** Returns the projects base directory: {@code ~/.sail/projects}. */
   public static Path projectsDir() {
     return PROJECTS_DIR;

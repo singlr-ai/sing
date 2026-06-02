@@ -45,7 +45,7 @@ public final class FdeCommand implements Runnable {
   }
 
   private static java.nio.file.Path dbPath() {
-    return SailPaths.sailDir().resolve("sail.db");
+    return SailPaths.controlPlaneDb();
   }
 
   @Command(name = "add", description = "Add an FDE.", mixinStandardHelpOptions = true)
