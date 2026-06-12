@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.store;
 
+import ai.singlr.sail.ssh.SshPublicKey;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -87,14 +88,43 @@ public final class FdeStore {
   }
 
   /**
+   * Creates an FDE and registers its SSH key in one transaction, so a rejected key (already
+   * registered to someone else) rolls the FDE back instead of leaving a half-onboarded principal.
+   */
+  public Fde addWithKey(
+      String handle, String displayName, String email, String role, SshPublicKey key) {
+    return db.transaction(
+        () -> {
+          var fde = add(handle, displayName, email, role);
+          new FdeSshKeyStore(db).add(fde.id(), key);
+          return fde;
+        });
+  }
+
+  /**
    * Removes an FDE and every credential that authenticates as it. SSH keys, sessions, passkeys, and
    * enrollment tickets cascade via their foreign keys; owned API tokens are deleted explicitly
    * because {@code api_tokens.fde_id} predates the cascade constraints. Spec attribution ({@code
    * created_by}/{@code updated_by}) stores the handle as historical text and is untouched.
+   *
+   * <p>Refuses to remove the last active admin. The guard runs inside the delete transaction so two
+   * concurrent removals cannot both pass it and leave the host with no administrator.
    */
   public void remove(String fdeId) {
     db.transaction(
         () -> {
+          var fde =
+              byId(fdeId)
+                  .orElseThrow(() -> new IllegalArgumentException("No FDE with id " + fdeId + "."));
+          if ("admin".equals(fde.role())
+              && "active".equals(fde.status())
+              && activeAdminCount() <= 1) {
+            throw new IllegalStateException(
+                "'"
+                    + fde.handle()
+                    + "' is the last active admin FDE. Add another admin first:"
+                    + " sail fde add <handle> --role admin");
+          }
           db.execute("DELETE FROM api_tokens WHERE fde_id = ?", fdeId);
           db.execute("DELETE FROM fdes WHERE id = ?", fdeId);
         });

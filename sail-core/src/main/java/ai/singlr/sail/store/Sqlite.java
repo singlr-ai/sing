@@ -137,10 +137,19 @@ public final class Sqlite implements AutoCloseable {
   }
 
   public void transaction(Runnable work) {
+    transaction(
+        () -> {
+          work.run();
+          return null;
+        });
+  }
+
+  public <T> T transaction(java.util.function.Supplier<T> work) {
     execute("BEGIN");
     try {
-      work.run();
+      var result = work.get();
       execute("COMMIT");
+      return result;
     } catch (Exception e) {
       try {
         execute("ROLLBACK");

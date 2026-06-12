@@ -104,9 +104,7 @@ public final class MigrateCommand implements Runnable {
     try {
       if (new AuthorizedKeysSync().sync(db) instanceof AuthorizedKeysSync.Synced synced
           && !jsonOutput) {
-        System.out.println(
-            Ansi.AUTO.string(
-                "  @|green ✓|@ authorized_keys synced (" + synced.keyCount() + " key(s))"));
+        System.out.println(Ansi.AUTO.string("  @|green ✓|@ " + synced.describe()));
       }
     } catch (Exception e) {
       System.err.println(

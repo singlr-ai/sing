@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.singlr.sail.ssh.SshPublicKey;
 import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +61,78 @@ class FdeStoreTest {
 
     assertTrue(store.byHandle("keeper").isPresent());
     assertEquals(1L, count("api_tokens", keeper.id()));
+  }
+
+  @Test
+  void removeRefusesTheLastActiveAdmin() {
+    var lone = store.add("lone", null, null, "admin");
+
+    var thrown = assertThrows(IllegalStateException.class, () -> store.remove(lone.id()));
+
+    assertTrue(thrown.getMessage().contains("last active admin"));
+    assertTrue(store.byHandle("lone").isPresent());
+  }
+
+  @Test
+  void removeAllowsAnAdminWhenAnotherActiveAdminRemains() {
+    var first = store.add("first", null, null, "admin");
+    store.add("second", null, null, "admin");
+
+    store.remove(first.id());
+
+    assertTrue(store.byHandle("first").isEmpty());
+    assertEquals(1L, store.activeAdminCount());
+  }
+
+  @Test
+  void removeAllowsADisabledAdminEvenWhenItIsTheOnlyOne() {
+    var retired = store.add("retired", null, null, "admin");
+    db.execute("UPDATE fdes SET status = 'disabled' WHERE id = ?", retired.id());
+
+    store.remove(retired.id());
+
+    assertTrue(store.byHandle("retired").isEmpty());
+  }
+
+  @Test
+  void removeAllowsTheLastMemberEvenWhenNoAdminsExist() {
+    var member = store.add("solo", null, null, "member");
+
+    store.remove(member.id());
+
+    assertTrue(store.byHandle("solo").isEmpty());
+  }
+
+  @Test
+  void removeThrowsForUnknownId() {
+    assertThrows(IllegalArgumentException.class, () -> store.remove("fde_missing"));
+  }
+
+  @Test
+  void addWithKeyRollsBackTheFdeWhenTheKeyIsTaken() {
+    var keyLine = ai.singlr.sail.ssh.TestSshKeys.ed25519("shared", "a@b");
+    var owner = store.add("owner", null, null, "member");
+    new FdeSshKeyStore(db).add(owner.id(), SshPublicKey.parse(keyLine));
+
+    assertThrows(
+        SqliteException.class,
+        () -> store.addWithKey("intruder", null, null, "member", SshPublicKey.parse(keyLine)));
+
+    assertTrue(store.byHandle("intruder").isEmpty());
+  }
+
+  @Test
+  void addWithKeyCreatesBothAtomically() {
+    var fde =
+        store.addWithKey(
+            "fresh",
+            "Fresh",
+            null,
+            "member",
+            SshPublicKey.parse(ai.singlr.sail.ssh.TestSshKeys.ed25519("fresh", "f@m")));
+
+    assertTrue(store.byHandle("fresh").isPresent());
+    assertEquals(1, new FdeSshKeyStore(db).listForFde(fde.id()).size());
   }
 
   @Test

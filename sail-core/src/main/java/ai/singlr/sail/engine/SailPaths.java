@@ -182,7 +182,8 @@ public final class SailPaths {
     return SAIL_DIR.resolve("run/api.sock");
   }
 
-  private static boolean isRoot() {
+  /** Returns true when the current process runs as root — the single privilege check. */
+  public static boolean isRoot() {
     return "root".equals(ProcessHandle.current().info().user().orElse(""));
   }
 

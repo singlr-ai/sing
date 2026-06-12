@@ -7,6 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.SailVersion;
 import ai.singlr.sail.api.ServerConnectionConfig;
+import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.PlatformDetector;
@@ -179,11 +180,11 @@ public final class UpgradeCommand implements Runnable {
     }
 
     RestartStatus restartStatus;
-    if (Files.exists(SailPaths.hostConfigPath())) {
+    if (HostYaml.exists()) {
       migrateDatabase(dryRun);
       restartStatus = restartSailApi(dryRun);
     } else {
-      restartStatus = RestartStatus.NOT_INSTALLED;
+      restartStatus = RestartStatus.SKIPPED_CLIENT;
       if (!json) {
         System.out.println(
             Ansi.AUTO.string(
@@ -429,7 +430,8 @@ public final class UpgradeCommand implements Runnable {
     NOT_RUNNING("not_running"),
     RESTARTED("restarted"),
     FAILED("failed"),
-    DRY_RUN("dry_run");
+    DRY_RUN("dry_run"),
+    SKIPPED_CLIENT("skipped_client");
 
     private final String wireValue;
 

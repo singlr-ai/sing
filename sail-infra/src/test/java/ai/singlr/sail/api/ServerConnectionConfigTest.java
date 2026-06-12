@@ -55,6 +55,19 @@ class ServerConnectionConfigTest {
   }
 
   @Test
+  void savePreservesClientConfigKeys() throws IOException {
+    var configPath = tempDir.resolve("config.yaml");
+    java.nio.file.Files.writeString(configPath, "host: devbox\nuser: sail\n");
+
+    ServerConnectionConfig.saveSessionToken("sess_new", configPath);
+
+    var client = ai.singlr.sail.config.ClientConfig.load(configPath);
+    assertEquals("devbox", client.host());
+    assertEquals("sail", client.user());
+    assertEquals("sess_new", ServerConnectionConfig.resolve(null, null, configPath).token());
+  }
+
+  @Test
   void defaultUrlIsLocalhostWhenNotProvided() throws IOException {
     var config = ServerConnectionConfig.resolve(null, "some-token", missingConfig());
     assertEquals("http://localhost:7070", config.serverUrl());

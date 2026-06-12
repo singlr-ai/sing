@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.engine.SailPaths;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.InputStreamReader;
@@ -88,6 +89,6 @@ final class ConsoleHelper {
 
   /** Returns {@code true} if the current process is running as root. */
   static boolean isRoot() {
-    return "root".equals(ProcessHandle.current().info().user().orElse(""));
+    return SailPaths.isRoot();
   }
 }

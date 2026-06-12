@@ -101,18 +101,29 @@ public final class HostSshIdentityCommand implements Runnable {
     }
   }
 
+  /**
+   * After the provisioning steps both non-{@code Synced} outcomes signal a failed step (root was
+   * required up front, and the plan just created the sail user's {@code .ssh}), so they fail loud
+   * instead of letting the operator believe SSH login works.
+   */
   private static void syncKeys() throws Exception {
     try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
-      if (new AuthorizedKeysSync().sync(db) instanceof AuthorizedKeysSync.Synced synced) {
-        System.out.println(
-            Ansi.AUTO.string(
-                "  @|green ✓|@ authorized_keys synced (" + synced.keyCount() + " key(s))"));
+      switch (new AuthorizedKeysSync().sync(db)) {
+        case AuthorizedKeysSync.Synced synced ->
+            System.out.println(Ansi.AUTO.string("  @|green ✓|@ " + synced.describe()));
+        case AuthorizedKeysSync.NeedsRoot _ ->
+            throw new IllegalStateException(
+                "authorized_keys sync lost root privileges mid-run; re-run as root.");
+        case AuthorizedKeysSync.NotProvisioned _ ->
+            throw new IllegalStateException(
+                "The sail user's .ssh directory is missing even though provisioning succeeded;"
+                    + " inspect /home/sail and re-run 'sudo sail host ssh-identity'.");
       }
     }
   }
 
   private static void requireRoot() {
-    if (!"root".equals(ProcessHandle.current().info().user().orElse(""))) {
+    if (!SailPaths.isRoot()) {
       throw new IllegalStateException(
           "This command must run as root: it creates a system user, relocates the database, and"
               + " edits a systemd unit. Preview with --dry-run, or re-run with sudo.");

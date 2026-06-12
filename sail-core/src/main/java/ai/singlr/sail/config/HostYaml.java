@@ -5,6 +5,8 @@
 
 package ai.singlr.sail.config;
 
+import ai.singlr.sail.engine.SailPaths;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +61,16 @@ public record HostYaml(
   public static final String DEFAULT_IMAGE = "ubuntu/24.04";
   public static final String BACKEND_DIR = "dir";
   public static final String BACKEND_ZFS = "zfs";
+
+  /**
+   * Returns true when this machine is a configured Sail host. The named check matters: {@code
+   * RuntimeMode.detect()} defaults to host mode when NO config exists (backward compatibility), so
+   * callers that must act only on real hosts — like the upgrade's database and service steps —
+   * check for the host config explicitly.
+   */
+  public static boolean exists() {
+    return Files.exists(SailPaths.hostConfigPath());
+  }
 
   public boolean isDir() {
     return BACKEND_DIR.equals(storageBackend);

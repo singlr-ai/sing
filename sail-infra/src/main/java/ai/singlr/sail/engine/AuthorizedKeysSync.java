@@ -27,7 +27,12 @@ public final class AuthorizedKeysSync {
   public sealed interface Outcome permits Synced, NeedsRoot, NotProvisioned {}
 
   /** The file was regenerated from the registry. */
-  public record Synced(int keyCount, Path destination) implements Outcome {}
+  public record Synced(int keyCount, Path destination) implements Outcome {
+    /** The one human-facing phrase for a successful sync, shared by every caller that prints it. */
+    public String describe() {
+      return "authorized_keys synced (" + keyCount + " key(s))";
+    }
+  }
 
   /** The caller lacks root; the registry changed but the file did not. */
   public record NeedsRoot() implements Outcome {}
@@ -42,7 +47,7 @@ public final class AuthorizedKeysSync {
   public AuthorizedKeysSync() {
     this(
         Path.of(SshIdentityProvisioner.SAIL_HOME, ".ssh", "authorized_keys"),
-        "root".equals(ProcessHandle.current().info().user().orElse("")),
+        SailPaths.isRoot(),
         new ShellExecutor(false));
   }
 
@@ -59,15 +64,14 @@ public final class AuthorizedKeysSync {
   }
 
   public Outcome sync(Sqlite db) throws Exception {
-    var keys = new FdeSshKeyStore(db).list();
-    var content = AuthorizedKeysRenderer.render(keys, SailPaths.binaryPath().toString());
     if (!root) {
       return new NeedsRoot();
     }
     if (!Files.isDirectory(destination.getParent())) {
       return new NotProvisioned();
     }
-    install(content);
+    var keys = new FdeSshKeyStore(db).list();
+    install(AuthorizedKeysRenderer.render(keys, SailPaths.binaryPath().toString()));
     return new Synced(keys.size(), destination);
   }
 

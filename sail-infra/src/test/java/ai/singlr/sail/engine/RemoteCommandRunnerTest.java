@@ -57,6 +57,27 @@ class RemoteCommandRunnerTest {
   }
 
   @Test
+  void gatewayFailureMessageExplainsKeyRegistration() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var message = runner.connectionFailureMessage("sail@kubera-server");
+
+    assertTrue(message.contains("Cannot connect to sail@kubera-server"));
+    assertTrue(message.contains("sail fde add"));
+    assertTrue(message.contains("sail host keys sync"));
+  }
+
+  @Test
+  void plainLaneFailureMessageOmitsGatewayGuidance() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var message = runner.connectionFailureMessage("kubera-server");
+
+    assertTrue(message.contains("Cannot connect to kubera-server"));
+    assertFalse(message.contains("sail fde add"));
+  }
+
+  @Test
   void gatewayLaneForbidsPasswordFallback() {
     var runner = new RemoteCommandRunner(CONFIG);
 

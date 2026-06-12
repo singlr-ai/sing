@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Set;
 
 /**
@@ -77,15 +78,26 @@ public record ServerConnectionConfig(String serverUrl, String token) {
     saveLocalConfig(serverUrl, token, configPath);
   }
 
+  /**
+   * Writes {@code server} and {@code token} while preserving every other key in the file. The
+   * client config ({@code host}, {@code user}) shares this file on an engineer's machine, so a
+   * plain overwrite would destroy the client's host pointer and silently flip the CLI out of client
+   * mode the first time they sign in.
+   */
   public static void saveLocalConfig(String serverUrl, String token, Path configPath)
       throws IOException {
-    var yaml = "server: " + serverUrl + "\ntoken: " + token + "\n";
+    var config =
+        Files.exists(configPath)
+            ? new LinkedHashMap<>(YamlUtil.parseFile(configPath))
+            : new LinkedHashMap<String, Object>();
+    config.put("server", serverUrl);
+    config.put("token", token);
     Files.createDirectories(configPath.getParent());
     Files.setPosixFilePermissions(configPath.getParent(), OWNER_ONLY_DIR);
     if (!Files.exists(configPath)) {
       Files.createFile(configPath, PosixFilePermissions.asFileAttribute(OWNER_ONLY_FILE));
     }
-    Files.writeString(configPath, yaml);
+    YamlUtil.dumpToFile(config, configPath);
     Files.setPosixFilePermissions(configPath, OWNER_ONLY_FILE);
   }
 

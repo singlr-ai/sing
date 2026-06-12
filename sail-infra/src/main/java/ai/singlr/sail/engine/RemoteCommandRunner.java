@@ -117,7 +117,7 @@ public final class RemoteCommandRunner {
     }
   }
 
-  private String connectionFailureMessage(String target) {
+  String connectionFailureMessage(String target) {
     var message =
         "Cannot connect to "
             + target

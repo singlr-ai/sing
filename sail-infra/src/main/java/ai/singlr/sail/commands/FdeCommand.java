@@ -17,6 +17,7 @@ import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.Sqlite;
 import ai.singlr.sail.store.SqliteException;
 import java.nio.file.Files;
+import java.util.Optional;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -67,9 +68,7 @@ public final class FdeCommand implements Runnable {
   private static void applyKeys(Sqlite db) throws Exception {
     switch (new AuthorizedKeysSync().sync(db)) {
       case AuthorizedKeysSync.Synced synced ->
-          System.out.println(
-              Ansi.AUTO.string(
-                  "  @|green ✓|@ authorized_keys synced (" + synced.keyCount() + " key(s))"));
+          System.out.println(Ansi.AUTO.string("  @|green ✓|@ " + synced.describe()));
       case AuthorizedKeysSync.NeedsRoot _ ->
           System.out.println(
               Ansi.AUTO.string("  @|faint Run 'sudo sail host keys sync' to apply.|@"));
@@ -113,16 +112,39 @@ public final class FdeCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
+            var key = publicKey == null ? null : SshPublicKey.parse(publicKey);
             try (var db = Sqlite.open(dbPath())) {
-              var fde = new FdeStore(db).add(handle, displayName, email, role);
+              var fdeStore = new FdeStore(db);
+              if (fdeStore.byHandle(handle).isPresent()) {
+                throw new IllegalArgumentException("FDE '" + handle + "' already exists.");
+              }
+              var fde =
+                  key == null
+                      ? fdeStore.add(handle, displayName, email, role)
+                      : addWithKey(fdeStore, key);
               System.out.println(
                   Ansi.AUTO.string(
                       "  @|green ✓|@ FDE added: " + fde.handle() + " (" + fde.role() + ")"));
-              if (publicKey != null) {
-                registerKey(db, fde, publicKey);
+              if (key != null) {
+                System.out.println(
+                    Ansi.AUTO.string(
+                        "  @|green ✓|@ Registered key for "
+                            + fde.handle()
+                            + ": "
+                            + key.fingerprint()));
+                applyKeys(db);
               }
             }
           });
+    }
+
+    private FdeStore.Fde addWithKey(FdeStore fdeStore, SshPublicKey key) {
+      try {
+        return fdeStore.addWithKey(handle, displayName, email, role, key);
+      } catch (SqliteException e) {
+        throw new IllegalArgumentException(
+            "That key (" + key.fingerprint() + ") is already registered.");
+      }
     }
   }
 
@@ -152,7 +174,6 @@ public final class FdeCommand implements Runnable {
                       .byHandle(handle)
                       .orElseThrow(
                           () -> new IllegalArgumentException("Unknown FDE '" + handle + "'."));
-              requireNotLastAdmin(fdeStore, fde);
               if (!confirmed()) {
                 System.out.println(Ansi.AUTO.string("  @|faint Cancelled.|@"));
                 return;
@@ -175,18 +196,6 @@ public final class FdeCommand implements Runnable {
       System.out.print("  Remove FDE '" + handle + "' and revoke all its credentials? [y/N] ");
       var answer = System.console() != null ? System.console().readLine() : "y";
       return answer != null && answer.strip().equalsIgnoreCase("y");
-    }
-
-    private static void requireNotLastAdmin(FdeStore fdeStore, FdeStore.Fde fde) {
-      if ("admin".equals(fde.role())
-          && "active".equals(fde.status())
-          && fdeStore.activeAdminCount() <= 1) {
-        throw new IllegalStateException(
-            "'"
-                + fde.handle()
-                + "' is the last active admin FDE. Add another admin first:"
-                + " sail fde add <handle> --role admin");
-      }
     }
   }
 
@@ -387,26 +396,30 @@ public final class FdeCommand implements Runnable {
               try (var db = Sqlite.open(dbPath())) {
                 var keyStore = new FdeSshKeyStore(db);
                 var fingerprint =
-                    target.startsWith("SHA256:") ? target : resolveByHandle(db, keyStore);
-                if (fingerprint == null) {
+                    target.startsWith("SHA256:")
+                        ? Optional.of(target)
+                        : resolveByHandle(db, keyStore);
+                if (fingerprint.isEmpty()) {
                   return;
                 }
-                if (keyStore.remove(fingerprint)) {
-                  System.out.println(Ansi.AUTO.string("  @|green ✓|@ Removed key " + fingerprint));
+                if (keyStore.remove(fingerprint.get())) {
+                  System.out.println(
+                      Ansi.AUTO.string("  @|green ✓|@ Removed key " + fingerprint.get()));
                   applyKeys(db);
                 } else {
                   System.out.println(
-                      Ansi.AUTO.string("  @|yellow ⚠|@ No key with fingerprint " + fingerprint));
+                      Ansi.AUTO.string(
+                          "  @|yellow ⚠|@ No key with fingerprint " + fingerprint.get()));
                 }
               }
             });
       }
 
       /**
-       * Resolves a handle to the single key it owns, or null after printing guidance — no keys, or
+       * Resolves a handle to the single key it owns, or empty after printing guidance — no keys, or
        * several (removing all on an ambiguous request would be a surprise revocation).
        */
-      private String resolveByHandle(Sqlite db, FdeSshKeyStore keyStore) {
+      private Optional<String> resolveByHandle(Sqlite db, FdeSshKeyStore keyStore) {
         var fde =
             new FdeStore(db)
                 .byHandle(target)
@@ -421,16 +434,16 @@ public final class FdeCommand implements Runnable {
         if (keys.isEmpty()) {
           System.out.println(
               Ansi.AUTO.string("  @|yellow ⚠|@ No SSH keys registered for '" + target + "'."));
-          return null;
+          return Optional.empty();
         }
         if (keys.size() > 1) {
           System.out.println("  '" + target + "' has " + keys.size() + " keys; specify one:");
           for (var key : keys) {
             System.out.println("    sail fde key rm " + key.fingerprint());
           }
-          return null;
+          return Optional.empty();
         }
-        return keys.getFirst().fingerprint();
+        return Optional.of(keys.getFirst().fingerprint());
       }
     }
   }
