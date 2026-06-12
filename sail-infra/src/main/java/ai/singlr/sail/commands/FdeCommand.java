@@ -178,13 +178,16 @@ public final class FdeCommand implements Runnable {
                 System.out.println(Ansi.AUTO.string("  @|faint Cancelled.|@"));
                 return;
               }
+              var hadSshKeys = !new FdeSshKeyStore(db).listForFde(fde.id()).isEmpty();
               fdeStore.remove(fde.id());
               System.out.println(Ansi.AUTO.string("  @|green ✓|@ FDE removed: " + fde.handle()));
               System.out.println(
                   Ansi.AUTO.string(
                       "  @|faint Owned tokens, SSH keys, sessions, passkeys, and enrollment"
                           + " tickets are revoked.|@"));
-              applyKeys(db);
+              if (hadSshKeys) {
+                applyKeys(db);
+              }
             }
           });
     }
