@@ -78,6 +78,28 @@ public final class FdeStore {
     return db.query(SELECT + " ORDER BY handle", FdeStore::map);
   }
 
+  /** Returns the number of FDEs that are active admins — the principals who can administer. */
+  public long activeAdminCount() {
+    return db.queryOne(
+            "SELECT COUNT(*) FROM fdes WHERE role = 'admin' AND status = 'active'",
+            row -> row.integer(0))
+        .orElse(0L);
+  }
+
+  /**
+   * Removes an FDE and every credential that authenticates as it. SSH keys, sessions, passkeys, and
+   * enrollment tickets cascade via their foreign keys; owned API tokens are deleted explicitly
+   * because {@code api_tokens.fde_id} predates the cascade constraints. Spec attribution ({@code
+   * created_by}/{@code updated_by}) stores the handle as historical text and is untouched.
+   */
+  public void remove(String fdeId) {
+    db.transaction(
+        () -> {
+          db.execute("DELETE FROM api_tokens WHERE fde_id = ?", fdeId);
+          db.execute("DELETE FROM fdes WHERE id = ?", fdeId);
+        });
+  }
+
   private static final String SELECT =
       "SELECT id, handle, display_name, email, role, status, created_at FROM fdes";
 

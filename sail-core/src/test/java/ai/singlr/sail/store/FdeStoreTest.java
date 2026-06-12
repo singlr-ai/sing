@@ -32,6 +32,53 @@ class FdeStoreTest {
   }
 
   @Test
+  void removeDeletesTheFdeItsTokensAndCascadesCredentials() {
+    var fde = store.add("ghost", null, null, "member");
+    new TokenStore(db).create("ghost-token", "member", fde.id());
+    new AuthSessionStore(db).create(fde.id(), java.time.Duration.ofMinutes(5));
+    new FdeSshKeyStore(db)
+        .add(
+            fde.id(),
+            ai.singlr.sail.ssh.SshPublicKey.parse(
+                ai.singlr.sail.ssh.TestSshKeys.ed25519("seed", "g@m")));
+
+    store.remove(fde.id());
+
+    assertTrue(store.byHandle("ghost").isEmpty());
+    assertEquals(0L, count("api_tokens", fde.id()));
+    assertEquals(0L, count("sessions", fde.id()));
+    assertEquals(0L, count("fde_ssh_keys", fde.id()));
+  }
+
+  @Test
+  void removeLeavesOtherFdesCredentialsAlone() {
+    var ghost = store.add("ghost", null, null, "member");
+    var keeper = store.add("keeper", null, null, "member");
+    new TokenStore(db).create("keeper-token", "member", keeper.id());
+
+    store.remove(ghost.id());
+
+    assertTrue(store.byHandle("keeper").isPresent());
+    assertEquals(1L, count("api_tokens", keeper.id()));
+  }
+
+  @Test
+  void activeAdminCountTracksRoleAndStatus() {
+    assertEquals(0L, store.activeAdminCount());
+    var admin = store.add("ada", null, null, "admin");
+    store.add("bob", null, null, "member");
+    assertEquals(1L, store.activeAdminCount());
+    db.execute("UPDATE fdes SET status = 'disabled' WHERE id = ?", admin.id());
+    assertEquals(0L, store.activeAdminCount());
+  }
+
+  private long count(String table, String fdeId) {
+    return db.queryOne(
+            "SELECT COUNT(*) FROM " + table + " WHERE fde_id = ?", row -> row.integer(0), fdeId)
+        .orElse(-1L);
+  }
+
+  @Test
   void addAssignsGeneratedIdAndActiveStatus() {
     var fde = store.add("uday", "Uday Chandra", "uday@singlr.ai");
     assertTrue(fde.id().startsWith("fde_"));

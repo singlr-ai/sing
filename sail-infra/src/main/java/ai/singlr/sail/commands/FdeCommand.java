@@ -35,6 +35,7 @@ import picocli.CommandLine.Spec;
     subcommands = {
       FdeCommand.Add.class,
       FdeCommand.ListFdes.class,
+      FdeCommand.Remove.class,
       FdeCommand.Enroll.class,
       FdeCommand.Key.class
     })
@@ -122,6 +123,70 @@ public final class FdeCommand implements Runnable {
               }
             }
           });
+    }
+  }
+
+  @Command(
+      name = "rm",
+      description = "Remove an FDE and revoke everything that authenticates as it.",
+      mixinStandardHelpOptions = true)
+  static final class Remove implements Runnable {
+
+    @Parameters(index = "0", description = "FDE handle.")
+    private String handle;
+
+    @Option(names = "--force", description = "Skip confirmation.")
+    private boolean force;
+
+    @Spec private CommandSpec spec;
+
+    @Override
+    public void run() {
+      CliCommand.run(
+          spec,
+          () -> {
+            try (var db = Sqlite.open(dbPath())) {
+              var fdeStore = new FdeStore(db);
+              var fde =
+                  fdeStore
+                      .byHandle(handle)
+                      .orElseThrow(
+                          () -> new IllegalArgumentException("Unknown FDE '" + handle + "'."));
+              requireNotLastAdmin(fdeStore, fde);
+              if (!confirmed()) {
+                System.out.println(Ansi.AUTO.string("  @|faint Cancelled.|@"));
+                return;
+              }
+              fdeStore.remove(fde.id());
+              System.out.println(Ansi.AUTO.string("  @|green ✓|@ FDE removed: " + fde.handle()));
+              System.out.println(
+                  Ansi.AUTO.string(
+                      "  @|faint Owned tokens, SSH keys, sessions, passkeys, and enrollment"
+                          + " tickets are revoked.|@"));
+              applyKeys(db);
+            }
+          });
+    }
+
+    private boolean confirmed() {
+      if (force) {
+        return true;
+      }
+      System.out.print("  Remove FDE '" + handle + "' and revoke all its credentials? [y/N] ");
+      var answer = System.console() != null ? System.console().readLine() : "y";
+      return answer != null && answer.strip().equalsIgnoreCase("y");
+    }
+
+    private static void requireNotLastAdmin(FdeStore fdeStore, FdeStore.Fde fde) {
+      if ("admin".equals(fde.role())
+          && "active".equals(fde.status())
+          && fdeStore.activeAdminCount() <= 1) {
+        throw new IllegalStateException(
+            "'"
+                + fde.handle()
+                + "' is the last active admin FDE. Add another admin first:"
+                + " sail fde add <handle> --role admin");
+      }
     }
   }
 
@@ -305,12 +370,12 @@ public final class FdeCommand implements Runnable {
 
     @Command(
         name = "rm",
-        description = "Remove a registered SSH key by fingerprint.",
+        description = "Remove a registered SSH key by FDE handle or SHA256: fingerprint.",
         mixinStandardHelpOptions = true)
     static final class Remove implements Runnable {
 
-      @Parameters(index = "0", description = "The key's SHA256: fingerprint.")
-      private String fingerprint;
+      @Parameters(index = "0", description = "FDE handle, or a key's SHA256: fingerprint.")
+      private String target;
 
       @Spec private CommandSpec spec;
 
@@ -320,7 +385,13 @@ public final class FdeCommand implements Runnable {
             spec,
             () -> {
               try (var db = Sqlite.open(dbPath())) {
-                if (new FdeSshKeyStore(db).remove(fingerprint)) {
+                var keyStore = new FdeSshKeyStore(db);
+                var fingerprint =
+                    target.startsWith("SHA256:") ? target : resolveByHandle(db, keyStore);
+                if (fingerprint == null) {
+                  return;
+                }
+                if (keyStore.remove(fingerprint)) {
                   System.out.println(Ansi.AUTO.string("  @|green ✓|@ Removed key " + fingerprint));
                   applyKeys(db);
                 } else {
@@ -329,6 +400,37 @@ public final class FdeCommand implements Runnable {
                 }
               }
             });
+      }
+
+      /**
+       * Resolves a handle to the single key it owns, or null after printing guidance — no keys, or
+       * several (removing all on an ambiguous request would be a surprise revocation).
+       */
+      private String resolveByHandle(Sqlite db, FdeSshKeyStore keyStore) {
+        var fde =
+            new FdeStore(db)
+                .byHandle(target)
+                .orElseThrow(
+                    () ->
+                        new IllegalArgumentException(
+                            "'"
+                                + target
+                                + "' is neither a known FDE handle nor a SHA256:"
+                                + " fingerprint. See 'sail fde key list'."));
+        var keys = keyStore.listForFde(fde.id());
+        if (keys.isEmpty()) {
+          System.out.println(
+              Ansi.AUTO.string("  @|yellow ⚠|@ No SSH keys registered for '" + target + "'."));
+          return null;
+        }
+        if (keys.size() > 1) {
+          System.out.println("  '" + target + "' has " + keys.size() + " keys; specify one:");
+          for (var key : keys) {
+            System.out.println("    sail fde key rm " + key.fingerprint());
+          }
+          return null;
+        }
+        return keys.getFirst().fingerprint();
       }
     }
   }
