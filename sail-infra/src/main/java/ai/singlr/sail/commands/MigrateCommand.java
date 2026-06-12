@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.engine.AuthorizedKeysSync;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerSpecImporter;
 import ai.singlr.sail.engine.SailPaths;
@@ -84,8 +85,34 @@ public final class MigrateCommand implements Runnable {
           new ContainerSpecImporter(
               shell, new ContainerManager(shell), new SpecStore(db), SailPaths.projectsDir());
       var animate = !jsonOutput && System.console() != null;
-      return applyMigrations(
-          db, dbPath.toString(), importer::importAll, prompter, animate, jsonOutput);
+      var runs =
+          applyMigrations(
+              db, dbPath.toString(), importer::importAll, prompter, animate, jsonOutput);
+      syncAuthorizedKeys(db, jsonOutput);
+      return runs;
+    }
+  }
+
+  /**
+   * Converges the {@code sail} user's {@code authorized_keys} with the SSH-key registry on
+   * provisioned hosts. Living here (not in {@code upgrade}) is load-bearing: an upgrade is executed
+   * by the OLD binary, which re-execs the NEW binary's {@code migrate} — so this is the one step
+   * guaranteed to run new-binary code on every upgrade path. Quiet when there is nothing to do
+   * (unprovisioned host, non-root) and never fatal.
+   */
+  private static void syncAuthorizedKeys(Sqlite db, boolean jsonOutput) {
+    try {
+      if (new AuthorizedKeysSync().sync(db) instanceof AuthorizedKeysSync.Synced synced
+          && !jsonOutput) {
+        System.out.println(
+            Ansi.AUTO.string(
+                "  @|green ✓|@ authorized_keys synced (" + synced.keyCount() + " key(s))"));
+      }
+    } catch (Exception e) {
+      System.err.println(
+          "  authorized_keys sync failed: "
+              + e.getMessage()
+              + ". Converge manually with 'sudo sail host keys sync'.");
     }
   }
 

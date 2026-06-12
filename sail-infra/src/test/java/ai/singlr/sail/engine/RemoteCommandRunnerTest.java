@@ -57,6 +57,35 @@ class RemoteCommandRunnerTest {
   }
 
   @Test
+  void gatewayLaneForbidsPasswordFallback() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var cmd = runner.buildSshCommand(new String[] {"spec", "list"}, false);
+
+    assertEquals(
+        List.of(
+            "ssh",
+            "-o",
+            "PasswordAuthentication=no",
+            "-o",
+            "KbdInteractiveAuthentication=no",
+            "sail@kubera-server",
+            "sail",
+            "spec",
+            "list"),
+        cmd);
+  }
+
+  @Test
+  void plainLaneLeavesSshAuthenticationAlone() {
+    var runner = new RemoteCommandRunner(CONFIG);
+
+    var cmd = runner.buildSshCommand(new String[] {"project", "up", "demo"}, false);
+
+    assertEquals(List.of("ssh", "kubera-server", "sail", "project", "up", "demo"), cmd);
+  }
+
+  @Test
   void buildSshCommandForInteractive() {
     var runner = new RemoteCommandRunner(CONFIG);
 

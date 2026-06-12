@@ -8,7 +8,6 @@ package ai.singlr.sail.commands;
 import ai.singlr.sail.SailVersion;
 import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.config.YamlUtil;
-import ai.singlr.sail.engine.AuthorizedKeysSync;
 import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.PlatformDetector;
 import ai.singlr.sail.engine.ReleaseFetcher;
@@ -114,7 +113,7 @@ public final class UpgradeCommand implements Runnable {
 
     if (!json) {
       System.out.println(
-          Banner.stepLine(1, 3, "Downloading sail " + versionTag + "...", Ansi.AUTO));
+          Banner.stepLine(1, 4, "Downloading sail " + versionTag + "...", Ansi.AUTO));
     }
     byte[] binary;
     if (dryRun) {
@@ -129,12 +128,12 @@ public final class UpgradeCommand implements Runnable {
       if (!json) {
         System.out.println(
             Banner.stepDoneLine(
-                1, 3, "Downloaded (" + (binary.length / 1024 / 1024) + " MB)", Ansi.AUTO));
+                1, 4, "Downloaded (" + (binary.length / 1024 / 1024) + " MB)", Ansi.AUTO));
       }
     }
 
     if (!json) {
-      System.out.println(Banner.stepLine(2, 3, "Verifying checksum...", Ansi.AUTO));
+      System.out.println(Banner.stepLine(2, 4, "Verifying checksum...", Ansi.AUTO));
     }
     if (dryRun) {
       System.out.println("[dry-run] Verify SHA-256 checksum");
@@ -154,7 +153,7 @@ public final class UpgradeCommand implements Runnable {
                 + "\n  The download may be corrupted. Try again.");
       }
       if (!json) {
-        System.out.println(Banner.stepDoneLine(2, 3, "Checksum verified", Ansi.AUTO));
+        System.out.println(Banner.stepDoneLine(2, 4, "Checksum verified", Ansi.AUTO));
       }
     }
 
@@ -179,11 +178,18 @@ public final class UpgradeCommand implements Runnable {
       }
     }
 
-    migrateDatabase(dryRun);
-
-    var restartStatus = restartSailApi(dryRun);
-
-    syncAuthorizedKeys(dryRun);
+    RestartStatus restartStatus;
+    if (Files.exists(SailPaths.hostConfigPath())) {
+      migrateDatabase(dryRun);
+      restartStatus = restartSailApi(dryRun);
+    } else {
+      restartStatus = RestartStatus.NOT_INSTALLED;
+      if (!json) {
+        System.out.println(
+            Ansi.AUTO.string(
+                "  @|faint Client machine (no host.yaml) — database and service steps skipped.|@"));
+      }
+    }
 
     if (json) {
       printJsonResult(
@@ -289,34 +295,6 @@ public final class UpgradeCommand implements Runnable {
    */
   private boolean reconcileUnitFile(SystemdServiceInstaller installer) throws Exception {
     return installer.reconcile();
-  }
-
-  /**
-   * Converges the {@code sail} user's {@code authorized_keys} with the SSH-key registry so a host
-   * comes fully online from an upgrade alone — keys registered before this binary's auto-sync
-   * existed are installed without any manual {@code keys sync}. Quiet when there is nothing to do
-   * (unprovisioned host, non-root upgrade) and never fatal: the binary install already succeeded.
-   */
-  private void syncAuthorizedKeys(boolean dryRun) {
-    if (dryRun) {
-      System.out.println(
-          "[dry-run] Would sync the sail user's authorized_keys from the SSH-key registry.");
-      return;
-    }
-    try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
-      if (new AuthorizedKeysSync().sync(db) instanceof AuthorizedKeysSync.Synced synced && !json) {
-        System.out.println(
-            Ansi.AUTO.string(
-                "  @|green ✓|@ authorized_keys synced (" + synced.keyCount() + " key(s))"));
-      }
-    } catch (Exception e) {
-      System.err.println(
-          Banner.errorLine(
-              "authorized_keys sync failed: "
-                  + e.getMessage()
-                  + ". Converge manually with 'sudo sail host keys sync'.",
-              Ansi.AUTO));
-    }
   }
 
   /** Bind address + port pair extracted from a sail-api unit file's {@code ExecStart}. */

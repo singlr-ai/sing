@@ -34,7 +34,10 @@ public final class HostKeysCommand implements Runnable {
 
   @Command(
       name = "sync",
-      description = "Regenerate the sail user's authorized_keys from registered FDE keys.",
+      description =
+          "Repair the sail user's authorized_keys from the registry (key changes sync"
+              + " automatically; this is only needed when a sync was skipped or the file was"
+              + " edited by hand).",
       mixinStandardHelpOptions = true)
   static final class Sync implements Runnable {
 

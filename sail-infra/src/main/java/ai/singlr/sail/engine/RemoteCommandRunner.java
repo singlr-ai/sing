@@ -131,8 +131,10 @@ public final class RemoteCommandRunner {
     return message
         + "\n  Commands authenticate as your FDE through the '"
         + config.user()
-        + "' user. If access was denied, ask an admin to register your key:"
-        + "\n    sail fde key add <your-handle> \"<your pubkey>\"";
+        + "' user. If access was denied:"
+        + "\n    - not registered yet? an admin runs: sail fde add <handle> --key \"<your pubkey>\""
+        + "\n    - registered before the host ran 0.13.53+? upgrade the host, or run:"
+        + " sudo sail host keys sync";
   }
 
   List<String> buildSshCommand(String[] args, boolean interactive) {
@@ -141,6 +143,12 @@ public final class RemoteCommandRunner {
     if (interactive) {
       cmd.add("-t");
     }
+    if (gatewayLane(args)) {
+      cmd.add("-o");
+      cmd.add("PasswordAuthentication=no");
+      cmd.add("-o");
+      cmd.add("KbdInteractiveAuthentication=no");
+    }
     cmd.add(sshTarget(args));
     cmd.add("sail");
     cmd.addAll(List.of(args));
@@ -148,8 +156,16 @@ public final class RemoteCommandRunner {
   }
 
   String sshTarget(String[] args) {
-    var gateway = config.gatewayEnabled() && args.length > 0 && GATEWAY_COMMANDS.contains(args[0]);
-    return gateway ? config.gatewayTarget() : config.host();
+    return gatewayLane(args) ? config.gatewayTarget() : config.host();
+  }
+
+  /**
+   * Gateway identity is the SSH key by definition, so the gateway lane forbids password fallback —
+   * a missing key fails fast with guidance instead of dangling a password prompt for a locked
+   * system account.
+   */
+  private boolean gatewayLane(String[] args) {
+    return config.gatewayEnabled() && args.length > 0 && GATEWAY_COMMANDS.contains(args[0]);
   }
 
   /** Returns the classification of a command for testing. */
