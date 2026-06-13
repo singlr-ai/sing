@@ -24,8 +24,19 @@ class CommandTaxonomyTest {
             .collect(java.util.stream.Collectors.toSet());
     assertEquals(
         Set.of(
-            "init", "host", "project", "server", "fde", "login", "spec", "agent", "events",
-            "migrate", "upgrade", "sync"),
+            "init",
+            "host",
+            "project",
+            "server",
+            "fde",
+            "login",
+            "spec",
+            "agent",
+            "events",
+            "migrate",
+            "upgrade",
+            "sync",
+            "conflicts"),
         userFacing);
   }
 

@@ -7,6 +7,7 @@ package ai.singlr.sail;
 
 import ai.singlr.sail.commands.AgentCommand;
 import ai.singlr.sail.commands.ClientInitCommand;
+import ai.singlr.sail.commands.ConflictsCommand;
 import ai.singlr.sail.commands.EventsCommand;
 import ai.singlr.sail.commands.FdeCommand;
 import ai.singlr.sail.commands.GatewayCommand;
@@ -44,6 +45,7 @@ import picocli.CommandLine.Help.Ansi;
       GatewayCommand.class,
       SyncCommand.class,
       SyncServerCommand.class,
+      ConflictsCommand.class,
     })
 public final class Sail implements Runnable {
 
