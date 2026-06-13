@@ -528,15 +528,6 @@ public final class SpecStore {
         });
   }
 
-  /** The result of a compare-and-set {@link #commitRevision}. */
-  public sealed interface PushOutcome {
-    /** Accepted; {@code rev} is the freshly minted authoritative revision. */
-    record Accepted(String rev) implements PushOutcome {}
-
-    /** Rejected; {@code current*} is main's present state, untouched. */
-    record Stale(String currentRev, Map<String, Object> currentSnapshot) implements PushOutcome {}
-  }
-
   /**
    * Compare-and-set commit as main: mints a new authoritative rev only if {@code expectedRev} still
    * equals the entity's current rev (a brand-new entity expects {@code null}); otherwise returns
