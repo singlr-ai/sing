@@ -57,7 +57,7 @@ public final class SyncCommand implements Callable<Integer> {
       names = "--main",
       description =
           "SSH target of the main devbox, e.g. sail@maindevbox. Defaults to the configured main"
-              + " (sail host config set sync-main <target>).")
+              + " (sail host sync --main <target>).")
   private String main;
 
   @Option(
@@ -116,7 +116,7 @@ public final class SyncCommand implements Callable<Integer> {
       return sync.main();
     }
     return throwUnresolved(
-        "No main devbox configured. Set one with: sudo sail host config set sync-main <user@host>,"
+        "No main devbox configured. Set one with: sudo sail host sync --main <user@host>,"
             + " or pass --main.");
   }
 
