@@ -1,0 +1,102 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail.sync;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+/** Every request and response survives a JSON round trip on a single line, deletions included. */
+class SyncWireTest {
+
+  private static Map<String, Object> snapshot() {
+    var map = new LinkedHashMap<String, Object>();
+    map.put("title", "Auth");
+    map.put("status", "in_progress");
+    map.put("priority", 3);
+    map.put("depends_on", List.of("db", "api"));
+    map.put("assignee", null);
+    map.put("body", "line one\nline two\twith a \"quote\"");
+    return map;
+  }
+
+  @Test
+  void fetchRequestRoundTrips() {
+    var line = SyncWire.encode(new SyncWire.Fetch());
+    assertEquals(new SyncWire.Fetch(), SyncWire.decodeRequest(line));
+  }
+
+  @Test
+  void byeRequestRoundTrips() {
+    var line = SyncWire.encode(new SyncWire.Bye());
+    assertEquals(new SyncWire.Bye(), SyncWire.decodeRequest(line));
+  }
+
+  @Test
+  void commitRequestRoundTripsWithNestedSnapshotOnOneLine() {
+    var line = SyncWire.encode(new SyncWire.Commit("auth", snapshot()));
+
+    assertFalse(line.contains("\n"), "a spec body's newlines must be escaped, never framed");
+    var decoded = (SyncWire.Commit) SyncWire.decodeRequest(line);
+    assertEquals("auth", decoded.entityId());
+    assertEquals("Auth", decoded.snapshot().get("title"));
+    assertEquals(List.of("db", "api"), decoded.snapshot().get("depends_on"));
+    assertEquals("line one\nline two\twith a \"quote\"", decoded.snapshot().get("body"));
+    assertNull(decoded.snapshot().get("assignee"));
+  }
+
+  @Test
+  void commitRequestCarriesDeletionAsExplicitNull() {
+    var line = SyncWire.encode(new SyncWire.Commit("auth", null));
+    var decoded = (SyncWire.Commit) SyncWire.decodeRequest(line);
+    assertNull(decoded.snapshot());
+  }
+
+  @Test
+  void fetchedResponseRoundTripsEntitiesIncludingTombstone() {
+    var entities = new LinkedHashMap<String, SyncWire.Snapshot>();
+    entities.put("auth", new SyncWire.Snapshot("3-abc", snapshot()));
+    entities.put("gone", new SyncWire.Snapshot("4-def", null));
+    var line = SyncWire.encode(new SyncWire.Fetched("maindevbox", 42, entities));
+
+    var decoded = (SyncWire.Fetched) SyncWire.decodeResponse(line);
+    assertEquals("maindevbox", decoded.mainId());
+    assertEquals(42, decoded.maxSeq());
+    assertEquals("3-abc", decoded.entities().get("auth").rev());
+    assertEquals("Auth", decoded.entities().get("auth").snapshot().get("title"));
+    assertEquals("4-def", decoded.entities().get("gone").rev());
+    assertNull(decoded.entities().get("gone").snapshot());
+  }
+
+  @Test
+  void committedResponseRoundTrips() {
+    var line = SyncWire.encode(new SyncWire.Committed("7-feed", 99));
+    var decoded = (SyncWire.Committed) SyncWire.decodeResponse(line);
+    assertEquals("7-feed", decoded.rev());
+    assertEquals(99, decoded.maxSeq());
+  }
+
+  @Test
+  void failedResponseRoundTrips() {
+    var line = SyncWire.encode(new SyncWire.Failed("read-only"));
+    var decoded = (SyncWire.Failed) SyncWire.decodeResponse(line);
+    assertEquals("read-only", decoded.message());
+  }
+
+  @Test
+  void unknownRequestOpIsRejected() {
+    assertThrows(
+        IllegalArgumentException.class, () -> SyncWire.decodeRequest("{\"op\": \"dance\"}"));
+  }
+
+  @Test
+  void unrecognizedResponseIsRejected() {
+    assertThrows(IllegalArgumentException.class, () -> SyncWire.decodeResponse("{\"hi\": 1}"));
+  }
+}

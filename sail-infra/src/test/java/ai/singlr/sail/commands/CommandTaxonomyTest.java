@@ -25,7 +25,7 @@ class CommandTaxonomyTest {
     assertEquals(
         Set.of(
             "init", "host", "project", "server", "fde", "login", "spec", "agent", "events",
-            "migrate", "upgrade"),
+            "migrate", "upgrade", "sync"),
         userFacing);
   }
 

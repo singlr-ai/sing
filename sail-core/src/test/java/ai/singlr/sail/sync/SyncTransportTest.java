@@ -1,0 +1,238 @@
+/*
+ * Copyright (c) 2026 Standard Applied Intelligence Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package ai.singlr.sail.sync;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import ai.singlr.sail.config.SpecStatus;
+import ai.singlr.sail.store.ChangeLog;
+import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.SpecStore;
+import ai.singlr.sail.store.Sqlite;
+import ai.singlr.sail.store.SyncConflicts;
+import ai.singlr.sail.store.SyncState;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PipedReader;
+import java.io.PipedWriter;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * The two-node harness from {@code TwoNodeSyncTest}, re-run through the real {@link SyncWire}
+ * protocol: each node's engine drives a {@link RemoteMainReplica} over a byte pipe served by a
+ * {@link SyncRpcServer} on a virtual thread. The pipe stands in for the SSH channel, so this proves
+ * the serialization and the request loop converge exactly as the in-process engine does — and that
+ * the write gate refuses a read-only push.
+ */
+class SyncTransportTest {
+
+  @TempDir Path tempDir;
+  private final SyncEngine engine = new SyncEngine();
+
+  private Box main;
+  private Box nodeA;
+  private Box nodeB;
+
+  private final class Box implements AutoCloseable {
+    final String id;
+    final Sqlite db;
+    final SpecStore specs;
+    final SyncConflicts conflicts;
+    final SyncState syncState;
+    final SpecReplica replica;
+
+    Box(String id) {
+      this.id = id;
+      this.db = Sqlite.open(tempDir.resolve(id + ".db"));
+      new SchemaManager(db).migrate();
+      this.specs = new SpecStore(db);
+      this.conflicts = new SyncConflicts(db);
+      this.syncState = new SyncState(db);
+      this.replica = new SpecReplica(id, specs, new ChangeLog(db), conflicts, syncState);
+    }
+
+    @Override
+    public void close() {
+      db.close();
+    }
+  }
+
+  @BeforeEach
+  void setUp() {
+    main = new Box("main");
+    nodeA = new Box("A");
+    nodeB = new Box("B");
+  }
+
+  @AfterEach
+  void tearDown() {
+    nodeB.close();
+    nodeA.close();
+    main.close();
+  }
+
+  private SpecStore.SpecRow spec(String id, String title, String status) {
+    return new SpecStore.SpecRow(
+        id,
+        "proj",
+        title,
+        SpecStatus.fromWire(status),
+        null,
+        null,
+        null,
+        null,
+        null,
+        0,
+        "uday",
+        "",
+        "",
+        "uday",
+        List.of(),
+        List.of());
+  }
+
+  private SyncEngine.Report syncToMain(Box node) throws Exception {
+    return syncOverWire(node, true);
+  }
+
+  private SyncEngine.Report syncOverWire(Box node, boolean writable) throws Exception {
+    var toServer = new PipedWriter();
+    var serverIn = new BufferedReader(new PipedReader(toServer));
+    var toClient = new PipedWriter();
+    var clientIn = new BufferedReader(new PipedReader(toClient));
+
+    var server = new SyncRpcServer(main.replica, writable);
+    var serverThread =
+        Thread.ofVirtual()
+            .start(
+                () -> {
+                  try {
+                    server.serve(serverIn, toClient);
+                  } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                  }
+                });
+
+    try (var remote = new RemoteMainReplica(clientIn, toServer)) {
+      return engine.reconcile(node.replica, remote);
+    } finally {
+      serverThread.join();
+    }
+  }
+
+  @Test
+  void aLocalCreatePropagatesAcrossTheWire() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+
+    var pushed = syncToMain(nodeA);
+    assertEquals(1, pushed.pushed());
+    assertEquals("Auth", main.specs.findById("auth").orElseThrow().title());
+
+    var pulled = syncToMain(nodeB);
+    assertEquals(1, pulled.pulled());
+    assertEquals("Auth", nodeB.specs.findById("auth").orElseThrow().title());
+  }
+
+  @Test
+  void disjointEditsAutoMergeOverTheWire() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+
+    nodeA.specs.updateStatus("auth", SpecStatus.fromWire("in_progress"));
+    nodeB.specs.setContent("auth", "node B body", "");
+
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+    syncToMain(nodeA);
+
+    assertEquals("in_progress", nodeA.specs.findById("auth").orElseThrow().status().wire());
+    assertEquals("in_progress", nodeB.specs.findById("auth").orElseThrow().status().wire());
+    assertEquals("node B body", nodeA.specs.getContent("auth").orElseThrow().body());
+    assertTrue(nodeA.conflicts.pending().isEmpty());
+    assertTrue(nodeB.conflicts.pending().isEmpty());
+  }
+
+  @Test
+  void sameFieldEditConflictsOverTheWireAndLeavesLocalWorkUntouched() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+
+    nodeA.specs.update(spec("auth", "Title from A", "pending"));
+    nodeB.specs.update(spec("auth", "Title from B", "pending"));
+
+    syncToMain(nodeA);
+    var report = syncToMain(nodeB);
+
+    assertEquals(1, report.conflicts());
+    assertEquals("Title from A", main.specs.findById("auth").orElseThrow().title());
+    var pending = nodeB.conflicts.pending();
+    assertEquals(List.of("title"), pending.getFirst().fields());
+    assertEquals("Title from B", nodeB.specs.findById("auth").orElseThrow().title());
+  }
+
+  @Test
+  void aLocalDeletePropagatesAcrossTheWire() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+
+    nodeA.specs.delete("auth");
+    syncToMain(nodeA);
+    assertTrue(main.specs.findById("auth").isEmpty());
+
+    syncToMain(nodeB);
+    assertTrue(nodeB.specs.findById("auth").isEmpty());
+  }
+
+  @Test
+  void deleteVersusEditConflictsOverTheWire() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+
+    nodeA.specs.delete("auth");
+    nodeB.specs.update(spec("auth", "Edited by B", "pending"));
+
+    syncToMain(nodeA);
+    var report = syncToMain(nodeB);
+
+    assertEquals(1, report.conflicts());
+    assertTrue(main.specs.findById("auth").isEmpty());
+    assertEquals(List.of("<deleted>"), nodeB.conflicts.pending().getFirst().fields());
+  }
+
+  @Test
+  void reSyncOverTheWireConvergesAndAdvancesTheCheckpoint() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+
+    assertEquals(main.replica.maxSeq(), nodeA.syncState.checkpoint("main"));
+    assertTrue(main.replica.maxSeq() > 0);
+
+    var second = syncToMain(nodeA);
+    assertEquals(0, second.total());
+  }
+
+  @Test
+  void aReadOnlyFdeMayPullButItsPushIsRefused() throws Exception {
+    main.specs.create(spec("board", "Shared", "pending"));
+    var pull = syncOverWire(nodeA, false);
+    assertEquals(1, pull.pulled());
+    assertEquals("Shared", nodeA.specs.findById("board").orElseThrow().title());
+
+    nodeA.specs.create(spec("mine", "Local only", "pending"));
+    assertThrows(SyncTransportException.class, () -> syncOverWire(nodeA, false));
+    assertTrue(main.specs.findById("mine").isEmpty(), "the read-only push never reached main");
+  }
+}

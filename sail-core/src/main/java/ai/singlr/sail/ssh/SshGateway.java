@@ -39,6 +39,14 @@ public final class SshGateway {
   /** Database-direct administration commands; the gateway admits only admin-role FDEs. */
   public static final Set<String> ADMIN_COMMANDS = Set.of("fde");
 
+  /**
+   * Database-direct sync RPC. The gateway admits any active FDE — a {@code viewer} may open a
+   * session and pull — and the {@code _sync} server itself refuses pushes from read-only roles, so
+   * the write gate lives next to the write rather than here. Not a user-typed command; the node's
+   * {@code sail sync} opens it.
+   */
+  public static final Set<String> SYNC_COMMANDS = Set.of("_sync");
+
   private SshGateway() {}
 
   public sealed interface Decision permits Authorized, Rejected {}
@@ -68,7 +76,9 @@ public final class SshGateway {
       return new Rejected("No 'sail' subcommand supplied.");
     }
     var subcommand = tokens.getFirst();
-    if (!API_COMMANDS.contains(subcommand) && !ADMIN_COMMANDS.contains(subcommand)) {
+    if (!API_COMMANDS.contains(subcommand)
+        && !ADMIN_COMMANDS.contains(subcommand)
+        && !SYNC_COMMANDS.contains(subcommand)) {
       return new Rejected(
           "'"
               + subcommand
