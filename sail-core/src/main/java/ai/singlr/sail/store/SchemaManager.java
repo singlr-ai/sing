@@ -258,7 +258,29 @@ public final class SchemaManager {
               snapshot TEXT NOT NULL
           )""",
           "CREATE INDEX IF NOT EXISTS idx_change_log_entity"
-              + " ON change_log(entity_type, entity_id, seq)");
+              + " ON change_log(entity_type, entity_id, seq)",
+          "ALTER TABLE specs ADD COLUMN base_rev TEXT",
+          """
+          CREATE TABLE IF NOT EXISTS sync_conflicts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              entity_type TEXT NOT NULL,
+              entity_id TEXT NOT NULL,
+              base_snapshot TEXT,
+              local_snapshot TEXT,
+              remote_snapshot TEXT,
+              fields TEXT NOT NULL,
+              detected_at TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'pending',
+              resolved_rev TEXT
+          )""",
+          "CREATE INDEX IF NOT EXISTS idx_sync_conflicts_pending"
+              + " ON sync_conflicts(status, entity_type, entity_id)",
+          """
+          CREATE TABLE IF NOT EXISTS sync_state (
+              peer TEXT PRIMARY KEY,
+              checkpoint INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT NOT NULL
+          )""");
 
   private final Sqlite db;
 
