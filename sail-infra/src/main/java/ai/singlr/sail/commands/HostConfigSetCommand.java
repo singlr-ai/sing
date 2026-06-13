@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import ai.singlr.sail.config.HostYaml;
+import ai.singlr.sail.config.SyncConfig;
 import ai.singlr.sail.config.WebauthnConfig;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.NetworkDetector;
@@ -29,11 +30,18 @@ import picocli.CommandLine.Spec;
 public final class HostConfigSetCommand implements Runnable {
 
   private static final Set<String> SETTABLE_KEYS =
-      Set.of("server-ip", "webauthn-rp-id", "webauthn-rp-name", "webauthn-origin");
+      Set.of(
+          "server-ip",
+          "webauthn-rp-id",
+          "webauthn-rp-name",
+          "webauthn-origin",
+          "sync-role",
+          "sync-main");
   private static final Set<String> WEBAUTHN_KEYS =
       Set.of("webauthn-rp-id", "webauthn-rp-name", "webauthn-origin");
   private static final Pattern RP_ID = Pattern.compile("[a-z0-9]([a-z0-9.-]*[a-z0-9])?");
   private static final Pattern ORIGIN = Pattern.compile("https?://\\S+[^/]");
+  private static final Pattern SSH_TARGET = Pattern.compile("([a-z_][a-z0-9_-]*@)?[a-zA-Z0-9.-]+");
 
   @Parameters(index = "0", description = "Configuration key (e.g. 'server-ip', 'webauthn-rp-id').")
   private String key;
@@ -123,12 +131,27 @@ public final class HostConfigSetCommand implements Runnable {
                   + " send the origin without one, and the match is exact).");
         }
       }
+      case "sync-role" -> {
+        if (!SyncConfig.ROLE_MAIN.equals(value) && !SyncConfig.ROLE_NODE.equals(value)) {
+          throw new IllegalArgumentException(
+              "Invalid sync role: '" + value + "'. Expected 'main' or 'node'.");
+        }
+      }
+      case "sync-main" -> {
+        if (!SSH_TARGET.matcher(value).matches()) {
+          throw new IllegalArgumentException(
+              "Invalid main target: '"
+                  + value
+                  + "'. Expected an SSH target, e.g. sail@maindevbox.");
+        }
+      }
       default -> {}
     }
   }
 
   static HostYaml applyChange(HostYaml current, String key, String value) {
     var webauthn = current.webauthn();
+    var sync = current.sync();
     return switch (key) {
       case "server-ip" -> withServerIp(current, value);
       case "webauthn-rp-id" ->
@@ -138,6 +161,8 @@ public final class HostConfigSetCommand implements Runnable {
       case "webauthn-origin" ->
           withWebauthn(
               current, new WebauthnConfig(webauthn.rpId(), webauthn.rpName(), List.of(value)));
+      case "sync-role" -> withSync(current, new SyncConfig(value, sync.main()));
+      case "sync-main" -> withSync(current, new SyncConfig(sync.role(), value));
       default -> throw new IllegalArgumentException("Unhandled key: " + key);
     };
   }
@@ -153,7 +178,8 @@ public final class HostConfigSetCommand implements Runnable {
         current.incusVersion(),
         serverIp,
         current.initializedAt(),
-        current.webauthn());
+        current.webauthn(),
+        current.sync());
   }
 
   private static HostYaml withWebauthn(HostYaml current, WebauthnConfig webauthn) {
@@ -167,6 +193,22 @@ public final class HostConfigSetCommand implements Runnable {
         current.incusVersion(),
         current.serverIp(),
         current.initializedAt(),
-        webauthn);
+        webauthn,
+        current.sync());
+  }
+
+  private static HostYaml withSync(HostYaml current, SyncConfig sync) {
+    return new HostYaml(
+        current.storageBackend(),
+        current.pool(),
+        current.poolDisk(),
+        current.bridge(),
+        current.baseProfile(),
+        current.image(),
+        current.incusVersion(),
+        current.serverIp(),
+        current.initializedAt(),
+        current.webauthn(),
+        sync);
   }
 }

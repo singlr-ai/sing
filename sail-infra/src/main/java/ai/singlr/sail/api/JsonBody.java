@@ -28,14 +28,6 @@ public final class JsonBody {
         optionalStringList(map, "repo", "repos"));
   }
 
-  public static SpecSyncRequest readSpecSyncRequest(HttpExchange exchange) throws IOException {
-    var map = read(exchange);
-    return new SpecSyncRequest(
-        optionalString(map, "operation"),
-        optionalString(map, "remote"),
-        optionalString(map, "branch"));
-  }
-
   public static Map<String, Object> readMap(HttpExchange exchange) throws IOException {
     return read(exchange);
   }

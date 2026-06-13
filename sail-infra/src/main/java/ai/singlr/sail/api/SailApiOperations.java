@@ -19,7 +19,6 @@ import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerSailSetup;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.DispatchRepos;
-import ai.singlr.sail.engine.GitSpecSync;
 import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
@@ -167,16 +166,6 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   @Override
-  public Result<SpecSyncResponse> specSyncStatus(String project) {
-    return safe(() -> specSyncStatusValue(project));
-  }
-
-  @Override
-  public Result<SpecSyncResponse> specSync(String project, SpecSyncRequest request) {
-    return safe(() -> specSyncValue(project, request));
-  }
-
-  @Override
   public Result<DispatchResponse> dispatch(String project, DispatchRequest request) {
     return safe(() -> dispatchValue(project, request));
   }
@@ -233,38 +222,6 @@ public final class SailApiOperations implements ApiOperations {
         workspace.specMarkdownPath(specId),
         content != null,
         content);
-  }
-
-  private SpecSyncResponse specSyncStatusValue(String project) {
-    var loaded = loadRunningProject(project);
-    try {
-      return specSyncResponse(project, specSync(loaded).status());
-    } catch (Exception e) {
-      throw new ApiException(ErrorCode.SPEC_SYNC_FAILED, "Failed to read spec sync status.", e);
-    }
-  }
-
-  private SpecSyncResponse specSyncValue(String project, SpecSyncRequest request) {
-    var loaded = loadRunningProject(project);
-    NameValidator.requireValidGitRef(request.branch(), "branch");
-    try {
-      var sync = specSync(loaded);
-      return switch (request.operation().toLowerCase()) {
-        case "status" -> specSyncResponse(project, sync.status());
-        case "pull" -> specSyncResponse(project, sync.pull());
-        case "push" -> specSyncResponse(project, sync.push());
-        case "init" -> specSyncResponse(project, sync.init(request.remote(), request.branch()));
-        default ->
-            throw new ApiException(
-                ErrorCode.INVALID_REQUEST,
-                "Unknown spec sync operation: " + request.operation() + ".",
-                "Use status, pull, push, or init.");
-      };
-    } catch (ApiException e) {
-      throw e;
-    } catch (Exception e) {
-      throw new ApiException(ErrorCode.SPEC_SYNC_FAILED, "Failed to synchronize specs.", e);
-    }
   }
 
   private DispatchResponse dispatchValue(String project, DispatchRequest request) {
@@ -517,12 +474,6 @@ public final class SailApiOperations implements ApiOperations {
     }
   }
 
-  private GitSpecSync specSync(LoadedProject loaded) {
-    var specsDir = specsDir(loaded.config());
-    return new GitSpecSync(
-        shell, ContainerExec.asDevUser(loaded.config().name(), List.of("git", "-C", specsDir)));
-  }
-
   private SpecWorkspace workspace(LoadedProject loaded) {
     return new SpecWorkspace(shell, loaded.config().name(), specsDir(loaded.config()));
   }
@@ -571,35 +522,6 @@ public final class SailApiOperations implements ApiOperations {
         SpecDirectory.isReady(specs, spec),
         SpecDirectory.isBlocked(specs, spec),
         SpecDirectory.unmetDependencies(specs, spec));
-  }
-
-  private static SpecSyncResponse specSyncResponse(String project, GitSpecSync.Status status) {
-    return new SpecSyncResponse(
-        project, null, false, status.message(), specSyncStatusView(status), null);
-  }
-
-  private static SpecSyncResponse specSyncResponse(
-      String project, GitSpecSync.OperationResult result) {
-    return new SpecSyncResponse(
-        project,
-        result.operation(),
-        result.changed(),
-        result.message(),
-        specSyncStatusView(result.after()),
-        specSyncStatusView(result.before()));
-  }
-
-  private static SpecSyncStatusView specSyncStatusView(GitSpecSync.Status status) {
-    return new SpecSyncStatusView(
-        status.state(),
-        status.branch(),
-        status.upstream(),
-        status.ahead(),
-        status.behind(),
-        status.dirty(),
-        status.conflicted(),
-        status.repository(),
-        status.message());
   }
 
   private static DispatchedSpecView dispatchedSpecView(Spec spec, String branch) {

@@ -118,4 +118,18 @@ class SshGatewayTest {
     assertEquals(
         0L, db.queryOne("SELECT COUNT(*) FROM sessions", row -> row.integer(0)).orElse(0L));
   }
+
+  @Test
+  void admitsSyncForAnyActiveFdeIncludingViewer() {
+    db.execute("UPDATE fdes SET role = 'viewer' WHERE handle = ?", "uday");
+    var authorized = assertInstanceOf(SshGateway.Authorized.class, authorize("sail _sync", "uday"));
+    assertEquals(List.of("_sync"), authorized.args());
+    assertTrue(sessions.validate(authorized.sessionToken()).isPresent());
+  }
+
+  @Test
+  void rejectsSyncForDisabledFde() {
+    db.execute("UPDATE fdes SET status = 'disabled' WHERE handle = ?", "uday");
+    assertInstanceOf(SshGateway.Rejected.class, authorize("sail _sync", "uday"));
+  }
 }

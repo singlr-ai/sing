@@ -6,7 +6,10 @@
 package ai.singlr.sail.sync;
 
 import ai.singlr.sail.store.ConflictDetector;
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -16,6 +19,12 @@ import java.util.Objects;
  * edits auto-merge into a new authoritative rev both sides adopt, and a true same-field conflict is
  * parked locally with the node's row untouched.
  *
+ * <p>Every push is a compare-and-set against the rev the node fetched, so two nodes syncing
+ * concurrently are safe: if main moved under us the push is {@linkplain CommitOutcome.Rejected
+ * rejected}, and the entity is re-reconciled against main's fresh state — auto-merging a disjoint
+ * concurrent edit, conflicting on an overlapping one — never silently overwriting it. The retry is
+ * bounded; under pathological churn the entity is parked as a conflict rather than looping.
+ *
  * <p>The round is idempotent — a second run with no new changes converges everything and does
  * nothing — and order-independent across entities, because each entity reconciles against its own
  * merge base. Stateless: all state lives in the replicas, so a sync interrupted between entities
@@ -23,10 +32,21 @@ import java.util.Objects;
  */
 public final class SyncEngine {
 
+  private static final int MAX_REDETECTS = 3;
+  private static final String STALE_FIELD = "<stale>";
+
   public record Report(int pulled, int pushed, int merged, int conflicts) {
     public int total() {
       return pulled + pushed + merged + conflicts;
     }
+  }
+
+  private enum Outcome {
+    CONVERGED,
+    PULLED,
+    PUSHED,
+    MERGED,
+    CONFLICT
   }
 
   public Report reconcile(LocalReplica local, MainReplica main) {
@@ -34,39 +54,92 @@ public final class SyncEngine {
     ids.addAll(local.entityIds());
     ids.addAll(main.entityIds());
 
-    var pulled = 0;
-    var pushed = 0;
-    var merged = 0;
-    var conflicts = 0;
-
+    var tally = new EnumMap<Outcome, Integer>(Outcome.class);
     for (var id : ids) {
-      var base = local.base(id);
-      var localSnap = local.current(id);
-      var remoteSnap = main.current(id);
-
-      switch (ConflictDetector.detect(base, localSnap, remoteSnap)) {
-        case ConflictDetector.Converged ignored -> linkSharedRevision(local, main, id, remoteSnap);
-        case ConflictDetector.TakeRemote ignored -> {
-          local.adopt(id, remoteSnap, main.currentRev(id));
-          pulled++;
-        }
-        case ConflictDetector.KeepLocal ignored -> {
-          local.adopt(id, localSnap, main.commit(id, localSnap));
-          pushed++;
-        }
-        case ConflictDetector.Merged m -> {
-          local.adopt(id, m.result(), main.commit(id, m.result()));
-          merged++;
-        }
-        case ConflictDetector.Conflict c -> {
-          local.recordConflict(id, base, localSnap, remoteSnap, c.fields());
-          conflicts++;
-        }
-      }
+      var outcome =
+          reconcileEntity(local, main, id, main.current(id), main.currentRev(id), MAX_REDETECTS);
+      tally.merge(outcome, 1, Integer::sum);
     }
 
     local.advanceCheckpoint(main.id(), main.maxSeq());
-    return new Report(pulled, pushed, merged, conflicts);
+    return new Report(
+        count(tally, Outcome.PULLED),
+        count(tally, Outcome.PUSHED),
+        count(tally, Outcome.MERGED),
+        count(tally, Outcome.CONFLICT));
+  }
+
+  private static int count(EnumMap<Outcome, Integer> tally, Outcome outcome) {
+    return tally.getOrDefault(outcome, 0);
+  }
+
+  private Outcome reconcileEntity(
+      LocalReplica local,
+      MainReplica main,
+      String id,
+      Map<String, Object> remoteSnap,
+      String remoteRev,
+      int redetectsLeft) {
+    var base = local.base(id);
+    var localSnap = local.current(id);
+    return switch (ConflictDetector.detect(base, localSnap, remoteSnap)) {
+      case ConflictDetector.Converged ignored -> {
+        linkSharedRevision(local, id, remoteSnap, remoteRev);
+        yield Outcome.CONVERGED;
+      }
+      case ConflictDetector.TakeRemote ignored -> {
+        local.adopt(id, remoteSnap, remoteRev);
+        yield Outcome.PULLED;
+      }
+      case ConflictDetector.KeepLocal ignored ->
+          push(local, main, id, localSnap, remoteRev, Outcome.PUSHED, redetectsLeft);
+      case ConflictDetector.Merged m ->
+          push(local, main, id, m.result(), remoteRev, Outcome.MERGED, redetectsLeft);
+      case ConflictDetector.Conflict c -> {
+        local.recordConflict(id, base, localSnap, remoteSnap, c.fields());
+        yield Outcome.CONFLICT;
+      }
+    };
+  }
+
+  private Outcome push(
+      LocalReplica local,
+      MainReplica main,
+      String id,
+      Map<String, Object> snapshot,
+      String expectedRev,
+      Outcome onAccepted,
+      int redetectsLeft) {
+    return switch (main.commit(id, snapshot, expectedRev)) {
+      case CommitOutcome.Accepted a -> {
+        local.adopt(id, snapshot, a.rev());
+        yield onAccepted;
+      }
+      case CommitOutcome.Rejected r -> {
+        if (redetectsLeft <= 0) {
+          yield recordStaleConflict(local, id, r);
+        }
+        yield reconcileEntity(
+            local, main, id, r.currentSnapshot(), r.currentRev(), redetectsLeft - 1);
+      }
+    };
+  }
+
+  /**
+   * Main kept moving under our retries: park the entity as a conflict against its latest state so
+   * the user decides, naming the clashing fields when there are any.
+   */
+  private static Outcome recordStaleConflict(
+      LocalReplica local, String id, CommitOutcome.Rejected rejected) {
+    var base = local.base(id);
+    var localSnap = local.current(id);
+    var fields =
+        ConflictDetector.detect(base, localSnap, rejected.currentSnapshot())
+                instanceof ConflictDetector.Conflict c
+            ? c.fields()
+            : List.of(STALE_FIELD);
+    local.recordConflict(id, base, localSnap, rejected.currentSnapshot(), fields);
+    return Outcome.CONFLICT;
   }
 
   /**
@@ -75,10 +148,9 @@ public final class SyncEngine {
    * forward. A no-op once the revisions are linked, so it never churns.
    */
   private static void linkSharedRevision(
-      LocalReplica local, MainReplica main, String id, java.util.Map<String, Object> remoteSnap) {
-    var mainRev = main.currentRev(id);
-    if (mainRev != null && !Objects.equals(local.currentRev(id), mainRev)) {
-      local.adopt(id, remoteSnap, mainRev);
+      LocalReplica local, String id, Map<String, Object> remoteSnap, String remoteRev) {
+    if (remoteRev != null && !Objects.equals(local.currentRev(id), remoteRev)) {
+      local.adopt(id, remoteSnap, remoteRev);
     }
   }
 }

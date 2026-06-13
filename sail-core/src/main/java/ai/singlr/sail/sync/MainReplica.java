@@ -29,8 +29,13 @@ public interface MainReplica {
   /** Main's latest revision for an entity (including a tombstone); {@code null} if unknown. */
   String currentRev(String id);
 
-  /** Commits an authoritative state ({@code null} = delete), minting and returning the new rev. */
-  String commit(String id, Map<String, Object> snapshot);
+  /**
+   * Compare-and-set push of an authoritative state ({@code null} = delete). Accepts and mints a new
+   * rev only if {@code expectedRev} still matches main's current rev for the entity (a brand-new
+   * entity expects {@code null}); otherwise rejects with main's present state so the engine can
+   * reconcile against the concurrent change rather than clobber it.
+   */
+  CommitOutcome commit(String id, Map<String, Object> snapshot, String expectedRev);
 
   /** Main's highest change sequence — the node advances its checkpoint to this after a round. */
   long maxSeq();

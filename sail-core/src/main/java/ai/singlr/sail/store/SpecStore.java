@@ -10,8 +10,10 @@ import ai.singlr.sail.config.YamlUtil;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -526,27 +528,107 @@ public final class SpecStore {
         });
   }
 
+  /** The result of a compare-and-set {@link #commitRevision}. */
+  public sealed interface PushOutcome {
+    /** Accepted; {@code rev} is the freshly minted authoritative revision. */
+    record Accepted(String rev) implements PushOutcome {}
+
+    /** Rejected; {@code current*} is main's present state, untouched. */
+    record Stale(String currentRev, Map<String, Object> currentSnapshot) implements PushOutcome {}
+  }
+
   /**
-   * Commits a state as main does — minting a fresh authoritative revision — and returns the new
-   * rev. A null snapshot commits a deletion. Used by the sync engine on the main side.
+   * Compare-and-set commit as main: mints a new authoritative rev only if {@code expectedRev} still
+   * equals the entity's current rev (a brand-new entity expects {@code null}); otherwise returns
+   * {@link PushOutcome.Stale} with main's present state, never overwriting a concurrent change. A
+   * null snapshot commits a deletion. The check and the write share one transaction, so two nodes
+   * pushing the same row can never both win. Used by the sync engine on the main side.
    */
-  public String commitRevision(String id, Map<String, Object> snapshot) {
+  public PushOutcome commitRevision(String id, Map<String, Object> snapshot, String expectedRev) {
     return db.transaction(
         () -> {
+          if (!Objects.equals(latestRev(id), expectedRev)) {
+            return new PushOutcome.Stale(latestRev(id), comparableSnapshot(id));
+          }
           if (snapshot == null) {
             if (findById(id).isEmpty()) {
-              return revOf(id);
+              return new PushOutcome.Accepted(latestRev(id));
             }
             var rev = recordRevision(id, null, "sync", true, false);
             db.execute("DELETE FROM specs WHERE id = ?", id);
-            return rev;
+            return new PushOutcome.Accepted(rev);
           }
           var full = new LinkedHashMap<>(snapshot);
           full.put("id", id);
           full.put("updated_by", "sync");
           applySnapshot(id, full);
-          return recordRevision(id, null, "sync", false, false);
+          return new PushOutcome.Accepted(recordRevision(id, null, "sync", false, false));
         });
+  }
+
+  /**
+   * Resolves an open conflict locally by rebasing the row onto main's conflicting content {@code
+   * remote} — recorded as the new merge base, so the next sync can never re-raise the same conflict
+   * (base now equals remote) — and then writing {@code chosen} as the resolved state. When {@code
+   * chosen} differs from {@code remote} (keep-mine or a merge) the row becomes a forward local edit
+   * the next sync pushes; when they match (take-theirs) the row simply adopts main's value, and the
+   * earlier local version is still in the {@link ChangeLog}. A {@code null} side is a deletion.
+   * Returns the rev the row now carries. No work is ever lost: every state is journaled.
+   */
+  public String resolveConflict(String id, Map<String, Object> chosen, Map<String, Object> remote) {
+    return db.transaction(
+        () -> {
+          var baseRev = adoptBase(id, remote);
+          if (sameContent(chosen, remote)) {
+            return baseRev;
+          }
+          return writeChosen(id, chosen);
+        });
+  }
+
+  private String adoptBase(String id, Map<String, Object> remote) {
+    if (remote == null) {
+      if (findById(id).isPresent()) {
+        var rev = recordRevision(id, null, "sync", true, false);
+        db.execute("DELETE FROM specs WHERE id = ?", id);
+        return rev;
+      }
+      var rev = Revisions.next(currentRev(id), "{}");
+      changeLog.append(ENTITY, id, rev, null, "sync", true, "{}");
+      return rev;
+    }
+    applySnapshot(id, withSync(id, remote));
+    return recordRevision(id, null, "sync", false, true);
+  }
+
+  private String writeChosen(String id, Map<String, Object> chosen) {
+    if (chosen == null) {
+      if (findById(id).isEmpty()) {
+        return latestRev(id);
+      }
+      var rev = recordRevision(id, null, "resolve", true, false);
+      db.execute("DELETE FROM specs WHERE id = ?", id);
+      return rev;
+    }
+    applySnapshot(id, withSync(id, chosen));
+    return recordRevision(id, null, "resolve", false, false);
+  }
+
+  private static Map<String, Object> withSync(String id, Map<String, Object> snapshot) {
+    var full = new LinkedHashMap<>(snapshot);
+    full.put("id", id);
+    full.put("updated_by", "sync");
+    return full;
+  }
+
+  private static boolean sameContent(Map<String, Object> a, Map<String, Object> b) {
+    if (a == null || b == null) {
+      return a == b;
+    }
+    var keys = new LinkedHashSet<String>();
+    keys.addAll(a.keySet());
+    keys.addAll(b.keySet());
+    return keys.stream().allMatch(key -> Objects.equals(a.get(key), b.get(key)));
   }
 
   public Optional<SpecContent> getContent(String specId) {
