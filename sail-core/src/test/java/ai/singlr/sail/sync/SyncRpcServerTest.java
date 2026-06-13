@@ -38,8 +38,8 @@ class SyncRpcServerTest {
     }
 
     @Override
-    public String commit(String entityId, Map<String, Object> snapshot) {
-      return "1-x";
+    public CommitOutcome commit(String entityId, Map<String, Object> snapshot, String expectedRev) {
+      return new CommitOutcome.Accepted("1-x");
     }
 
     @Override
@@ -68,12 +68,12 @@ class SyncRpcServerTest {
 
   @Test
   void aWritableServerAcceptsACommit() throws Exception {
-    var response = serve(true, new SyncWire.Commit("a", Map.of()));
+    var response = serve(true, new SyncWire.Commit("a", Map.of(), null));
     assertEquals("1-x", assertInstanceOf(SyncWire.Committed.class, response).rev());
   }
 
   @Test
   void aReadOnlyServerRefusesACommit() throws Exception {
-    assertInstanceOf(SyncWire.Failed.class, serve(false, new SyncWire.Commit("a", Map.of())));
+    assertInstanceOf(SyncWire.Failed.class, serve(false, new SyncWire.Commit("a", Map.of(), null)));
   }
 }

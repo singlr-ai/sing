@@ -163,6 +163,17 @@ class TwoNodeSyncTest {
   }
 
   @Test
+  void deletingASpecThatNeverReachedMainConvergesQuietly() {
+    nodeA.specs.create(spec("local", "Local only", "pending"));
+    nodeA.specs.delete("local");
+
+    var report = engine.reconcile(nodeA.replica, main.replica);
+
+    assertEquals(0, report.total());
+    assertTrue(main.specs.findById("local").isEmpty());
+  }
+
+  @Test
   void checkpointAdvancesToMainHighWaterMark() {
     nodeA.specs.create(spec("auth", "Auth", "pending"));
     syncToMain(nodeA);

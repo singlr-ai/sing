@@ -77,8 +77,12 @@ public final class SpecReplica implements LocalReplica, MainReplica {
   }
 
   @Override
-  public String commit(String entityId, Map<String, Object> snapshot) {
-    return specs.commitRevision(entityId, snapshot);
+  public CommitOutcome commit(String entityId, Map<String, Object> snapshot, String expectedRev) {
+    return switch (specs.commitRevision(entityId, snapshot, expectedRev)) {
+      case SpecStore.PushOutcome.Accepted a -> new CommitOutcome.Accepted(a.rev());
+      case SpecStore.PushOutcome.Stale s ->
+          new CommitOutcome.Rejected(s.currentRev(), s.currentSnapshot());
+    };
   }
 
   @Override

@@ -41,11 +41,12 @@ class SyncWireTest {
 
   @Test
   void commitRequestRoundTripsWithNestedSnapshotOnOneLine() {
-    var line = SyncWire.encode(new SyncWire.Commit("auth", snapshot()));
+    var line = SyncWire.encode(new SyncWire.Commit("auth", snapshot(), "2-base"));
 
     assertFalse(line.contains("\n"), "a spec body's newlines must be escaped, never framed");
     var decoded = (SyncWire.Commit) SyncWire.decodeRequest(line);
     assertEquals("auth", decoded.entityId());
+    assertEquals("2-base", decoded.expectedRev());
     assertEquals("Auth", decoded.snapshot().get("title"));
     assertEquals(List.of("db", "api"), decoded.snapshot().get("depends_on"));
     assertEquals("line one\nline two\twith a \"quote\"", decoded.snapshot().get("body"));
@@ -54,9 +55,10 @@ class SyncWireTest {
 
   @Test
   void commitRequestCarriesDeletionAsExplicitNull() {
-    var line = SyncWire.encode(new SyncWire.Commit("auth", null));
+    var line = SyncWire.encode(new SyncWire.Commit("auth", null, null));
     var decoded = (SyncWire.Commit) SyncWire.decodeRequest(line);
     assertNull(decoded.snapshot());
+    assertNull(decoded.expectedRev());
   }
 
   @Test
@@ -88,6 +90,22 @@ class SyncWireTest {
     var line = SyncWire.encode(new SyncWire.Failed("read-only"));
     var decoded = (SyncWire.Failed) SyncWire.decodeResponse(line);
     assertEquals("read-only", decoded.message());
+  }
+
+  @Test
+  void rejectedResponseRoundTripsWithMainsCurrentState() {
+    var line = SyncWire.encode(new SyncWire.Rejected("9-feed", snapshot()));
+    var decoded = (SyncWire.Rejected) SyncWire.decodeResponse(line);
+    assertEquals("9-feed", decoded.currentRev());
+    assertEquals("Auth", decoded.currentSnapshot().get("title"));
+  }
+
+  @Test
+  void rejectedResponseRoundTripsWithATombstone() {
+    var line = SyncWire.encode(new SyncWire.Rejected("9-gone", null));
+    var decoded = (SyncWire.Rejected) SyncWire.decodeResponse(line);
+    assertEquals("9-gone", decoded.currentRev());
+    assertNull(decoded.currentSnapshot());
   }
 
   @Test

@@ -528,26 +528,41 @@ public final class SpecStore {
         });
   }
 
+  /** The result of a compare-and-set {@link #commitRevision}. */
+  public sealed interface PushOutcome {
+    /** Accepted; {@code rev} is the freshly minted authoritative revision. */
+    record Accepted(String rev) implements PushOutcome {}
+
+    /** Rejected; {@code current*} is main's present state, untouched. */
+    record Stale(String currentRev, Map<String, Object> currentSnapshot) implements PushOutcome {}
+  }
+
   /**
-   * Commits a state as main does — minting a fresh authoritative revision — and returns the new
-   * rev. A null snapshot commits a deletion. Used by the sync engine on the main side.
+   * Compare-and-set commit as main: mints a new authoritative rev only if {@code expectedRev} still
+   * equals the entity's current rev (a brand-new entity expects {@code null}); otherwise returns
+   * {@link PushOutcome.Stale} with main's present state, never overwriting a concurrent change. A
+   * null snapshot commits a deletion. The check and the write share one transaction, so two nodes
+   * pushing the same row can never both win. Used by the sync engine on the main side.
    */
-  public String commitRevision(String id, Map<String, Object> snapshot) {
+  public PushOutcome commitRevision(String id, Map<String, Object> snapshot, String expectedRev) {
     return db.transaction(
         () -> {
+          if (!Objects.equals(latestRev(id), expectedRev)) {
+            return new PushOutcome.Stale(latestRev(id), comparableSnapshot(id));
+          }
           if (snapshot == null) {
             if (findById(id).isEmpty()) {
-              return revOf(id);
+              return new PushOutcome.Accepted(latestRev(id));
             }
             var rev = recordRevision(id, null, "sync", true, false);
             db.execute("DELETE FROM specs WHERE id = ?", id);
-            return rev;
+            return new PushOutcome.Accepted(rev);
           }
           var full = new LinkedHashMap<>(snapshot);
           full.put("id", id);
           full.put("updated_by", "sync");
           applySnapshot(id, full);
-          return recordRevision(id, null, "sync", false, false);
+          return new PushOutcome.Accepted(recordRevision(id, null, "sync", false, false));
         });
   }
 

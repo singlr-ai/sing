@@ -190,4 +190,43 @@ class SyncTransportTest {
     assertThrows(SyncTransportException.class, () -> syncOverWire(nodeA, false));
     assertTrue(main.specs.findById("mine").isEmpty(), "the read-only push never reached main");
   }
+
+  @Test
+  void aStalePushIsRejectedByMainAndReReconciledIntoAConflict() throws Exception {
+    nodeA.specs.create(spec("auth", "Auth", "pending"));
+    syncToMain(nodeA);
+    syncToMain(nodeB);
+
+    nodeA.specs.update(spec("auth", "Title from A", "pending"));
+    nodeB.specs.update(spec("auth", "Title from B", "pending"));
+
+    var toServer = new PipedWriter();
+    var serverIn = new BufferedReader(new PipedReader(toServer));
+    var toClient = new PipedWriter();
+    var clientIn = new BufferedReader(new PipedReader(toClient));
+    var serverThread =
+        Thread.ofVirtual()
+            .start(
+                () -> {
+                  try {
+                    new SyncRpcServer(main.replica, true).serve(serverIn, toClient);
+                  } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                  }
+                });
+
+    try (var remoteA = new RemoteMainReplica(clientIn, toServer)) {
+      remoteA.entityIds();
+      syncToMain(nodeB);
+      var report = engine.reconcile(nodeA.replica, remoteA);
+      assertEquals(1, report.conflicts());
+    } finally {
+      serverThread.join();
+    }
+
+    assertEquals("Title from B", main.specs.findById("auth").orElseThrow().title());
+    assertEquals(
+        List.of("title"), nodeA.conflicts.pendingFor("spec", "auth").orElseThrow().fields());
+    assertEquals("Title from A", nodeA.specs.findById("auth").orElseThrow().title());
+  }
 }

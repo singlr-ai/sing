@@ -66,13 +66,15 @@ public final class RemoteMainReplica implements MainReplica, AutoCloseable {
   }
 
   @Override
-  public String commit(String entityId, Map<String, Object> snapshot) {
-    var response = exchange(new SyncWire.Commit(entityId, snapshot));
+  public CommitOutcome commit(String entityId, Map<String, Object> snapshot, String expectedRev) {
+    var response = exchange(new SyncWire.Commit(entityId, snapshot, expectedRev));
     return switch (response) {
       case SyncWire.Committed committed -> {
         maxSeq = committed.maxSeq();
-        yield committed.rev();
+        yield new CommitOutcome.Accepted(committed.rev());
       }
+      case SyncWire.Rejected rejected ->
+          new CommitOutcome.Rejected(rejected.currentRev(), rejected.currentSnapshot());
       case SyncWire.Failed failed -> throw new SyncTransportException(failed.message());
       default -> throw new SyncTransportException("Unexpected response to commit: " + response);
     };

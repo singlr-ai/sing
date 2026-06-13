@@ -36,7 +36,7 @@ public final class SyncRpcServer {
           return;
         }
         case SyncWire.Fetch ignored -> reply(out, fetched());
-        case SyncWire.Commit commit -> reply(out, committed(commit));
+        case SyncWire.Commit commit -> reply(out, onCommit(commit));
       }
     }
   }
@@ -55,12 +55,15 @@ public final class SyncRpcServer {
     return new SyncWire.Fetched(main.id(), main.maxSeq(), entities);
   }
 
-  private SyncWire.Response committed(SyncWire.Commit commit) {
+  private SyncWire.Response onCommit(SyncWire.Commit commit) {
     if (!writable) {
       return new SyncWire.Failed(
           "Your role is read-only: it can pull the shared board but not push changes.");
     }
-    var rev = main.commit(commit.entityId(), commit.snapshot());
-    return new SyncWire.Committed(rev, main.maxSeq());
+    return switch (main.commit(commit.entityId(), commit.snapshot(), commit.expectedRev())) {
+      case CommitOutcome.Accepted accepted -> new SyncWire.Committed(accepted.rev(), main.maxSeq());
+      case CommitOutcome.Rejected rejected ->
+          new SyncWire.Rejected(rejected.currentRev(), rejected.currentSnapshot());
+    };
   }
 }

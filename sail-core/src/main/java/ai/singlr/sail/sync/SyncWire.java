@@ -31,6 +31,8 @@ public final class SyncWire {
   private static final String REV = "rev";
   private static final String SNAPSHOT = "snapshot";
   private static final String ERROR = "error";
+  private static final String EXPECTED = "expectedRev";
+  private static final String STALE = "stale";
 
   private static final String OP_FETCH = "fetch";
   private static final String OP_COMMIT = "commit";
@@ -73,13 +75,17 @@ public final class SyncWire {
   /** Ask main for its whole shared state — the merge view the engine reconciles against. */
   public record Fetch() implements Request {}
 
-  /** Push one entity to main; a {@code null} snapshot pushes a deletion. */
-  public record Commit(String entityId, Map<String, Object> snapshot) implements Request {}
+  /**
+   * Push one entity to main against the rev the node fetched ({@code expectedRev}, {@code null} for
+   * a row new to main); a {@code null} snapshot pushes a deletion.
+   */
+  public record Commit(String entityId, Map<String, Object> snapshot, String expectedRev)
+      implements Request {}
 
   /** End the session; main returns nothing. */
   public record Bye() implements Request {}
 
-  public sealed interface Response permits Fetched, Committed, Failed {}
+  public sealed interface Response permits Fetched, Committed, Rejected, Failed {}
 
   /** Main's authoritative rev and snapshot for one entity; either may be {@code null}. */
   public record Snapshot(String rev, Map<String, Object> snapshot) {}
@@ -90,6 +96,10 @@ public final class SyncWire {
 
   /** Main accepted a {@link Commit}: the minted rev and main's new high-water sequence. */
   public record Committed(String rev, long maxSeq) implements Response {}
+
+  /** Main rejected a stale {@link Commit}: its current rev and snapshot, left untouched. */
+  public record Rejected(String currentRev, Map<String, Object> currentSnapshot)
+      implements Response {}
 
   /** Main refused a request — e.g. a read-only FDE attempting to push. */
   public record Failed(String message) implements Response {}
@@ -102,6 +112,7 @@ public final class SyncWire {
         map.put(OP, OP_COMMIT);
         map.put(ID, commit.entityId());
         map.put(SNAPSHOT, commit.snapshot());
+        map.put(EXPECTED, commit.expectedRev());
       }
       case Bye ignored -> map.put(OP, OP_BYE);
     }
@@ -130,6 +141,11 @@ public final class SyncWire {
         map.put(REV, committed.rev());
         map.put(MAX_SEQ, committed.maxSeq());
       }
+      case Rejected rejected -> {
+        map.put(STALE, true);
+        map.put(REV, rejected.currentRev());
+        map.put(SNAPSHOT, rejected.currentSnapshot());
+      }
       case Failed failed -> map.put(ERROR, failed.message());
     }
     return YamlUtil.dumpJson(map);
@@ -140,7 +156,7 @@ public final class SyncWire {
     var op = string(map, OP);
     return switch (op) {
       case OP_FETCH -> new Fetch();
-      case OP_COMMIT -> new Commit(string(map, ID), snapshot(map, SNAPSHOT));
+      case OP_COMMIT -> new Commit(string(map, ID), snapshot(map, SNAPSHOT), string(map, EXPECTED));
       case OP_BYE -> new Bye();
       case null, default -> throw new IllegalArgumentException("Unknown sync op: " + op);
     };
@@ -150,6 +166,9 @@ public final class SyncWire {
     var map = YamlUtil.parseMap(line);
     if (map.containsKey(ERROR)) {
       return new Failed(string(map, ERROR));
+    }
+    if (map.containsKey(STALE)) {
+      return new Rejected(string(map, REV), snapshot(map, SNAPSHOT));
     }
     if (map.containsKey(ENTITIES)) {
       return new Fetched(string(map, ID), longValue(map, MAX_SEQ), entities(map));

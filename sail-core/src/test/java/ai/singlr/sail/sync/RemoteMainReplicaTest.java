@@ -51,14 +51,14 @@ class RemoteMainReplicaTest {
   @Test
   void aRefusedCommitSurfacesItsReason() {
     var replica = replica(SyncWire.encode(new SyncWire.Failed("read-only")));
-    var ex = assertThrows(SyncTransportException.class, () -> replica.commit("x", Map.of()));
+    var ex = assertThrows(SyncTransportException.class, () -> replica.commit("x", Map.of(), null));
     assertTrue(ex.getMessage().contains("read-only"));
   }
 
   @Test
   void anUnexpectedReplyToCommitIsRejected() {
     var replica = replica(SyncWire.encode(new SyncWire.Fetched("m", 1, Map.of())));
-    assertThrows(SyncTransportException.class, () -> replica.commit("x", Map.of()));
+    assertThrows(SyncTransportException.class, () -> replica.commit("x", Map.of(), null));
   }
 
   @Test
