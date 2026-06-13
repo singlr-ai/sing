@@ -5,7 +5,6 @@
 
 package ai.singlr.sail.api;
 
-import ai.singlr.sail.engine.GitSpecSync;
 import ai.singlr.sail.store.SpecStore;
 import java.util.List;
 
@@ -42,24 +41,6 @@ class TestOperations implements ApiOperations {
             "specs/" + specId + "/spec.md",
             true,
             "content"));
-  }
-
-  @Override
-  public Result<SpecSyncResponse> specSyncStatus(String project) {
-    return Result.success(
-        new SpecSyncResponse(
-            project,
-            null,
-            false,
-            "ok",
-            new SpecSyncStatusView(
-                GitSpecSync.State.CLEAN, "main", "origin/main", 0, 0, false, false, true, "ok"),
-            null));
-  }
-
-  @Override
-  public Result<SpecSyncResponse> specSync(String project, SpecSyncRequest request) {
-    return specSyncStatus(project);
   }
 
   @Override

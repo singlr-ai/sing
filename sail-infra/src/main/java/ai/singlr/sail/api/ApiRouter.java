@@ -29,7 +29,6 @@ public final class ApiRouter implements HttpHandler {
   private static final String HEALTH = "health";
   private static final String PROJECTS = "projects";
   private static final String SPECS = "specs";
-  private static final String SPEC_SYNC = "spec-sync";
   private static final String DISPATCH = "dispatch";
   private static final String AGENT = "agent";
   private static final String LOG = "log";
@@ -121,7 +120,6 @@ public final class ApiRouter implements HttpHandler {
 
     return switch (request.resource()) {
       case SPECS -> routeSpecs(request, project);
-      case SPEC_SYNC -> routeSpecSync(exchange, request, project);
       case DISPATCH -> routeDispatch(exchange, request, project);
       case AGENT -> routeAgent(request, project);
       default -> throw notFound();
@@ -147,18 +145,6 @@ public final class ApiRouter implements HttpHandler {
       return ApiResponse.from(operations.spec(project, specId));
     }
     throw methodNotAllowed();
-  }
-
-  private ApiResponse routeSpecSync(HttpExchange exchange, RouteRequest request, String project)
-      throws IOException {
-    if (request.size() != 4) {
-      throw methodNotAllowed();
-    }
-    if (request.is(GET)) {
-      return ApiResponse.from(operations.specSyncStatus(project));
-    }
-    requireMethod(request, POST);
-    return ApiResponse.from(operations.specSync(project, JsonBody.readSpecSyncRequest(exchange)));
   }
 
   private ApiResponse routeDispatch(HttpExchange exchange, RouteRequest request, String project)

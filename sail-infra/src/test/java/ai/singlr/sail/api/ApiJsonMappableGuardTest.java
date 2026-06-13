@@ -38,7 +38,6 @@ class ApiJsonMappableGuardTest {
           "ai.singlr.sail.api.Result",
           "ai.singlr.sail.api.Result$Success",
           "ai.singlr.sail.api.Result$Failure",
-          "ai.singlr.sail.api.SpecSyncRequest",
           "ai.singlr.sail.api.DispatchRequest",
           "ai.singlr.sail.api.ApiResponse",
           "ai.singlr.sail.api.Event",

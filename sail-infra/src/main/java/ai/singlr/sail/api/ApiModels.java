@@ -5,7 +5,6 @@
 
 package ai.singlr.sail.api;
 
-import ai.singlr.sail.engine.GitSpecSync;
 import ai.singlr.sail.store.ChangeLog;
 import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SessionStore;
@@ -73,61 +72,6 @@ record SpecResponse(
     m.put("spec_path", specPath);
     m.put("content_available", contentAvailable);
     m.put("content", content);
-    return m;
-  }
-}
-
-record SpecSyncRequest(String operation, String remote, String branch) {
-  SpecSyncRequest {
-    operation = operation == null || operation.isBlank() ? "status" : operation;
-    branch = branch == null || branch.isBlank() ? "main" : branch;
-  }
-}
-
-record SpecSyncResponse(
-    String name,
-    String operation,
-    boolean changed,
-    String message,
-    SpecSyncStatusView status,
-    SpecSyncStatusView before)
-    implements Mappable {
-  @Override
-  public Map<String, Object> toMap() {
-    var m = new LinkedHashMap<String, Object>();
-    m.put("name", name);
-    m.put("operation", operation);
-    m.put("changed", changed);
-    m.put("message", message);
-    m.put("status", status);
-    m.put("before", before);
-    return m;
-  }
-}
-
-record SpecSyncStatusView(
-    GitSpecSync.State state,
-    String branch,
-    String upstream,
-    int ahead,
-    int behind,
-    boolean dirty,
-    boolean conflicted,
-    boolean repository,
-    String message)
-    implements Mappable {
-  @Override
-  public Map<String, Object> toMap() {
-    var m = new LinkedHashMap<String, Object>();
-    m.put("state", state);
-    m.put("branch", branch);
-    m.put("upstream", upstream);
-    m.put("ahead", ahead);
-    m.put("behind", behind);
-    m.put("dirty", dirty);
-    m.put("conflicted", conflicted);
-    m.put("repository", repository);
-    m.put("message", message);
     return m;
   }
 }
