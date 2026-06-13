@@ -7,6 +7,8 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.SailEventPublisher;
+import ai.singlr.sail.config.HostYaml;
+import ai.singlr.sail.config.SyncConfig;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.HostInfo;
@@ -20,6 +22,8 @@ import ai.singlr.sail.store.SyncState;
 import ai.singlr.sail.sync.RemoteMainReplica;
 import ai.singlr.sail.sync.SpecReplica;
 import ai.singlr.sail.sync.SyncEngine;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -48,8 +52,9 @@ public final class SyncCommand implements Callable<Integer> {
 
   @Option(
       names = "--main",
-      required = true,
-      description = "SSH target of the main devbox, e.g. sail@maindevbox.")
+      description =
+          "SSH target of the main devbox, e.g. sail@maindevbox. Defaults to the configured main"
+              + " (sail host config set sync-main <target>).")
   private String main;
 
   @Option(
@@ -76,6 +81,13 @@ public final class SyncCommand implements Callable<Integer> {
           Banner.errorLine("--interval must be a positive number of seconds.", Ansi.AUTO));
       return 1;
     }
+    String target;
+    try {
+      target = resolveMain(main, hostSync());
+    } catch (IllegalStateException e) {
+      System.err.println(Banner.errorLine(e.getMessage(), Ansi.AUTO));
+      return 1;
+    }
     try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
       var local =
           new SpecReplica(
@@ -84,21 +96,53 @@ public final class SyncCommand implements Callable<Integer> {
               new ChangeLog(db),
               new SyncConflicts(db),
               new SyncState(db));
-      return watch ? watchLoop(local) : runOnce(local);
+      return watch ? watchLoop(local, target) : runOnce(local, target);
     }
   }
 
-  private int runOnce(SpecReplica local) throws Exception {
-    var report = reconcile(local);
+  /** The main target: the {@code --main} flag if given, else the configured one. */
+  static String resolveMain(String flag, SyncConfig sync) {
+    if (flag != null && !flag.isBlank()) {
+      return flag;
+    }
+    if (sync.isMain()) {
+      return throwUnresolved("This box is the main devbox; it has nothing to sync to.");
+    }
+    if (sync.main() != null) {
+      return sync.main();
+    }
+    return throwUnresolved(
+        "No main devbox configured. Set one with: sudo sail host config set sync-main <user@host>,"
+            + " or pass --main.");
+  }
+
+  private static String throwUnresolved(String message) {
+    throw new IllegalStateException(message);
+  }
+
+  private static SyncConfig hostSync() {
+    var path = SailPaths.hostConfigPath();
+    if (!Files.exists(path)) {
+      return SyncConfig.unset();
+    }
+    try {
+      return HostYaml.fromMap(YamlUtil.parseFile(path)).sync();
+    } catch (IOException e) {
+      return SyncConfig.unset();
+    }
+  }
+
+  private int runOnce(SpecReplica local, String target) throws Exception {
+    var report = reconcile(local, target);
     System.out.println(render(report, json));
     notifyBoardUpdated(report);
     return 0;
   }
 
-  private int watchLoop(SpecReplica local) throws InterruptedException {
+  private int watchLoop(SpecReplica local, String target) throws InterruptedException {
     while (true) {
       try {
-        var report = reconcile(local);
+        var report = reconcile(local, target);
         System.out.println(render(report, json));
         notifyBoardUpdated(report);
       } catch (InterruptedException e) {
@@ -113,8 +157,8 @@ public final class SyncCommand implements Callable<Integer> {
     }
   }
 
-  private SyncEngine.Report reconcile(SpecReplica local) throws Exception {
-    try (var channel = SshSyncChannel.open(main);
+  private SyncEngine.Report reconcile(SpecReplica local, String target) throws Exception {
+    try (var channel = SshSyncChannel.open(target);
         var remote = new RemoteMainReplica(channel.reader(), channel.writer())) {
       return new SyncEngine().reconcile(local, remote);
     }

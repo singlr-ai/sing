@@ -8,10 +8,42 @@ package ai.singlr.sail.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.api.Event;
+import ai.singlr.sail.config.SyncConfig;
 import ai.singlr.sail.sync.SyncEngine;
 import org.junit.jupiter.api.Test;
 
 class SyncCommandTest {
+
+  @Test
+  void resolveMainPrefersTheExplicitFlag() {
+    assertEquals(
+        "sail@override",
+        SyncCommand.resolveMain("sail@override", new SyncConfig(SyncConfig.ROLE_NODE, "sail@cfg")));
+  }
+
+  @Test
+  void resolveMainFallsBackToTheConfiguredMain() {
+    assertEquals(
+        "sail@maindevbox",
+        SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox")));
+  }
+
+  @Test
+  void resolveMainRefusesWhenThisBoxIsMain() {
+    var error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_MAIN, null)));
+    assertTrue(error.getMessage().contains("main devbox"));
+  }
+
+  @Test
+  void resolveMainRefusesWhenNothingIsConfigured() {
+    var error =
+        assertThrows(
+            IllegalStateException.class, () -> SyncCommand.resolveMain("  ", SyncConfig.unset()));
+    assertTrue(error.getMessage().contains("No main devbox configured"));
+  }
 
   @Test
   void rendersJsonReport() {

@@ -25,10 +25,38 @@ public record HostYaml(
     String incusVersion,
     String serverIp,
     String initializedAt,
-    WebauthnConfig webauthn) {
+    WebauthnConfig webauthn,
+    SyncConfig sync) {
 
   public HostYaml {
     webauthn = webauthn == null ? WebauthnConfig.disabled() : webauthn;
+    sync = sync == null ? SyncConfig.unset() : sync;
+  }
+
+  /** Constructor without a sync role; leaves the box undeclared in the sync star. */
+  public HostYaml(
+      String storageBackend,
+      String pool,
+      String poolDisk,
+      String bridge,
+      String baseProfile,
+      String image,
+      String incusVersion,
+      String serverIp,
+      String initializedAt,
+      WebauthnConfig webauthn) {
+    this(
+        storageBackend,
+        pool,
+        poolDisk,
+        bridge,
+        baseProfile,
+        image,
+        incusVersion,
+        serverIp,
+        initializedAt,
+        webauthn,
+        SyncConfig.unset());
   }
 
   /** Provisioning-only constructor; passkey settings default to disabled. */
@@ -93,7 +121,8 @@ public record HostYaml(
         (String) map.get("incus_version"),
         (String) map.get("server_ip"),
         (String) map.get("initialized_at"),
-        WebauthnConfig.fromMap((Map<String, Object>) map.get("webauthn")));
+        WebauthnConfig.fromMap((Map<String, Object>) map.get("webauthn")),
+        SyncConfig.fromMap((Map<String, Object>) map.get("sync")));
   }
 
   public Map<String, Object> toMap() {
@@ -109,6 +138,9 @@ public record HostYaml(
     map.put("initialized_at", initializedAt);
     if (webauthn != null && webauthn.isConfigured()) {
       map.put("webauthn", webauthn.toMap());
+    }
+    if (sync != null && sync.role() != null) {
+      map.put("sync", sync.toMap());
     }
     return map;
   }

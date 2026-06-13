@@ -151,4 +151,28 @@ class HostYamlTest {
 
     assertEquals(host.webauthn(), reparsed.webauthn());
   }
+
+  @Test
+  void syncBlockSurvivesRoundTripAndIsOmittedWhenUnset() throws Exception {
+    var pointed =
+        new HostYaml(
+            "dir",
+            "devpool",
+            null,
+            "incusbr0",
+            "singlr-base",
+            "ubuntu/24.04",
+            "6.21",
+            null,
+            "2026-02-18T01:00:00Z",
+            WebauthnConfig.disabled(),
+            new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox"));
+
+    var reparsed = HostYaml.fromMap(YamlUtil.parseMap(YamlUtil.dumpToString(pointed.toMap())));
+    assertEquals("node", reparsed.sync().role());
+    assertEquals("sail@maindevbox", reparsed.sync().main());
+
+    var unset = HostYaml.fromMap(YamlUtil.parseMap("storage_backend: dir\n"));
+    assertFalse(unset.toMap().containsKey("sync"));
+  }
 }

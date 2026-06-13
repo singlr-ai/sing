@@ -170,6 +170,39 @@ class HostConfigSetCommandTest {
   }
 
   @Test
+  void syncRoleAndMainComposeAndPreserveOtherFields() {
+    var asNode = HostConfigSetCommand.applyChange(BASE, "sync-role", "node");
+    var pointed = HostConfigSetCommand.applyChange(asNode, "sync-main", "sail@maindevbox");
+
+    assertEquals("node", pointed.sync().role());
+    assertEquals("sail@maindevbox", pointed.sync().main());
+    assertEquals("10.0.0.1", pointed.serverIp());
+  }
+
+  @Test
+  void serverIpChangePreservesTheSyncBlock() {
+    var asMain = HostConfigSetCommand.applyChange(BASE, "sync-role", "main");
+
+    var updated = HostConfigSetCommand.applyChange(asMain, "server-ip", "10.0.0.2");
+
+    assertTrue(updated.sync().isMain());
+    assertEquals("10.0.0.2", updated.serverIp());
+  }
+
+  @Test
+  void validateRejectsAnUnknownSyncRoleAndMalformedMain() {
+    HostConfigSetCommand.validate("sync-role", "main");
+    HostConfigSetCommand.validate("sync-role", "node");
+    HostConfigSetCommand.validate("sync-main", "sail@maindevbox");
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> HostConfigSetCommand.validate("sync-role", "primary"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> HostConfigSetCommand.validate("sync-main", "bad target!"));
+  }
+
+  @Test
   void validateAcceptsRealisticValues() {
     HostConfigSetCommand.validate("server-ip", "192.168.1.100");
     HostConfigSetCommand.validate("webauthn-rp-id", "sail.example.dev");
