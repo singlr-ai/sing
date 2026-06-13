@@ -35,19 +35,26 @@ public final class SshSyncChannel implements AutoCloseable {
 
   /** Opens a sync channel to {@code target} (e.g. {@code sail@maindevbox}). */
   public static SshSyncChannel open(String target) throws IOException {
-    var command =
-        List.of(
-            "ssh",
-            "-o",
-            "PasswordAuthentication=no",
-            "-o",
-            "KbdInteractiveAuthentication=no",
-            target,
-            "sail",
-            "_sync");
-    var builder = new ProcessBuilder(command);
+    var builder = new ProcessBuilder(sshCommand(target));
     builder.redirectError(ProcessBuilder.Redirect.INHERIT);
     return new SshSyncChannel(builder.start());
+  }
+
+  /**
+   * The {@code ssh} argument vector for a sync session. Like the rest of the gateway lane it
+   * forbids password and keyboard-interactive auth, so a missing key fails fast rather than
+   * dangling a prompt for the locked {@code sail} account.
+   */
+  static List<String> sshCommand(String target) {
+    return List.of(
+        "ssh",
+        "-o",
+        "PasswordAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        target,
+        "sail",
+        "_sync");
   }
 
   public BufferedReader reader() {

@@ -7,14 +7,9 @@ package ai.singlr.sail.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
-import ai.singlr.sail.store.ChangeLog;
-import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
-import ai.singlr.sail.store.Sqlite;
 import ai.singlr.sail.store.SyncConflicts;
-import ai.singlr.sail.store.SyncState;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,35 +31,15 @@ class ConflictResolutionTest {
   @TempDir Path tempDir;
   private final SyncEngine engine = new SyncEngine();
 
-  private Box main;
-  private Box node;
-  private Box other;
-
-  private final class Box implements AutoCloseable {
-    final Sqlite db;
-    final SpecStore specs;
-    final SyncConflicts conflicts;
-    final SpecReplica replica;
-
-    Box(String id) {
-      this.db = Sqlite.open(tempDir.resolve(id + ".db"));
-      new SchemaManager(db).migrate();
-      this.specs = new SpecStore(db);
-      this.conflicts = new SyncConflicts(db);
-      this.replica = new SpecReplica(id, specs, new ChangeLog(db), conflicts, new SyncState(db));
-    }
-
-    @Override
-    public void close() {
-      db.close();
-    }
-  }
+  private SyncBox main;
+  private SyncBox node;
+  private SyncBox other;
 
   @BeforeEach
   void setUp() {
-    main = new Box("main");
-    node = new Box("node");
-    other = new Box("other");
+    main = new SyncBox(tempDir, "main");
+    node = new SyncBox(tempDir, "node");
+    other = new SyncBox(tempDir, "other");
   }
 
   @AfterEach
@@ -74,39 +49,19 @@ class ConflictResolutionTest {
     main.close();
   }
 
-  private SpecStore.SpecRow spec(String id, String title, String status) {
-    return new SpecStore.SpecRow(
-        id,
-        "proj",
-        title,
-        SpecStatus.fromWire(status),
-        null,
-        null,
-        null,
-        null,
-        null,
-        0,
-        "uday",
-        "",
-        "",
-        "uday",
-        List.of(),
-        List.of());
-  }
-
-  private void sync(Box box) {
+  private void sync(SyncBox box) {
     engine.reconcile(box.replica, main.replica);
   }
 
   private SyncConflicts.Conflict raiseTitleConflict() {
-    node.specs.create(spec("auth", "Auth", "pending"));
+    node.specs.create(SyncBox.spec("auth", "Auth", "pending"));
     sync(node);
     sync(other);
 
-    other.specs.update(spec("auth", "Title from other", "pending"));
+    other.specs.update(SyncBox.spec("auth", "Title from other", "pending"));
     sync(other);
 
-    node.specs.update(spec("auth", "Title from node", "pending"));
+    node.specs.update(SyncBox.spec("auth", "Title from node", "pending"));
     sync(node);
 
     return node.conflicts.pendingFor("spec", "auth").orElseThrow();
@@ -172,12 +127,12 @@ class ConflictResolutionTest {
 
   @Test
   void resolvingDeleteVersusEditByTakingTheRemoteEditReCreatesLocally() {
-    node.specs.create(spec("auth", "Auth", "pending"));
+    node.specs.create(SyncBox.spec("auth", "Auth", "pending"));
     sync(node);
     sync(other);
 
     node.specs.delete("auth");
-    other.specs.update(spec("auth", "Edited by other", "pending"));
+    other.specs.update(SyncBox.spec("auth", "Edited by other", "pending"));
     sync(other);
     sync(node);
 
@@ -195,12 +150,12 @@ class ConflictResolutionTest {
 
   @Test
   void resolvingDeleteVersusEditByKeepingTheLocalDeleteRemovesItEverywhere() {
-    node.specs.create(spec("auth", "Auth", "pending"));
+    node.specs.create(SyncBox.spec("auth", "Auth", "pending"));
     sync(node);
     sync(other);
 
     node.specs.delete("auth");
-    other.specs.update(spec("auth", "Edited by other", "pending"));
+    other.specs.update(SyncBox.spec("auth", "Edited by other", "pending"));
     sync(other);
     sync(node);
 
@@ -218,12 +173,12 @@ class ConflictResolutionTest {
 
   @Test
   void resolvingEditVersusRemoteDeleteByKeepingMineReCreatesOnMain() {
-    other.specs.create(spec("auth", "Auth", "pending"));
+    other.specs.create(SyncBox.spec("auth", "Auth", "pending"));
     sync(other);
     sync(node);
 
     other.specs.delete("auth");
-    node.specs.update(spec("auth", "Kept by node", "pending"));
+    node.specs.update(SyncBox.spec("auth", "Kept by node", "pending"));
     sync(other);
     sync(node);
 

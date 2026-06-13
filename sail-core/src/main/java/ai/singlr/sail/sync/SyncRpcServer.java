@@ -5,8 +5,8 @@
 
 package ai.singlr.sail.sync;
 
-import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.Writer;
 import java.util.LinkedHashMap;
 import java.util.Objects;
@@ -29,24 +29,22 @@ public final class SyncRpcServer {
     this.writable = writable;
   }
 
-  public void serve(BufferedReader in, Writer out) throws IOException {
-    for (var line = in.readLine(); line != null; line = in.readLine()) {
-      var request = SyncWire.decodeRequest(line);
-      if (request instanceof SyncWire.Bye) {
-        return;
+  public void serve(Reader in, Writer out) throws IOException {
+    for (var line = SyncWire.readFramed(in); line != null; line = SyncWire.readFramed(in)) {
+      switch (SyncWire.decodeRequest(line)) {
+        case SyncWire.Bye ignored -> {
+          return;
+        }
+        case SyncWire.Fetch ignored -> reply(out, fetched());
+        case SyncWire.Commit commit -> reply(out, committed(commit));
       }
-      out.write(SyncWire.encode(respond(request)));
-      out.write('\n');
-      out.flush();
     }
   }
 
-  private SyncWire.Response respond(SyncWire.Request request) {
-    return switch (request) {
-      case SyncWire.Fetch ignored -> fetched();
-      case SyncWire.Commit commit -> committed(commit);
-      case SyncWire.Bye ignored -> throw new IllegalStateException("bye is handled by the loop");
-    };
+  private static void reply(Writer out, SyncWire.Response response) throws IOException {
+    out.write(SyncWire.encode(response));
+    out.write('\n');
+    out.flush();
   }
 
   private SyncWire.Fetched fetched() {

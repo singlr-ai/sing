@@ -104,4 +104,82 @@ class ConflictsCommandTest {
     assertEquals("Mine", specs.findById("auth").orElseThrow().title());
     assertNotEquals(0, id);
   }
+
+  @Test
+  void strategyRequiresExactlyOneChoice() {
+    assertEquals(
+        ConflictsCommand.Resolve.Strategy.MINE,
+        ConflictsCommand.Resolve.strategy(true, false, false));
+    assertEquals(
+        ConflictsCommand.Resolve.Strategy.THEIRS,
+        ConflictsCommand.Resolve.strategy(false, true, false));
+    assertEquals(
+        ConflictsCommand.Resolve.Strategy.MERGE,
+        ConflictsCommand.Resolve.strategy(false, false, true));
+    assertNull(ConflictsCommand.Resolve.strategy(false, false, false));
+    assertNull(ConflictsCommand.Resolve.strategy(true, true, false));
+  }
+
+  @Test
+  void mergeableOnlyWhenBothSidesArePresent() {
+    var both = conflicts.record("spec", "a", "{}", "{}", "{}", List.of("title"));
+    assertTrue(ConflictsCommand.Resolve.mergeable(conflicts.pendingFor("spec", "a").orElseThrow()));
+    assertNotEquals(0, both);
+
+    conflicts.record("spec", "b", "{}", null, "{}", List.of("<deleted>"));
+    assertFalse(
+        ConflictsCommand.Resolve.mergeable(conflicts.pendingFor("spec", "b").orElseThrow()));
+  }
+
+  @Test
+  void chooseSelectsTheStrategySnapshot() {
+    var conflict =
+        new SyncConflicts.Conflict(
+            1,
+            "spec",
+            "auth",
+            json(Map.of("title", "Base")),
+            json(Map.of("title", "Mine")),
+            json(Map.of("title", "Theirs")),
+            List.of("title"),
+            "now",
+            "pending",
+            null);
+
+    assertEquals(
+        "Mine",
+        ConflictsCommand.Resolve.choose(conflict, ConflictsCommand.Resolve.Strategy.MINE, null)
+            .get("title"));
+    assertEquals(
+        "Theirs",
+        ConflictsCommand.Resolve.choose(conflict, ConflictsCommand.Resolve.Strategy.THEIRS, null)
+            .get("title"));
+    assertEquals(
+        "Merged",
+        ConflictsCommand.Resolve.choose(
+                conflict, ConflictsCommand.Resolve.Strategy.MERGE, "title: Merged")
+            .get("title"));
+  }
+
+  @Test
+  void showRenderFlagsTheClashingField() {
+    var conflict =
+        new SyncConflicts.Conflict(
+            1,
+            "spec",
+            "auth",
+            json(Map.of("title", "Base", "status", "pending")),
+            json(Map.of("title", "Mine", "status", "pending")),
+            json(Map.of("title", "Theirs", "status", "in_progress")),
+            List.of("title"),
+            "now",
+            "pending",
+            null);
+
+    var rendered = ConflictsCommand.Show.render(conflict);
+    assertTrue(rendered.contains("auth"));
+    assertTrue(rendered.contains("Mine"));
+    assertTrue(rendered.contains("Theirs"));
+    assertTrue(rendered.contains("in_progress"));
+  }
 }

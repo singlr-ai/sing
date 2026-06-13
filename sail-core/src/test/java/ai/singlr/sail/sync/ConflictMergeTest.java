@@ -56,6 +56,16 @@ class ConflictMergeTest {
   }
 
   @Test
+  void mergeTemplateToleratesAnAbsentBase() {
+    var mine = map("title", "Mine");
+    var theirs = map("title", "Theirs");
+    var parsed =
+        ConflictMerge.parseTemplate(
+            ConflictMerge.mergeTemplate(null, mine, theirs, List.of("title")));
+    assertEquals("Mine", parsed.get("title"));
+  }
+
+  @Test
   void mergeTemplateRoundTripsAMultiLineBody() {
     var base = map("title", "Auth", "body", "one\ntwo");
     var mine = map("title", "Mine", "body", "one\ntwo");
@@ -79,6 +89,18 @@ class ConflictMergeTest {
     var parsed = ConflictMerge.parseTemplate(edited);
     assertEquals("My final answer", parsed.get("title"));
     assertEquals("done", parsed.get("status"));
+  }
+
+  @Test
+  void diffToleratesADeletedSideAndAbsentBase() {
+    var theirs = map("title", "Theirs", "status", "pending");
+    var diff = ConflictMerge.diff(null, null, theirs, List.of("<deleted>"));
+
+    var title = diff.stream().filter(c -> c.field().equals("title")).findFirst().orElseThrow();
+    assertNull(title.base());
+    assertNull(title.mine());
+    assertEquals("Theirs", title.theirs());
+    assertFalse(title.clash());
   }
 
   @Test

@@ -8,12 +8,7 @@ package ai.singlr.sail.sync;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.SpecStatus;
-import ai.singlr.sail.store.ChangeLog;
-import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
-import ai.singlr.sail.store.Sqlite;
-import ai.singlr.sail.store.SyncConflicts;
-import ai.singlr.sail.store.SyncState;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -22,46 +17,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * In-process two-node harness: each "box" is its own SQLite DB with a full set of stores. Two nodes
- * sync to a shared main, proving convergence, propagation, and conflict surfacing end to end
- * through the real {@link SyncEngine} — no transport.
+ * In-process two-node harness: each {@link SyncBox} is its own SQLite DB with a full set of stores.
+ * Two nodes sync to a shared main, proving convergence, propagation, and conflict surfacing end to
+ * end through the real {@link SyncEngine} — no transport.
  */
 class TwoNodeSyncTest {
 
   @TempDir Path tempDir;
   private final SyncEngine engine = new SyncEngine();
 
-  private Box main;
-  private Box nodeA;
-  private Box nodeB;
-
-  private final class Box implements AutoCloseable {
-    final String id;
-    final Sqlite db;
-    final SpecStore specs;
-    final SyncConflicts conflicts;
-    final SpecReplica replica;
-
-    Box(String id) {
-      this.id = id;
-      this.db = Sqlite.open(tempDir.resolve(id + ".db"));
-      new SchemaManager(db).migrate();
-      this.specs = new SpecStore(db);
-      this.conflicts = new SyncConflicts(db);
-      this.replica = new SpecReplica(id, specs, new ChangeLog(db), conflicts, new SyncState(db));
-    }
-
-    @Override
-    public void close() {
-      db.close();
-    }
-  }
+  private SyncBox main;
+  private SyncBox nodeA;
+  private SyncBox nodeB;
 
   @BeforeEach
   void setUp() {
-    main = new Box("main");
-    nodeA = new Box("A");
-    nodeB = new Box("B");
+    main = new SyncBox(tempDir, "main");
+    nodeA = new SyncBox(tempDir, "A");
+    nodeB = new SyncBox(tempDir, "B");
   }
 
   @AfterEach
@@ -72,26 +45,10 @@ class TwoNodeSyncTest {
   }
 
   private SpecStore.SpecRow spec(String id, String title, String status) {
-    return new SpecStore.SpecRow(
-        id,
-        "proj",
-        title,
-        SpecStatus.fromWire(status),
-        null,
-        null,
-        null,
-        null,
-        null,
-        0,
-        "uday",
-        "",
-        "",
-        "uday",
-        List.of(),
-        List.of());
+    return SyncBox.spec(id, title, status);
   }
 
-  private void syncToMain(Box node) {
+  private void syncToMain(SyncBox node) {
     engine.reconcile(node.replica, main.replica);
   }
 
@@ -210,7 +167,7 @@ class TwoNodeSyncTest {
     nodeA.specs.create(spec("auth", "Auth", "pending"));
     syncToMain(nodeA);
 
-    assertEquals(main.replica.maxSeq(), new SyncState(nodeA.db).checkpoint("main"));
+    assertEquals(main.replica.maxSeq(), nodeA.syncState.checkpoint("main"));
     assertTrue(main.replica.maxSeq() > 0);
   }
 }

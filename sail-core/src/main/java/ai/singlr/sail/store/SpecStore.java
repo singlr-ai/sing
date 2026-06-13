@@ -10,8 +10,10 @@ import ai.singlr.sail.config.YamlUtil;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -608,10 +610,10 @@ public final class SpecStore {
     if (a == null || b == null) {
       return a == b;
     }
-    var keys = new java.util.LinkedHashSet<String>();
+    var keys = new LinkedHashSet<String>();
     keys.addAll(a.keySet());
     keys.addAll(b.keySet());
-    return keys.stream().allMatch(key -> java.util.Objects.equals(a.get(key), b.get(key)));
+    return keys.stream().allMatch(key -> Objects.equals(a.get(key), b.get(key)));
   }
 
   public Optional<SpecContent> getContent(String specId) {

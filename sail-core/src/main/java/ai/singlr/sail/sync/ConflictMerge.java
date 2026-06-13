@@ -6,6 +6,8 @@
 package ai.singlr.sail.sync;
 
 import ai.singlr.sail.config.YamlUtil;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,7 @@ public final class ConflictMerge {
       Map<String, Object> theirs,
       List<String> clashingFields) {
     var safeBase = base == null ? Map.<String, Object>of() : base;
-    var changes = new java.util.ArrayList<FieldChange>();
+    var changes = new ArrayList<FieldChange>();
     for (var field : allKeys(safeBase, mine, theirs)) {
       var atBase = safeBase.get(field);
       var atMine = value(mine, field);
@@ -56,7 +58,7 @@ public final class ConflictMerge {
       Map<String, Object> theirs,
       List<String> clashingFields) {
     var safeBase = base == null ? Map.<String, Object>of() : base;
-    var merged = new java.util.LinkedHashMap<String, Object>();
+    var merged = new LinkedHashMap<String, Object>();
     for (var field : allKeys(safeBase, mine, theirs)) {
       var atBase = safeBase.get(field);
       var atMine = value(mine, field);

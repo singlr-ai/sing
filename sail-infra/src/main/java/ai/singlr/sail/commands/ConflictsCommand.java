@@ -112,7 +112,7 @@ public final class ConflictsCommand implements Callable<Integer> {
       }
     }
 
-    private static String render(SyncConflicts.Conflict conflict) {
+    static String render(SyncConflicts.Conflict conflict) {
       var diff =
           ConflictMerge.diff(
               parse(conflict.baseSnapshot()),
@@ -154,11 +154,16 @@ public final class ConflictsCommand implements Callable<Integer> {
     @Option(names = "--merge-file", description = "Read the merged record from a file (no editor).")
     private Path mergeFile;
 
+    enum Strategy {
+      MINE,
+      THEIRS,
+      MERGE
+    }
+
     @Override
     public Integer call() throws Exception {
-      var merging = merge || mergeFile != null;
-      var chosenStrategies = (mine ? 1 : 0) + (theirs ? 1 : 0) + (merging ? 1 : 0);
-      if (chosenStrategies != 1) {
+      var strategy = strategy(mine, theirs, merge || mergeFile != null);
+      if (strategy == null) {
         System.err.println(
             Banner.errorLine("Choose exactly one of --mine, --theirs, or --merge.", Ansi.AUTO));
         return 1;
@@ -171,12 +176,23 @@ public final class ConflictsCommand implements Callable<Integer> {
               Banner.errorLine("No open conflict for spec '" + entity + "'.", Ansi.AUTO));
           return 1;
         }
-        var remote = parse(conflict.remoteSnapshot());
-        var chosen = chosen(conflict, remote);
-        if (chosen == ABSENT) {
-          return 1;
+        String edited = null;
+        if (strategy == Strategy.MERGE) {
+          if (!mergeable(conflict)) {
+            System.err.println(
+                Banner.errorLine(
+                    "--merge is not available for a delete-vs-edit conflict; use --mine or"
+                        + " --theirs.",
+                    Ansi.AUTO));
+            return 1;
+          }
+          edited = mergeFile != null ? Files.readString(mergeFile) : editInEditor(conflict);
+          if (edited == null) {
+            return 1;
+          }
         }
-        apply(new SpecStore(db), conflicts, conflict, cast(chosen), remote);
+        var chosen = choose(conflict, strategy, edited);
+        apply(new SpecStore(db), conflicts, conflict, chosen, parse(conflict.remoteSnapshot()));
         System.out.println(
             Ansi.AUTO.string(
                 "  @|green ✓|@ Resolved @|yellow "
@@ -184,6 +200,38 @@ public final class ConflictsCommand implements Callable<Integer> {
                     + "|@. Run @|bold sail sync|@ to propagate."));
         return 0;
       }
+    }
+
+    /** The single chosen strategy, or {@code null} unless exactly one was requested. */
+    static Strategy strategy(boolean mine, boolean theirs, boolean merge) {
+      if ((mine ? 1 : 0) + (theirs ? 1 : 0) + (merge ? 1 : 0) != 1) {
+        return null;
+      }
+      if (mine) {
+        return Strategy.MINE;
+      }
+      return theirs ? Strategy.THEIRS : Strategy.MERGE;
+    }
+
+    /**
+     * A field-level merge needs both sides present, so it is offered only outside delete-vs-edit.
+     */
+    static boolean mergeable(SyncConflicts.Conflict conflict) {
+      return parse(conflict.baseSnapshot()) != null
+          && parse(conflict.localSnapshot()) != null
+          && parse(conflict.remoteSnapshot()) != null;
+    }
+
+    /**
+     * The snapshot to resolve to; {@code null} is a deletion. {@code edited} is the merged YAML.
+     */
+    static Map<String, Object> choose(
+        SyncConflicts.Conflict conflict, Strategy strategy, String edited) {
+      return switch (strategy) {
+        case MINE -> parse(conflict.localSnapshot());
+        case THEIRS -> parse(conflict.remoteSnapshot());
+        case MERGE -> ConflictMerge.parseTemplate(edited);
+      };
     }
 
     static String apply(
@@ -197,36 +245,14 @@ public final class ConflictsCommand implements Callable<Integer> {
       return rev;
     }
 
-    private Object chosen(SyncConflicts.Conflict conflict, Map<String, Object> remote)
+    private String editInEditor(SyncConflicts.Conflict conflict)
         throws IOException, InterruptedException {
-      if (theirs) {
-        return remote;
-      }
-      var local = parse(conflict.localSnapshot());
-      if (mine) {
-        return local;
-      }
-      var base = parse(conflict.baseSnapshot());
-      if (base == null || local == null || remote == null) {
-        System.err.println(
-            Banner.errorLine(
-                "--merge is not available for a delete-vs-edit conflict; use --mine or --theirs.",
-                Ansi.AUTO));
-        return ABSENT;
-      }
-      if (mergeFile != null) {
-        return ConflictMerge.parseTemplate(Files.readString(mergeFile));
-      }
-      return mergeInEditor(base, local, remote, conflict.fields());
-    }
-
-    private Object mergeInEditor(
-        Map<String, Object> base,
-        Map<String, Object> local,
-        Map<String, Object> remote,
-        List<String> fields)
-        throws IOException, InterruptedException {
-      var template = ConflictMerge.mergeTemplate(base, local, remote, fields);
+      var template =
+          ConflictMerge.mergeTemplate(
+              parse(conflict.baseSnapshot()),
+              parse(conflict.localSnapshot()),
+              parse(conflict.remoteSnapshot()),
+              conflict.fields());
       var file = Files.createTempFile("sail-merge-", ".yaml");
       try {
         Files.writeString(file, template);
@@ -234,20 +260,13 @@ public final class ConflictsCommand implements Callable<Integer> {
         var exit = new ProcessBuilder(editor, file.toString()).inheritIO().start().waitFor();
         if (exit != 0) {
           System.err.println(Banner.errorLine("Editor exited non-zero; aborting.", Ansi.AUTO));
-          return ABSENT;
+          return null;
         }
-        return ConflictMerge.parseTemplate(Files.readString(file));
+        return Files.readString(file);
       } finally {
         Files.deleteIfExists(file);
       }
     }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> cast(Object snapshot) {
-      return (Map<String, Object>) snapshot;
-    }
-
-    private static final Object ABSENT = new Object();
   }
 
   static Map<String, Object> parse(String json) {

@@ -5,8 +5,8 @@
 
 package ai.singlr.sail.sync;
 
-import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.util.Map;
@@ -26,13 +26,13 @@ import java.util.Set;
  */
 public final class RemoteMainReplica implements MainReplica, AutoCloseable {
 
-  private final BufferedReader in;
+  private final Reader in;
   private final Writer out;
 
   private SyncWire.Fetched fetched;
   private long maxSeq;
 
-  public RemoteMainReplica(BufferedReader in, Writer out) {
+  public RemoteMainReplica(Reader in, Writer out) {
     this.in = Objects.requireNonNull(in, "in");
     this.out = Objects.requireNonNull(out, "out");
   }
@@ -106,7 +106,7 @@ public final class RemoteMainReplica implements MainReplica, AutoCloseable {
       out.write(SyncWire.encode(request));
       out.write('\n');
       out.flush();
-      var line = in.readLine();
+      var line = SyncWire.readFramed(in);
       if (line == null) {
         throw new SyncTransportException("Sync channel closed before main replied.");
       }

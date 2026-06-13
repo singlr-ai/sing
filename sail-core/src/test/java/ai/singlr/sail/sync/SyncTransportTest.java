@@ -8,12 +8,7 @@ package ai.singlr.sail.sync;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.singlr.sail.config.SpecStatus;
-import ai.singlr.sail.store.ChangeLog;
-import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
-import ai.singlr.sail.store.Sqlite;
-import ai.singlr.sail.store.SyncConflicts;
-import ai.singlr.sail.store.SyncState;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PipedReader;
@@ -38,39 +33,15 @@ class SyncTransportTest {
   @TempDir Path tempDir;
   private final SyncEngine engine = new SyncEngine();
 
-  private Box main;
-  private Box nodeA;
-  private Box nodeB;
-
-  private final class Box implements AutoCloseable {
-    final String id;
-    final Sqlite db;
-    final SpecStore specs;
-    final SyncConflicts conflicts;
-    final SyncState syncState;
-    final SpecReplica replica;
-
-    Box(String id) {
-      this.id = id;
-      this.db = Sqlite.open(tempDir.resolve(id + ".db"));
-      new SchemaManager(db).migrate();
-      this.specs = new SpecStore(db);
-      this.conflicts = new SyncConflicts(db);
-      this.syncState = new SyncState(db);
-      this.replica = new SpecReplica(id, specs, new ChangeLog(db), conflicts, syncState);
-    }
-
-    @Override
-    public void close() {
-      db.close();
-    }
-  }
+  private SyncBox main;
+  private SyncBox nodeA;
+  private SyncBox nodeB;
 
   @BeforeEach
   void setUp() {
-    main = new Box("main");
-    nodeA = new Box("A");
-    nodeB = new Box("B");
+    main = new SyncBox(tempDir, "main");
+    nodeA = new SyncBox(tempDir, "A");
+    nodeB = new SyncBox(tempDir, "B");
   }
 
   @AfterEach
@@ -81,30 +52,14 @@ class SyncTransportTest {
   }
 
   private SpecStore.SpecRow spec(String id, String title, String status) {
-    return new SpecStore.SpecRow(
-        id,
-        "proj",
-        title,
-        SpecStatus.fromWire(status),
-        null,
-        null,
-        null,
-        null,
-        null,
-        0,
-        "uday",
-        "",
-        "",
-        "uday",
-        List.of(),
-        List.of());
+    return SyncBox.spec(id, title, status);
   }
 
-  private SyncEngine.Report syncToMain(Box node) throws Exception {
+  private SyncEngine.Report syncToMain(SyncBox node) throws Exception {
     return syncOverWire(node, true);
   }
 
-  private SyncEngine.Report syncOverWire(Box node, boolean writable) throws Exception {
+  private SyncEngine.Report syncOverWire(SyncBox node, boolean writable) throws Exception {
     var toServer = new PipedWriter();
     var serverIn = new BufferedReader(new PipedReader(toServer));
     var toClient = new PipedWriter();

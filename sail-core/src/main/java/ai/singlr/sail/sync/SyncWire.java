@@ -6,6 +6,8 @@
 package ai.singlr.sail.sync;
 
 import ai.singlr.sail.config.YamlUtil;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -34,7 +36,37 @@ public final class SyncWire {
   private static final String OP_COMMIT = "commit";
   private static final String OP_BYE = "bye";
 
+  /**
+   * Hard ceiling on one framed message, bounding the memory a single read can claim. A sync message
+   * is one whole-board fetch or one spec at a time, so 64 MiB is far above any legitimate size yet
+   * stops an authenticated-but-low-trust peer from starving the receiver with one endless line.
+   */
+  static final int MAX_MESSAGE_CHARS = 64 * 1024 * 1024;
+
   private SyncWire() {}
+
+  /**
+   * Reads one newline-framed message, bounded by {@link #MAX_MESSAGE_CHARS}. Returns {@code null}
+   * at end of stream (a clean session close), the line without its terminator otherwise. Used by
+   * both ends so the framing — and its bound — has a single definition.
+   */
+  public static String readFramed(Reader in) throws IOException {
+    return readFramed(in, MAX_MESSAGE_CHARS);
+  }
+
+  static String readFramed(Reader in, int maxChars) throws IOException {
+    var message = new StringBuilder();
+    for (var c = in.read(); c != -1; c = in.read()) {
+      if (c == '\n') {
+        return message.toString();
+      }
+      if (message.length() >= maxChars) {
+        throw new SyncTransportException("Sync message exceeded " + maxChars + " characters.");
+      }
+      message.append((char) c);
+    }
+    return message.isEmpty() ? null : message.toString();
+  }
 
   public sealed interface Request permits Fetch, Commit, Bye {}
 

@@ -7,6 +7,7 @@ package ai.singlr.sail.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.StringReader;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,5 +99,52 @@ class SyncWireTest {
   @Test
   void unrecognizedResponseIsRejected() {
     assertThrows(IllegalArgumentException.class, () -> SyncWire.decodeResponse("{\"hi\": 1}"));
+  }
+
+  @Test
+  void aResponseMissingMaxSeqDecodesToZero() {
+    var committed = (SyncWire.Committed) SyncWire.decodeResponse("{\"rev\": \"3-a\"}");
+    assertEquals(0, committed.maxSeq());
+  }
+
+  @Test
+  void aNullStringFieldDecodesToNull() {
+    var committed = (SyncWire.Committed) SyncWire.decodeResponse("{\"rev\": null, \"maxSeq\": 5}");
+    assertNull(committed.rev());
+    assertEquals(5, committed.maxSeq());
+  }
+
+  @Test
+  void aFetchedWithNullEntitiesDecodesToNoEntities() {
+    var fetched =
+        (SyncWire.Fetched)
+            SyncWire.decodeResponse("{\"id\": \"m\", \"maxSeq\": 0, \"entities\": null}");
+    assertTrue(fetched.entities().isEmpty());
+  }
+
+  @Test
+  void readFramedReadsOneLinePerCallWithoutTheTerminator() throws Exception {
+    var in = new StringReader("first\nsecond\n");
+    assertEquals("first", SyncWire.readFramed(in));
+    assertEquals("second", SyncWire.readFramed(in));
+    assertNull(SyncWire.readFramed(in));
+  }
+
+  @Test
+  void readFramedReturnsAFinalUnterminatedLineThenNull() throws Exception {
+    var in = new StringReader("tail");
+    assertEquals("tail", SyncWire.readFramed(in));
+    assertNull(SyncWire.readFramed(in));
+  }
+
+  @Test
+  void readFramedAcceptsAMessageExactlyAtTheBound() throws Exception {
+    assertEquals("abcd", SyncWire.readFramed(new StringReader("abcd\n"), 4));
+  }
+
+  @Test
+  void readFramedRejectsAMessageOverTheBound() {
+    assertThrows(
+        SyncTransportException.class, () -> SyncWire.readFramed(new StringReader("abcde"), 4));
   }
 }
