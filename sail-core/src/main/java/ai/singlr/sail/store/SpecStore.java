@@ -6,21 +6,32 @@
 package ai.singlr.sail.store;
 
 import ai.singlr.sail.config.SpecStatus;
+import ai.singlr.sail.config.YamlUtil;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * Spec CRUD on SQLite. Every method maps to a small number of SQL statements. No caching, no lazy
  * loading — the database is fast enough.
+ *
+ * <p>Every mutation journals the spec's full post-state into the {@link ChangeLog} within the same
+ * transaction, so history is complete and any revision is restorable (the DB-sync no-lost-work
+ * guarantee). {@code specs.rev} tracks the current revision.
  */
 public final class SpecStore {
 
+  private static final String ENTITY = "spec";
+
   private final Sqlite db;
+  private final ChangeLog changeLog;
 
   public SpecStore(Sqlite db) {
     this.db = db;
+    this.changeLog = new ChangeLog(db);
   }
 
   public record SpecRow(
@@ -88,6 +99,7 @@ public final class SpecStore {
               "INSERT INTO spec_content (spec_id, body, plan, updated_at) VALUES (?, '', '', ?)",
               spec.id(),
               now);
+          recordRevision(spec.id(), "local", false);
         });
   }
 
@@ -173,34 +185,201 @@ public final class SpecStore {
           db.execute("DELETE FROM spec_repos WHERE spec_id = ?", spec.id());
           insertDependencies(spec.id(), spec.dependsOn());
           insertRepos(spec.id(), spec.repos());
+          recordRevision(spec.id(), "local", false);
         });
   }
 
   public void updateStatus(String id, SpecStatus status) {
-    db.execute(
-        "UPDATE specs SET status = ?, updated_at = ? WHERE id = ?",
-        status.wire(),
-        Instant.now().toString(),
-        id);
+    db.transaction(
+        () -> {
+          db.execute(
+              "UPDATE specs SET status = ?, updated_at = ? WHERE id = ?",
+              status.wire(),
+              Instant.now().toString(),
+              id);
+          recordRevision(id, "local", false);
+        });
   }
 
   public void delete(String id) {
-    db.execute("DELETE FROM specs WHERE id = ?", id);
+    db.transaction(
+        () -> {
+          recordRevision(id, "local", true);
+          db.execute("DELETE FROM specs WHERE id = ?", id);
+        });
   }
 
   public void setContent(String specId, String body, String plan) {
     var now = Instant.now().toString();
+    db.transaction(
+        () -> {
+          db.execute(
+              """
+              INSERT INTO spec_content (spec_id, body, plan, updated_at) VALUES (?, ?, ?, ?)
+              ON CONFLICT(spec_id) DO UPDATE SET body = ?, plan = ?, updated_at = ?""",
+              specId,
+              body,
+              plan,
+              now,
+              body,
+              plan,
+              now);
+          recordRevision(specId, "local", false);
+        });
+  }
+
+  /** Every recorded revision of a spec, oldest first. */
+  public List<ChangeLog.Entry> history(String id) {
+    return changeLog.history(ENTITY, id);
+  }
+
+  /**
+   * Restores a spec to a prior revision's content, recorded as a NEW revision (origin {@code
+   * restore}) — the current state is never discarded, it becomes part of history too, so a restore
+   * is itself reversible. Re-creates the spec if it had been deleted.
+   */
+  public void restore(String id, String rev) {
+    var entry =
+        changeLog
+            .at(ENTITY, id, rev)
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "No revision '" + rev + "' recorded for spec '" + id + "'."));
+    var snapshot = YamlUtil.parseMap(entry.snapshot());
+    db.transaction(
+        () -> {
+          applySnapshot(id, snapshot);
+          recordRevision(id, "restore", false);
+        });
+  }
+
+  private void recordRevision(String id, String origin, boolean deleted) {
+    var spec = findById(id).orElse(null);
+    if (spec == null) {
+      return;
+    }
+    var snapshot = snapshotJson(spec);
+    var rev = Revisions.next(currentRev(id), snapshot);
+    if (!deleted) {
+      db.execute("UPDATE specs SET rev = ? WHERE id = ?", rev, id);
+    }
+    changeLog.append(ENTITY, id, rev, spec.updatedBy(), origin, deleted, snapshot);
+  }
+
+  private String currentRev(String id) {
+    return db.queryOne("SELECT COALESCE(rev, '') FROM specs WHERE id = ?", row -> row.text(0), id)
+        .orElse("");
+  }
+
+  private String snapshotJson(SpecRow spec) {
+    var content = getContent(spec.id()).orElse(new SpecContent("", "", null));
+    var map = new LinkedHashMap<String, Object>();
+    map.put("id", spec.id());
+    map.put("project", spec.project());
+    map.put("title", spec.title());
+    map.put("status", spec.status().wire());
+    map.put("assignee", spec.assignee());
+    map.put("agent", spec.agent());
+    map.put("model", spec.model());
+    map.put("reasoning_effort", spec.reasoningEffort());
+    map.put("branch", spec.branch());
+    map.put("priority", spec.priority());
+    map.put("created_by", spec.createdBy());
+    map.put("created_at", spec.createdAt());
+    map.put("updated_by", spec.updatedBy());
+    map.put("updated_at", spec.updatedAt());
+    map.put("depends_on", spec.dependsOn());
+    map.put("repos", spec.repos());
+    map.put("body", content.body());
+    map.put("plan", content.plan());
+    return YamlUtil.dumpJson(map);
+  }
+
+  private void applySnapshot(String id, Map<String, Object> snapshot) {
+    var spec = specFromSnapshot(snapshot);
+    var now = Instant.now().toString();
+    if (findById(id).isPresent()) {
+      db.execute(
+          """
+          UPDATE specs SET project = ?, title = ?, status = ?, assignee = ?, agent = ?, model = ?,
+              reasoning_effort = ?, branch = ?, priority = ?, updated_at = ?, updated_by = ?
+          WHERE id = ?""",
+          spec.project(),
+          spec.title(),
+          spec.status().wire(),
+          spec.assignee(),
+          spec.agent(),
+          spec.model(),
+          spec.reasoningEffort(),
+          spec.branch(),
+          spec.priority(),
+          now,
+          spec.updatedBy(),
+          id);
+      db.execute("DELETE FROM spec_dependencies WHERE spec_id = ?", id);
+      db.execute("DELETE FROM spec_repos WHERE spec_id = ?", id);
+    } else {
+      db.execute(
+          """
+          INSERT INTO specs (id, project, title, status, assignee, agent, model, reasoning_effort,
+              branch, priority, created_by, created_at, updated_at, updated_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+          id,
+          spec.project(),
+          spec.title(),
+          spec.status().wire(),
+          spec.assignee(),
+          spec.agent(),
+          spec.model(),
+          spec.reasoningEffort(),
+          spec.branch(),
+          spec.priority(),
+          spec.createdBy(),
+          spec.createdAt(),
+          now,
+          spec.updatedBy());
+    }
+    insertDependencies(id, spec.dependsOn());
+    insertRepos(id, spec.repos());
     db.execute(
         """
         INSERT INTO spec_content (spec_id, body, plan, updated_at) VALUES (?, ?, ?, ?)
         ON CONFLICT(spec_id) DO UPDATE SET body = ?, plan = ?, updated_at = ?""",
-        specId,
-        body,
-        plan,
+        id,
+        text(snapshot, "body"),
+        text(snapshot, "plan"),
         now,
-        body,
-        plan,
+        text(snapshot, "body"),
+        text(snapshot, "plan"),
         now);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static SpecRow specFromSnapshot(Map<String, Object> s) {
+    var priority = s.get("priority");
+    return new SpecRow(
+        text(s, "id"),
+        text(s, "project"),
+        text(s, "title"),
+        SpecStatus.fromLegacy(text(s, "status")),
+        text(s, "assignee"),
+        text(s, "agent"),
+        text(s, "model"),
+        text(s, "reasoning_effort"),
+        text(s, "branch"),
+        priority instanceof Number n ? n.intValue() : 0,
+        text(s, "created_by"),
+        text(s, "created_at"),
+        text(s, "updated_at"),
+        text(s, "updated_by"),
+        (List<String>) s.getOrDefault("depends_on", List.of()),
+        (List<String>) s.getOrDefault("repos", List.of()));
+  }
+
+  private static String text(Map<String, Object> map, String key) {
+    var value = map.get(key);
+    return value == null ? null : value.toString();
   }
 
   public Optional<SpecContent> getContent(String specId) {

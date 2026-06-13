@@ -243,7 +243,22 @@ public final class SchemaManager {
               created_at TEXT NOT NULL,
               updated_by TEXT,
               updated_at TEXT NOT NULL
-          )""");
+          )""",
+          "ALTER TABLE specs ADD COLUMN rev TEXT",
+          """
+          CREATE TABLE IF NOT EXISTS change_log (
+              seq INTEGER PRIMARY KEY AUTOINCREMENT,
+              entity_type TEXT NOT NULL,
+              entity_id TEXT NOT NULL,
+              rev TEXT NOT NULL,
+              actor TEXT,
+              recorded_at TEXT NOT NULL,
+              origin TEXT NOT NULL,
+              deleted INTEGER NOT NULL DEFAULT 0,
+              snapshot TEXT NOT NULL
+          )""",
+          "CREATE INDEX IF NOT EXISTS idx_change_log_entity"
+              + " ON change_log(entity_type, entity_id, seq)");
 
   private final Sqlite db;
 
