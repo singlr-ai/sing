@@ -231,4 +231,65 @@ class GlobalSpecOperationsTest {
     var ex = assertThrows(ApiException.class, () -> noStore.list(SpecStore.SpecFilter.all()));
     assertEquals(ErrorCode.INTERNAL, ex.failure().errorCode());
   }
+
+  @Test
+  void historyListsEveryRevisionOldestFirst() {
+    ops.create(createReq(Map.of()).withCreatedBy("uday"));
+    ops.setContent("auth", new SpecContentRequest("body one", "plan"));
+
+    var history = ops.history("auth");
+
+    assertEquals("auth", history.specId());
+    assertEquals(2, history.revisions().size());
+    assertEquals("local", history.revisions().getFirst().origin());
+  }
+
+  @Test
+  void historyIsEmptyForAnUnknownSpec() {
+    assertTrue(ops.history("ghost").revisions().isEmpty());
+  }
+
+  @Test
+  void restoreBringsBackPriorContentAsANewRevision() {
+    ops.create(createReq(Map.of()).withCreatedBy("uday"));
+    ops.setContent("auth", new SpecContentRequest("good", "good plan"));
+    var goodRev = ops.history("auth").revisions().getLast().rev();
+    ops.setContent("auth", new SpecContentRequest("clobbered", "clobbered"));
+
+    var restored = ops.restore("auth", new SpecRestoreRequest(goodRev));
+
+    assertEquals(goodRev, restored.fromRev());
+    assertEquals("good", ops.content("auth").body());
+    assertEquals("restore", ops.history("auth").revisions().getLast().origin());
+  }
+
+  @Test
+  void restoreRejectsABlankRev() {
+    ops.create(createReq(Map.of()));
+    var ex =
+        assertThrows(ApiException.class, () -> ops.restore("auth", new SpecRestoreRequest("  ")));
+    assertEquals(ErrorCode.INVALID_REQUEST, ex.failure().errorCode());
+  }
+
+  @Test
+  void restoreRejectsAnUnknownRev() {
+    ops.create(createReq(Map.of()));
+    var ex =
+        assertThrows(ApiException.class, () -> ops.restore("auth", new SpecRestoreRequest("99-x")));
+    assertEquals(ErrorCode.INVALID_REQUEST, ex.failure().errorCode());
+    assertTrue(ex.failure().errorMessage().contains("99-x"));
+  }
+
+  @Test
+  void historyAndRestoreWithoutStoreThrowInternal() {
+    var noStore = new GlobalSpecOperations(null);
+    assertEquals(
+        ErrorCode.INTERNAL,
+        assertThrows(ApiException.class, () -> noStore.history("x")).failure().errorCode());
+    assertEquals(
+        ErrorCode.INTERNAL,
+        assertThrows(ApiException.class, () -> noStore.restore("x", new SpecRestoreRequest("1-a")))
+            .failure()
+            .errorCode());
+  }
 }

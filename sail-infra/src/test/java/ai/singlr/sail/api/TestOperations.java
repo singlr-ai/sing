@@ -217,6 +217,37 @@ class TestOperations implements ApiOperations {
   }
 
   @Override
+  public Result<GlobalSpecHistoryResponse> globalSpecHistory(String specId) {
+    return Result.success(new GlobalSpecHistoryResponse(specId, java.util.List.of()));
+  }
+
+  @Override
+  public Result<GlobalSpecRestoredResponse> restoreGlobalSpec(
+      String specId, SpecRestoreRequest request) {
+    return Result.success(
+        new GlobalSpecRestoredResponse(
+            GlobalSpecView.from(
+                new SpecStore.SpecRow(
+                    specId,
+                    "proj",
+                    "t",
+                    ai.singlr.sail.config.SpecStatus.fromWire("pending"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    0,
+                    null,
+                    "",
+                    "",
+                    null,
+                    java.util.List.of(),
+                    java.util.List.of())),
+            request.rev()));
+  }
+
+  @Override
   public Result<GlobalBoardResponse> globalBoard(String project) {
     return Result.success(
         new GlobalBoardResponse(new SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null)));

@@ -43,6 +43,8 @@ public final class ApiRouter implements HttpHandler {
   private static final String BOARD = "board";
   private static final String CONTENT = "content";
   private static final String REVIEWS = "reviews";
+  private static final String HISTORY = "history";
+  private static final String RESTORE = "restore";
   private static final String SESSIONS = "sessions";
   private static final String APPROVE = "approve";
   private static final String DISMISS = "dismiss";
@@ -236,6 +238,16 @@ public final class ApiRouter implements HttpHandler {
       if (REVIEWS.equals(sub)) {
         requireMethod(request, GET);
         return ApiResponse.from(operations.reviewsForSpec(specId));
+      }
+      if (HISTORY.equals(sub)) {
+        requireMethod(request, GET);
+        return ApiResponse.from(operations.globalSpecHistory(specId));
+      }
+      if (RESTORE.equals(sub)) {
+        requireMethod(request, POST);
+        return ApiResponse.from(
+            operations.restoreGlobalSpec(
+                specId, SpecRestoreRequest.fromMap(JsonBody.readMap(exchange))));
       }
     }
     throw notFound();

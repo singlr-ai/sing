@@ -931,6 +931,17 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   @Override
+  public Result<GlobalSpecHistoryResponse> globalSpecHistory(String specId) {
+    return safe(() -> globalSpecOps.history(specId));
+  }
+
+  @Override
+  public Result<GlobalSpecRestoredResponse> restoreGlobalSpec(
+      String specId, SpecRestoreRequest request) {
+    return safe(() -> globalSpecOps.restore(specId, request));
+  }
+
+  @Override
   public Result<GlobalBoardResponse> globalBoard(String project) {
     return safe(() -> globalSpecOps.board(project));
   }

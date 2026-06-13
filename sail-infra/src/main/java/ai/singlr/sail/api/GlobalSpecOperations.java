@@ -147,6 +147,25 @@ final class GlobalSpecOperations {
     return new GlobalBoardResponse(specStore.board(project));
   }
 
+  GlobalSpecHistoryResponse history(String specId) {
+    requireStore();
+    return GlobalSpecHistoryResponse.from(specId, specStore.history(specId));
+  }
+
+  GlobalSpecRestoredResponse restore(String specId, SpecRestoreRequest request) {
+    requireStore();
+    if (request.rev() == null || request.rev().isBlank()) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, "rev is required.");
+    }
+    try {
+      specStore.restore(specId, request.rev());
+    } catch (IllegalArgumentException e) {
+      throw new ApiException(ErrorCode.INVALID_REQUEST, e.getMessage());
+    }
+    var row = specStore.findById(specId).orElseThrow();
+    return new GlobalSpecRestoredResponse(GlobalSpecView.from(row), request.rev());
+  }
+
   private SpecStore.SpecRow findOrThrow(String specId) {
     return specStore
         .findById(specId)

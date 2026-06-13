@@ -659,6 +659,42 @@ class ApiRouterTest {
   }
 
   @Test
+  void globalSpecHistoryGetReturns200() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow/history", "token");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"spec_id\": \"auth-flow\""));
+      assertTrue(response.body().contains("\"rev\": \"1-abc\""));
+      assertTrue(response.body().contains("\"total\": 1"));
+    }
+  }
+
+  @Test
+  void globalSpecHistoryRejectsNonGet() throws Exception {
+    try (var server = server()) {
+      var response = post(server, "/v1/specs/auth-flow/history", "token", "{}");
+      assertEquals(405, response.statusCode());
+    }
+  }
+
+  @Test
+  void globalSpecRestorePostReturns200() throws Exception {
+    try (var server = server()) {
+      var response = post(server, "/v1/specs/auth-flow/restore", "token", "{\"rev\": \"2-abc\"}");
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("\"from_rev\": \"2-abc\""));
+    }
+  }
+
+  @Test
+  void globalSpecRestoreRejectsNonPost() throws Exception {
+    try (var server = server()) {
+      var response = get(server, "/v1/specs/auth-flow/restore", "token");
+      assertEquals(405, response.statusCode());
+    }
+  }
+
+  @Test
   void specReviewsListReturns200() throws Exception {
     try (var server = server()) {
       var response = get(server, "/v1/specs/auth-flow/reviews", "token");
@@ -1102,6 +1138,41 @@ class ApiRouterTest {
     public Result<GlobalSpecContentResponse> setGlobalSpecContent(
         String specId, SpecContentRequest request) {
       return Result.success(new GlobalSpecContentResponse(specId, request.body(), request.plan()));
+    }
+
+    @Override
+    public Result<GlobalSpecHistoryResponse> globalSpecHistory(String specId) {
+      return Result.success(
+          new GlobalSpecHistoryResponse(
+              specId,
+              java.util.List.of(
+                  new SpecRevisionView("1-abc", "uday", "2026-06-13T00:00:00Z", "local", false))));
+    }
+
+    @Override
+    public Result<GlobalSpecRestoredResponse> restoreGlobalSpec(
+        String specId, SpecRestoreRequest request) {
+      return Result.success(
+          new GlobalSpecRestoredResponse(
+              GlobalSpecView.from(
+                  new ai.singlr.sail.store.SpecStore.SpecRow(
+                      specId,
+                      "proj",
+                      "t",
+                      ai.singlr.sail.config.SpecStatus.fromWire("pending"),
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      0,
+                      null,
+                      "",
+                      "",
+                      null,
+                      java.util.List.of(),
+                      java.util.List.of())),
+              request.rev()));
     }
 
     @Override

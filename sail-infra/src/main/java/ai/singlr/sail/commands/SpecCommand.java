@@ -19,6 +19,8 @@ import picocli.CommandLine.Command;
       ApiSpecContentCommand.class,
       ApiSpecDeleteCommand.class,
       ApiSpecBoardCommand.class,
+      ApiSpecHistoryCommand.class,
+      ApiSpecRestoreCommand.class,
       DispatchCommand.class,
     })
 public final class SpecCommand implements Runnable {

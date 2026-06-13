@@ -6,6 +6,7 @@
 package ai.singlr.sail.api;
 
 import ai.singlr.sail.engine.GitSpecSync;
+import ai.singlr.sail.store.ChangeLog;
 import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SessionStore;
 import ai.singlr.sail.store.SpecStore;
@@ -542,6 +543,57 @@ record SpecUpdateRequest(
 record SpecContentRequest(String body, String plan) {
   static SpecContentRequest fromMap(Map<String, Object> map) {
     return new SpecContentRequest((String) map.get("body"), (String) map.get("plan"));
+  }
+}
+
+record SpecRestoreRequest(String rev) {
+  static SpecRestoreRequest fromMap(Map<String, Object> map) {
+    return new SpecRestoreRequest((String) map.get("rev"));
+  }
+}
+
+record SpecRevisionView(String rev, String actor, String recordedAt, String origin, boolean deleted)
+    implements Mappable {
+  static SpecRevisionView from(ChangeLog.Entry e) {
+    return new SpecRevisionView(e.rev(), e.actor(), e.recordedAt(), e.origin(), e.deleted());
+  }
+
+  @Override
+  public Map<String, Object> toMap() {
+    var m = new LinkedHashMap<String, Object>();
+    m.put("rev", rev);
+    if (actor != null) m.put("actor", actor);
+    m.put("recorded_at", recordedAt);
+    m.put("origin", origin);
+    m.put("deleted", deleted);
+    return m;
+  }
+}
+
+record GlobalSpecHistoryResponse(String specId, List<SpecRevisionView> revisions)
+    implements Mappable {
+  static GlobalSpecHistoryResponse from(String specId, List<ChangeLog.Entry> entries) {
+    return new GlobalSpecHistoryResponse(
+        specId, entries.stream().map(SpecRevisionView::from).toList());
+  }
+
+  @Override
+  public Map<String, Object> toMap() {
+    var m = new LinkedHashMap<String, Object>();
+    m.put("spec_id", specId);
+    m.put("revisions", revisions);
+    m.put("total", revisions.size());
+    return m;
+  }
+}
+
+record GlobalSpecRestoredResponse(GlobalSpecView spec, String fromRev) implements Mappable {
+  @Override
+  public Map<String, Object> toMap() {
+    var m = new LinkedHashMap<String, Object>();
+    m.put("spec", spec.toMap());
+    m.put("from_rev", fromRev);
+    return m;
   }
 }
 
