@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.PlaceholderResolver;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlMerger;
@@ -78,7 +79,7 @@ public final class ProjectPullCommand implements Runnable {
   private void execute() throws Exception {
     NameValidator.requireValidProjectName(name);
 
-    if (repo == null || repo.isBlank()) {
+    if (Strings.isBlank(repo)) {
       throw new IllegalArgumentException(
           "--repo is required. Specify the GitHub repository that holds your project descriptors"
               + " (e.g. --repo your-org/projects).");
@@ -112,7 +113,7 @@ public final class ProjectPullCommand implements Runnable {
     var projectContent = GitHubFetcher.fetchRawFile(repo, projectPath, token, ref);
     if (projectContent == null) {
       var hint =
-          (token == null || token.isBlank())
+          (Strings.isBlank(token))
               ? "\n  If the repository is private, provide a token with --github-token or GITHUB_TOKEN."
               : "\n  Check that the file exists and your token has 'repo' scope.";
       throw new IllegalStateException(
@@ -290,17 +291,17 @@ public final class ProjectPullCommand implements Runnable {
   }
 
   private String resolveToken() {
-    if (githubToken != null && !githubToken.isBlank()) {
+    if (Strings.isNotBlank(githubToken)) {
       return githubToken;
     }
     var envToken = System.getenv("GITHUB_TOKEN");
-    if (envToken != null && !envToken.isBlank()) {
+    if (Strings.isNotBlank(envToken)) {
       return envToken;
     }
     try {
       var prompted =
           ConsoleHelper.readPassword("  GitHub personal access token (needs 'repo' scope): ");
-      if (prompted == null || prompted.isBlank()) {
+      if (Strings.isBlank(prompted)) {
         throw new IllegalArgumentException(
             "GitHub token required. Pass --github-token, set GITHUB_TOKEN, or enter interactively.");
       }

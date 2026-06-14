@@ -7,6 +7,7 @@ package ai.singlr.sail.engine;
 
 import ai.singlr.sail.SailVersion;
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.SpecStatus;
@@ -814,7 +815,7 @@ public final class Banner {
    * an empty string when the timestamp is missing or unparseable. Visible for tests.
    */
   static String formatElapsed(String startedAtIso, Instant now) {
-    if (startedAtIso == null || startedAtIso.isBlank() || now == null) {
+    if (Strings.isBlank(startedAtIso) || now == null) {
       return "";
     }
     Instant start;
@@ -976,7 +977,7 @@ public final class Banner {
     if (task != null) {
       out.println(amber(ansi, "    @|bold Task:|@    " + prettifyTask(task)));
     }
-    if (branch != null && !branch.isBlank()) {
+    if (Strings.isNotBlank(branch)) {
       out.println(amber(ansi, "    @|bold Branch:|@  " + branch));
     }
     out.println(amber(ansi, "    @|bold Log:|@     sail agent log " + name + " --follow"));

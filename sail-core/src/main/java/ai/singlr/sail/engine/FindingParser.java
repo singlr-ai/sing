@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.store.Finding;
 import java.util.List;
@@ -49,7 +50,7 @@ public final class FindingParser {
   }
 
   static String extractJsonBlock(String output) {
-    if (output == null || output.isBlank()) return null;
+    if (Strings.isBlank(output)) return null;
 
     var start = output.indexOf("```json");
     if (start < 0) {

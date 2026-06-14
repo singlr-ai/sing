@@ -6,6 +6,7 @@
 package ai.singlr.sail.api;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.SpecAuditEvent;
 import ai.singlr.sail.config.SpecStatus;
@@ -75,7 +76,7 @@ public final class SpecLifecycleReactor implements EventSubscriber {
   @Override
   public void onEvent(Event event) {
     var specsDir = specsDirForProject.apply(event.project());
-    if (specsDir == null || specsDir.isBlank()) {
+    if (Strings.isBlank(specsDir)) {
       return;
     }
     var workspace = new SpecWorkspace(shell, event.project(), specsDir);

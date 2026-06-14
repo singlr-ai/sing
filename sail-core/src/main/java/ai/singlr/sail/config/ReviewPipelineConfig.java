@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.config;
 
+import ai.singlr.sail.common.Strings;
 import java.util.List;
 import java.util.Map;
 
@@ -21,7 +22,7 @@ public record ReviewPipelineConfig(int maxIterations, List<StageConfig> stages) 
     @SuppressWarnings("unchecked")
     public static StageConfig fromMap(Map<String, Object> map) {
       var name = (String) map.get("name");
-      if (name == null || name.isBlank()) {
+      if (Strings.isBlank(name)) {
         throw new IllegalArgumentException("review_pipeline stage requires a name");
       }
       var type = StageType.parse((String) map.getOrDefault("type", "agent"));

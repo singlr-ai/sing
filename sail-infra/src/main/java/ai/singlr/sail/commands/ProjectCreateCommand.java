@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlUtil;
@@ -222,7 +223,7 @@ public final class ProjectCreateCommand implements Runnable {
       return Map.of();
     }
 
-    if (gitToken != null && !gitToken.isBlank()) {
+    if (Strings.isNotBlank(gitToken)) {
       return GitCredentials.singleTokenMap(gitToken);
     }
 
@@ -234,7 +235,7 @@ public final class ProjectCreateCommand implements Runnable {
     var tokens = new LinkedHashMap<String, String>();
     for (var host : hosts) {
       var envToken = GitCredentials.resolveTokenForHost(host, null);
-      if (envToken != null && !envToken.isBlank()) {
+      if (Strings.isNotBlank(envToken)) {
         tokens.put(host, envToken);
       }
     }
@@ -248,7 +249,7 @@ public final class ProjectCreateCommand implements Runnable {
       try {
         var prompted =
             ConsoleHelper.readPassword("  Git access token for " + host + " (blank to skip): ");
-        if (prompted != null && !prompted.isBlank()) {
+        if (Strings.isNotBlank(prompted)) {
           tokens.put(host, prompted);
         }
       } catch (EchoDisabledUnavailableException e) {

@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.common.Strings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,7 +46,7 @@ public final class SailPaths {
 
   /** Pure resolver; visible for tests so resolution can be exercised without the environment. */
   static Path dataDir(String configured, boolean provisionedSystemDb) {
-    if (configured != null && !configured.isBlank()) {
+    if (Strings.isNotBlank(configured)) {
       return Path.of(configured);
     }
     if (provisionedSystemDb) {
@@ -206,7 +207,7 @@ public final class SailPaths {
     if (root) {
       return Path.of("/run/sail/api.sock");
     }
-    if (xdgRuntimeDir != null && !xdgRuntimeDir.isBlank()) {
+    if (Strings.isNotBlank(xdgRuntimeDir)) {
       return Path.of(xdgRuntimeDir, "sail", "api.sock");
     }
     return SAIL_DIR.resolve("run/api.sock");

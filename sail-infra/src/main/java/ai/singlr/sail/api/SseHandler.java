@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.api;
 
+import ai.singlr.sail.common.Strings;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
@@ -191,17 +192,17 @@ public final class SseHandler implements HttpHandler {
 
   static Predicate<Event> parseFilter(URI uri) {
     var query = uri.getRawQuery();
-    if (query == null || query.isBlank()) {
+    if (Strings.isBlank(query)) {
       return EventSubscriber.all();
     }
     var values = parseQuery(query);
     Predicate<Event> result = EventSubscriber.all();
     var projectFilter = values.get("project");
-    if (projectFilter != null && !projectFilter.isBlank()) {
+    if (Strings.isNotBlank(projectFilter)) {
       result = result.and(EventSubscriber.byProject(projectFilter));
     }
     var typeFilter = values.get("type");
-    if (typeFilter != null && !typeFilter.isBlank()) {
+    if (Strings.isNotBlank(typeFilter)) {
       var types = Set.of(typeFilter.split(","));
       result = result.and(e -> types.contains(e.type()));
     }

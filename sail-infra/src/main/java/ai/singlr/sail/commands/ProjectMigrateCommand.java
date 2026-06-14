@@ -1,5 +1,6 @@
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
@@ -106,10 +107,10 @@ public final class ProjectMigrateCommand implements Runnable {
   }
 
   private List<String> selectedProjects() throws Exception {
-    if (all == (name != null && !name.isBlank())) {
+    if (all == (Strings.isNotBlank(name))) {
       throw new IllegalArgumentException("Specify exactly one project name or --all.");
     }
-    if (name != null && !name.isBlank()) {
+    if (Strings.isNotBlank(name)) {
       NameValidator.requireValidProjectName(name);
       importLegacyState(List.of(name));
       return List.of(name);

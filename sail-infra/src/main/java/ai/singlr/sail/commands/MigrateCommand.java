@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.engine.AuthorizedKeysSync;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerSpecImporter;
@@ -291,7 +292,7 @@ public final class MigrateCommand implements Runnable {
       System.out.print("  Pick 1-" + candidates.size() + " (Enter to skip): ");
       try {
         var line = reader.readLine();
-        if (line == null || line.isBlank()) {
+        if (Strings.isBlank(line)) {
           return Optional.empty();
         }
         var idx = Integer.parseInt(line.trim()) - 1;

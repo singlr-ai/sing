@@ -6,6 +6,7 @@
 package ai.singlr.sail.api;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
@@ -294,7 +295,7 @@ public final class SailApiOperations implements ApiOperations {
       return;
     }
     var data = new LinkedHashMap<String, Object>();
-    if (branch != null && !branch.isBlank()) {
+    if (Strings.isNotBlank(branch)) {
       data.put("branch", branch);
     }
     data.put("mode", mode);
@@ -491,7 +492,7 @@ public final class SailApiOperations implements ApiOperations {
   }
 
   private static Spec resolveSpec(List<Spec> specs, String specId) {
-    if (specId == null || specId.isBlank()) {
+    if (Strings.isBlank(specId)) {
       return SpecDirectory.nextReady(specs);
     }
     var spec = SpecDirectory.findById(specs, specId);
@@ -533,7 +534,7 @@ public final class SailApiOperations implements ApiOperations {
         spec.agent(),
         spec.model(),
         spec.reasoningEffort(),
-        branch != null && !branch.isBlank() ? branch : null);
+        Strings.isNotBlank(branch) ? branch : null);
   }
 
   private static String branchName(SailYaml config, Spec spec) {
@@ -559,7 +560,7 @@ public final class SailApiOperations implements ApiOperations {
 
   private boolean createBranchIfNeeded(
       String project, SailYaml config, List<SailYaml.Repo> targetRepos, String branch) {
-    if (branch == null || branch.isBlank() || targetRepos.isEmpty()) {
+    if (Strings.isBlank(branch) || targetRepos.isEmpty()) {
       return false;
     }
     var created = false;

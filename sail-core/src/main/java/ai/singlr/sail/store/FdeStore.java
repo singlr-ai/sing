@@ -6,6 +6,7 @@
 package ai.singlr.sail.store;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.ssh.SshPublicKey;
 import java.security.SecureRandom;
 import java.util.HexFormat;
@@ -112,7 +113,7 @@ public final class FdeStore {
         email,
         role,
         status,
-        createdAt == null || createdAt.isBlank() ? DateTimeUtils.now().toString() : createdAt);
+        Strings.isBlank(createdAt) ? DateTimeUtils.now().toString() : createdAt);
   }
 
   public Optional<Fde> byHandle(String handle) {

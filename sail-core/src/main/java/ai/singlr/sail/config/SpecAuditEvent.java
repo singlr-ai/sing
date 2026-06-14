@@ -6,6 +6,7 @@
 package ai.singlr.sail.config;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
@@ -89,7 +90,7 @@ public record SpecAuditEvent(
       map.put("pid", pid);
     }
     map.put("host", host);
-    if (note != null && !note.isBlank()) {
+    if (Strings.isNotBlank(note)) {
       map.put("note", note);
     }
     return map;
@@ -151,7 +152,7 @@ public record SpecAuditEvent(
   }
 
   private static void requireNonBlank(String value, String name) {
-    if (value == null || value.isBlank()) {
+    if (Strings.isBlank(value)) {
       throw new IllegalArgumentException(name + " is required");
     }
   }

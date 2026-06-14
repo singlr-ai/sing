@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.ContainerManager;
@@ -244,7 +245,7 @@ public final class SnapsPruneCommand implements Runnable {
   }
 
   static Instant parseSnapshotTime(String iso) {
-    if (iso == null || iso.isBlank()) {
+    if (Strings.isBlank(iso)) {
       return null;
     }
     try {

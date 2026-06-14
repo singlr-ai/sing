@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.common.Strings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,13 +89,13 @@ public final class SystemdServiceInstaller {
       this.systemdLinkPath = home.resolve(".config/systemd/user").resolve(UNIT_FILENAME);
     }
     this.sailBinary = Objects.requireNonNull(sailBinary, "sailBinary");
-    if (bindAddress == null || bindAddress.isBlank()) {
+    if (Strings.isBlank(bindAddress)) {
       throw new IllegalArgumentException("bindAddress is required");
     }
     if (bindPort <= 0 || bindPort > 65535) {
       throw new IllegalArgumentException("bindPort must be 1..65535, got " + bindPort);
     }
-    if (username == null || username.isBlank()) {
+    if (Strings.isBlank(username)) {
       throw new IllegalArgumentException("username is required");
     }
     this.bindAddress = bindAddress;
@@ -350,7 +351,7 @@ public final class SystemdServiceInstaller {
   }
 
   private static Integer parsePid(String raw) {
-    if (raw == null || raw.isBlank()) {
+    if (Strings.isBlank(raw)) {
       return null;
     }
     try {

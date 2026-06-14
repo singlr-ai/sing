@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
@@ -212,7 +213,7 @@ public final class HostInitCommand implements Runnable {
     var sudoUser = System.getenv("SUDO_USER");
     System.out.println();
     System.out.println(Ansi.AUTO.string("  @|bold Next step:|@ enable the sail API service."));
-    if (sudoUser != null && !sudoUser.isBlank() && !"root".equals(sudoUser)) {
+    if (Strings.isNotBlank(sudoUser) && !"root".equals(sudoUser)) {
       enableLingerForUser(shell, sudoUser);
       System.out.println(Ansi.AUTO.string("    Run as @|bold " + sudoUser + "|@ (without sudo):"));
     } else {
@@ -296,7 +297,7 @@ public final class HostInitCommand implements Runnable {
     System.out.print("  Select disk [1-" + candidates.size() + "]: ");
     System.out.flush();
     var line = ConsoleHelper.readLine();
-    if (line == null || line.isBlank()) {
+    if (Strings.isBlank(line)) {
       System.out.println("  Aborted.");
       return null;
     }

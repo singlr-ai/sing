@@ -6,6 +6,7 @@
 package ai.singlr.sail.store;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import java.util.ArrayList;
@@ -473,7 +474,7 @@ public final class SpecStore implements ConflictResolver {
 
   /** Comparable snapshot recorded at a given revision (the merge base), or null if not recorded. */
   public Map<String, Object> comparableAtRev(String id, String rev) {
-    if (rev == null || rev.isBlank()) {
+    if (Strings.isBlank(rev)) {
       return null;
     }
     return changeLog

@@ -6,6 +6,7 @@
 package ai.singlr.sail.store;
 
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.YamlUtil;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -114,7 +115,7 @@ public final class FileStore implements ConflictResolver {
   }
 
   public Map<String, Object> comparableAtRev(String id, String rev) {
-    if (rev == null || rev.isBlank()) {
+    if (Strings.isBlank(rev)) {
       return null;
     }
     return changeLog

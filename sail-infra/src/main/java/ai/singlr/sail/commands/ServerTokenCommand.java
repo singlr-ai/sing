@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.Sqlite;
@@ -102,7 +103,7 @@ public final class ServerTokenCommand implements Runnable {
     }
 
     private String resolveFdeId(Sqlite db) {
-      if (fde == null || fde.isBlank()) {
+      if (Strings.isBlank(fde)) {
         return null;
       }
       return new FdeStore(db)

@@ -9,6 +9,7 @@ import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.EventStreamClient;
 import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.common.DateTimeUtils;
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.Guardrails;
 import ai.singlr.sail.config.Notifications;
 import ai.singlr.sail.config.SailYaml;
@@ -189,7 +190,7 @@ public final class AgentWatchCommand implements Runnable {
   }
 
   static Instant parseStartedAt(String iso) {
-    if (iso == null || iso.isBlank()) {
+    if (Strings.isBlank(iso)) {
       return DateTimeUtils.now();
     }
     try {
@@ -200,7 +201,7 @@ public final class AgentWatchCommand implements Runnable {
   }
 
   static Instant computeDeadline(Instant startedAt, String maxDurationStr) {
-    if (maxDurationStr == null || maxDurationStr.isBlank()) {
+    if (Strings.isBlank(maxDurationStr)) {
       return Instant.MAX;
     }
     try {

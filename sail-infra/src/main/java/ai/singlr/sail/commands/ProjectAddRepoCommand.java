@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.SailYamlUpdater;
 import ai.singlr.sail.config.YamlUtil;
@@ -106,7 +107,7 @@ public final class ProjectAddRepoCommand implements Runnable {
     }
 
     var sshUser = config.sshUser();
-    var token = gitToken != null && !gitToken.isBlank() ? gitToken : null;
+    var token = Strings.isNotBlank(gitToken) ? gitToken : null;
     var applier = new ProjectApplier(shell, out);
     var result =
         applier.applyRepos(
@@ -153,14 +154,14 @@ public final class ProjectAddRepoCommand implements Runnable {
 
   private static String promptWithDefault(
       java.io.PrintStream out, Ansi ansi, String label, String def) {
-    if (def != null && !def.isEmpty()) {
+    if (!Strings.isEmpty(def)) {
       out.print(ansi.string("  @|bold " + label + "|@ @|faint [" + def + "]|@: "));
     } else {
       out.print(ansi.string("  @|bold " + label + "|@: "));
     }
     out.flush();
     var line = ConsoleHelper.readLine();
-    if (line == null || line.isBlank()) {
+    if (Strings.isBlank(line)) {
       return Objects.requireNonNullElse(def, "");
     }
     return line.strip();
@@ -171,7 +172,7 @@ public final class ProjectAddRepoCommand implements Runnable {
       out.print(ansi.string("  @|bold " + label + "|@: "));
       out.flush();
       var line = ConsoleHelper.readLine();
-      if (line != null && !line.isBlank()) {
+      if (Strings.isNotBlank(line)) {
         return line.strip();
       }
       out.println(ansi.string("    @|yellow Required field. Please enter a value.|@"));
