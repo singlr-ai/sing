@@ -16,13 +16,15 @@ import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.SshSyncChannel;
 import ai.singlr.sail.store.ChangeLog;
 import ai.singlr.sail.store.FdeStore;
+import ai.singlr.sail.store.FileStore;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import ai.singlr.sail.store.SyncConflicts;
 import ai.singlr.sail.store.SyncState;
-import ai.singlr.sail.sync.RemoteMainReplica;
+import ai.singlr.sail.sync.FileReplica;
 import ai.singlr.sail.sync.SpecReplica;
 import ai.singlr.sail.sync.SyncEngine;
+import ai.singlr.sail.sync.SyncSession;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -92,17 +94,20 @@ public final class SyncCommand implements Callable<Integer> {
       return 1;
     }
     try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
-      var local =
-          new SpecReplica(
-              HostInfo.hostname(),
-              new SpecStore(db),
-              new ChangeLog(db),
-              new SyncConflicts(db),
-              new SyncState(db));
-      var fdes = new FdeStore(db);
-      return watch ? watchLoop(local, fdes, target) : runOnce(local, fdes, target);
+      var host = HostInfo.hostname();
+      var changeLog = new ChangeLog(db);
+      var conflicts = new SyncConflicts(db);
+      var syncState = new SyncState(db);
+      var boxes =
+          new Boxes(
+              new SpecReplica(host, new SpecStore(db), changeLog, conflicts, syncState),
+              new FileReplica(host, new FileStore(db), changeLog, conflicts, syncState),
+              new FdeStore(db));
+      return watch ? watchLoop(boxes, target) : runOnce(boxes, target);
     }
   }
+
+  private record Boxes(SpecReplica spec, FileReplica file, FdeStore fdes) {}
 
   /** The main target: the {@code --main} flag if given, else the configured one. */
   static String resolveMain(String flag, SyncConfig sync) {
@@ -136,18 +141,17 @@ public final class SyncCommand implements Callable<Integer> {
     }
   }
 
-  private int runOnce(SpecReplica local, FdeStore fdes, String target) throws Exception {
-    var report = reconcile(local, fdes, target);
+  private int runOnce(Boxes boxes, String target) throws Exception {
+    var report = reconcile(boxes, target);
     System.out.println(render(report, json));
     notifyBoardUpdated(report);
     return 0;
   }
 
-  private int watchLoop(SpecReplica local, FdeStore fdes, String target)
-      throws InterruptedException {
+  private int watchLoop(Boxes boxes, String target) throws InterruptedException {
     while (true) {
       try {
-        var report = reconcile(local, fdes, target);
+        var report = reconcile(boxes, target);
         System.out.println(render(report, json));
         notifyBoardUpdated(report);
       } catch (InterruptedException e) {
@@ -162,12 +166,12 @@ public final class SyncCommand implements Callable<Integer> {
     }
   }
 
-  private SyncEngine.Report reconcile(SpecReplica local, FdeStore fdes, String target)
-      throws Exception {
+  private SyncEngine.Report reconcile(Boxes boxes, String target) throws Exception {
     try (var channel = SshSyncChannel.open(target);
-        var remote = new RemoteMainReplica(channel.reader(), channel.writer())) {
-      var report = new SyncEngine().reconcile(local, remote);
-      var rejected = applyFdes(fdes, remote.fetchFdes());
+        var session = new SyncSession(channel.reader(), channel.writer())) {
+      var specReport = new SyncEngine().reconcile(boxes.spec(), session.replica("spec"));
+      var fileReport = new SyncEngine().reconcile(boxes.file(), session.replica("file"));
+      var rejected = applyFdes(boxes.fdes(), session.fetchFdes());
       if (!rejected.isEmpty()) {
         System.err.println(
             Banner.errorLine(
@@ -177,8 +181,17 @@ public final class SyncCommand implements Callable<Integer> {
                     + String.join(", ", rejected),
                 Ansi.AUTO));
       }
-      return report;
+      return combine(specReport, fileReport);
     }
+  }
+
+  /** Sums two reconcile reports (specs + files) into one round summary. */
+  static SyncEngine.Report combine(SyncEngine.Report a, SyncEngine.Report b) {
+    return new SyncEngine.Report(
+        a.pulled() + b.pulled(),
+        a.pushed() + b.pushed(),
+        a.merged() + b.merged(),
+        a.conflicts() + b.conflicts());
   }
 
   /**
