@@ -35,11 +35,6 @@ public record ServerConnectionConfig(String serverUrl, String token) {
     return resolve(null, null, SailPaths.clientConfigPath());
   }
 
-  public static ServerConnectionConfig resolve(String serverFlag, String tokenFlag)
-      throws IOException {
-    return resolve(serverFlag, tokenFlag, SailPaths.clientConfigPath());
-  }
-
   public static ServerConnectionConfig resolve(String serverFlag, String tokenFlag, Path configPath)
       throws IOException {
     return resolve(serverFlag, tokenFlag, null, configPath);
