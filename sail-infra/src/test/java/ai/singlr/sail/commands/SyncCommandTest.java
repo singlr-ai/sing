@@ -7,7 +7,7 @@ package ai.singlr.sail.commands;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.api.Event;
@@ -26,33 +26,31 @@ class SyncCommandTest {
 
   @Test
   void resolveMainPrefersTheExplicitFlag() {
-    assertEquals(
-        "sail@override",
-        SyncCommand.resolveMain("sail@override", new SyncConfig(SyncConfig.ROLE_NODE, "sail@cfg")));
+    var resolved =
+        SyncCommand.resolveMain("sail@override", new SyncConfig(SyncConfig.ROLE_NODE, "sail@cfg"));
+    assertEquals("sail@override", resolved.target());
   }
 
   @Test
   void resolveMainFallsBackToTheConfiguredMain() {
-    assertEquals(
-        "sail@maindevbox",
-        SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox")));
+    var resolved =
+        SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox"));
+    assertEquals("sail@maindevbox", resolved.target());
   }
 
   @Test
-  void resolveMainRefusesWhenThisBoxIsMain() {
-    var error =
-        assertThrows(
-            IllegalStateException.class,
-            () -> SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_MAIN, null)));
-    assertTrue(error.getMessage().contains("main devbox"));
+  void resolveMainHasNoTargetWhenThisBoxIsMain() {
+    var resolved = SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_MAIN, null));
+    assertNull(resolved.target());
+    assertTrue(resolved.message().contains("main devbox"));
   }
 
   @Test
-  void resolveMainRefusesWhenNothingIsConfigured() {
-    var error =
-        assertThrows(
-            IllegalStateException.class, () -> SyncCommand.resolveMain("  ", SyncConfig.unset()));
-    assertTrue(error.getMessage().contains("No main devbox configured"));
+  void resolveMainHasNoTargetAndGuidesWhenStandalone() {
+    var resolved = SyncCommand.resolveMain("  ", SyncConfig.unset());
+    assertNull(resolved.target());
+    assertTrue(resolved.message().contains("Single devbox"));
+    assertTrue(resolved.message().contains("sail host sync --main"));
   }
 
   @Test
