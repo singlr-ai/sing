@@ -17,7 +17,6 @@ import ai.singlr.sail.store.DataMigrator;
 import ai.singlr.sail.store.FileStore;
 import ai.singlr.sail.store.MigrationRunner;
 import ai.singlr.sail.store.ProjectStore;
-import ai.singlr.sail.store.RebucketSpecsMigration;
 import ai.singlr.sail.store.Sqlite;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -47,9 +46,10 @@ import picocli.CommandLine.Spec;
 public final class MigrateCommand implements Runnable {
 
   /**
-   * Every one-shot data migration tracked in {@code data_migrations}. Add new ones at the bottom.
+   * Every one-shot data migration tracked in {@code data_migrations}. Empty today — the early
+   * backfills have all been applied — but the framework stays so future migrations have a home.
    */
-  public static final List<DataMigration> REGISTRY = List.of(new RebucketSpecsMigration());
+  public static final List<DataMigration> REGISTRY = List.of();
 
   @Option(
       names = "--non-interactive",
