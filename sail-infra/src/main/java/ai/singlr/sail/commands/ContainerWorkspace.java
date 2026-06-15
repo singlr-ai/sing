@@ -35,7 +35,11 @@ final class ContainerWorkspace {
       if (!(state instanceof ContainerState.Running)) {
         System.err.println(
             Banner.errorLine(
-                "Project '" + project + "' is not running. Run 'sail switch " + project + "'.",
+                "Project '"
+                    + project
+                    + "' is not running. Run 'sail project switch "
+                    + project
+                    + "'.",
                 Ansi.AUTO));
         return Optional.empty();
       }

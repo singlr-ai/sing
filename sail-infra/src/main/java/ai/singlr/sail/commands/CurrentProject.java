@@ -14,9 +14,10 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * The current project — the one {@code sail switch} last selected — so project commands need
- * neither a name argument nor a {@code cd} into a descriptor directory. It is a single line under
- * {@code ~/.sail}; the project catalog itself lives in the database, this is only the pointer.
+ * The current project — the one {@code sail project switch} last selected — so project commands
+ * need neither a name argument nor a {@code cd} into a descriptor directory. It is a single line
+ * under {@code ~/.sail}; the project catalog itself lives in the database, this is only the
+ * pointer.
  */
 final class CurrentProject {
 
@@ -73,6 +74,6 @@ final class CurrentProject {
         .orElseThrow(
             () ->
                 new IllegalStateException(
-                    "No current project. Run 'sail switch <project>' or pass a project name."));
+                    "No current project. Run 'sail project switch <project>' or pass a project name."));
   }
 }

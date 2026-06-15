@@ -46,6 +46,6 @@ class CurrentProjectTest {
   @Test
   void requireFailsWithGuidanceWhenNeitherIsAvailable() {
     var e = assertThrows(IllegalStateException.class, () -> CurrentProject.require(null, state()));
-    assertTrue(e.getMessage().contains("sail switch"), e.getMessage());
+    assertTrue(e.getMessage().contains("sail project switch"), e.getMessage());
   }
 }
