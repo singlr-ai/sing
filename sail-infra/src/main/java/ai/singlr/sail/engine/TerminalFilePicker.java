@@ -15,9 +15,11 @@ import java.util.Optional;
 
 /**
  * Drives a real terminal against the pure {@link CheckboxPicker}: puts the TTY in raw mode so arrow
- * keys and the space bar are read a keystroke at a time, redraws the checkbox list in place, and
- * always restores the terminal — on confirm, cancel, exception, or Ctrl-C. Reads the directory tree
- * through a {@link FileSource}, so it browses a host path or a container workspace identically.
+ * keys and the space bar are read a keystroke at a time, renders into the alternate screen buffer
+ * (so a big listing scrolls within a fixed, height-bounded window instead of flooding the
+ * scrollback), and always restores the terminal — on confirm, cancel, exception, or Ctrl-C. Reads
+ * the directory tree through a {@link FileSource}, so it browses a host path or a container
+ * workspace identically.
  *
  * <p>Raw mode needs an interactive terminal and the {@code stty} utility; callers gate on {@link
  * #isAvailable()} and fall back to the typed {@link FilePicker} when it returns false.
@@ -26,6 +28,8 @@ public final class TerminalFilePicker {
 
   private static final String ESC = String.valueOf((char) 27);
   private static final int IGNORED_KEY = -99;
+  private static final int FALLBACK_ROWS = 24;
+  private static final int FALLBACK_COLS = 80;
 
   private final FileSource source;
   private final Path root;
@@ -61,7 +65,7 @@ public final class TerminalFilePicker {
     Runtime.getRuntime().addShutdownHook(restore);
     try {
       stty("raw -echo");
-      out.print(ESC + "[?25l");
+      out.print(ESC + "[?1049h" + ESC + "[?25l");
       out.flush();
       return drive();
     } finally {
@@ -73,10 +77,9 @@ public final class TerminalFilePicker {
   /** The key/redraw loop, with no terminal-mode side effects, so it is testable without a TTY. */
   Optional<LinkedHashSet<Path>> drive() throws IOException {
     var picked = new LinkedHashSet<Path>();
-    var screen = CheckboxPicker.Screen.of(root, root, source.children(root), picked);
-    var previousLines = 0;
+    var screen = CheckboxPicker.Screen.of(root, root, FilePicker.list(source, root), picked);
     while (true) {
-      previousLines = draw(screen, previousLines);
+      draw(screen);
       var move = CheckboxPicker.apply(screen, CheckboxPicker.key(readKey()));
       screen = move.screen();
       switch (move.outcome()) {
@@ -94,25 +97,44 @@ public final class TerminalFilePicker {
 
   private CheckboxPicker.Screen navigate(CheckboxPicker.Screen screen, Path target) {
     try {
-      return CheckboxPicker.Screen.of(root, target, source.children(target), screen.picked());
+      return CheckboxPicker.Screen.of(
+          root, target, FilePicker.list(source, target), screen.picked());
     } catch (IOException unreadable) {
       return screen;
     }
   }
 
-  private int draw(CheckboxPicker.Screen screen, int previousLines) {
-    var lines = CheckboxPicker.render(screen);
-    var sb = new StringBuilder();
-    if (previousLines > 0) {
-      sb.append(ESC).append('[').append(previousLines).append('A');
+  private void draw(CheckboxPicker.Screen screen) {
+    var size = terminalSize();
+    var lines = CheckboxPicker.render(screen, size[0]);
+    var sb = new StringBuilder(ESC + "[H");
+    for (var i = 0; i < lines.size(); i++) {
+      sb.append(fit(lines.get(i), size[1])).append(ESC).append("[K");
+      if (i < lines.size() - 1) {
+        sb.append("\r\n");
+      }
     }
-    sb.append('\r').append(ESC).append("[0J");
-    for (var line : lines) {
-      sb.append(line).append("\r\n");
-    }
+    sb.append(ESC).append("[0J");
     out.print(sb);
     out.flush();
-    return lines.size();
+  }
+
+  static String fit(String line, int cols) {
+    return line.length() <= cols ? line : line.substring(0, Math.max(0, cols - 1)) + "…";
+  }
+
+  private int[] terminalSize() {
+    var size = stty("size").strip().split("\\s+");
+    if (size.length == 2) {
+      try {
+        return new int[] {
+          Math.max(4, Integer.parseInt(size[0])), Math.max(20, Integer.parseInt(size[1]))
+        };
+      } catch (NumberFormatException ignored) {
+        return new int[] {FALLBACK_ROWS, FALLBACK_COLS};
+      }
+    }
+    return new int[] {FALLBACK_ROWS, FALLBACK_COLS};
   }
 
   private int readKey() throws IOException {
@@ -136,7 +158,7 @@ public final class TerminalFilePicker {
   }
 
   private void restore(String saved) {
-    out.print(ESC + "[?25h");
+    out.print(ESC + "[?25h" + ESC + "[?1049l");
     out.flush();
     stty(saved);
   }

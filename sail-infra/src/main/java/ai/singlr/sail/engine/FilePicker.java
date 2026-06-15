@@ -81,7 +81,8 @@ public final class FilePicker {
         .sorted(
             Comparator.comparing(Entry::directory)
                 .reversed()
-                .thenComparing(e -> e.path().getFileName().toString()))
+                .thenComparing(
+                    e -> e.path().getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
         .toList();
   }
 

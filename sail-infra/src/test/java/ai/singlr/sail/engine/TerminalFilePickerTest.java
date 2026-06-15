@@ -44,7 +44,7 @@ class TerminalFilePickerTest {
 
   @Test
   void checkingAFileThenConfirmingReturnsIt() throws IOException {
-    var result = picker(' ', 's').drive();
+    var result = picker(27, '[', 'B', ' ', 's').drive();
     assertTrue(result.isPresent());
     assertEquals(List.of(ROOT.resolve("a.txt")), List.copyOf(result.orElseThrow()));
   }
@@ -61,7 +61,7 @@ class TerminalFilePickerTest {
 
   @Test
   void arrowsNavigateIntoAFolderAndBackOut() throws IOException {
-    var result = picker(27, '[', 'B', 27, '[', 'C', ' ', 27, '[', 'D', 's').drive();
+    var result = picker(27, '[', 'C', ' ', 27, '[', 'D', 's').drive();
     assertTrue(result.isPresent());
     assertEquals(List.of(ROOT.resolve("src/b.txt")), List.copyOf(result.orElseThrow()));
   }
@@ -83,6 +83,14 @@ class TerminalFilePickerTest {
   @Test
   void notAvailableWithoutAnInteractiveConsole() {
     assertFalse(TerminalFilePicker.isAvailable());
+  }
+
+  @Test
+  void fitTruncatesOverlongLinesToTheTerminalWidth() {
+    assertEquals("short", TerminalFilePicker.fit("short", 80));
+    var fitted = TerminalFilePicker.fit("x".repeat(120), 40);
+    assertEquals(40, fitted.length());
+    assertTrue(fitted.endsWith("…"));
   }
 
   private record MapSource(Map<Path, List<FilePicker.Entry>> tree) implements FileSource {
