@@ -148,7 +148,8 @@ public final class ProjectFilesCommand implements Runnable {
                     + path
                     + "|@ on @|bold "
                     + project
-                    + "|@. Run @|bold sail sync|@ to propagate."));
+                    + "|@."
+                    + propagationSuffix()));
       }
       return 0;
     }
@@ -258,7 +259,8 @@ public final class ProjectFilesCommand implements Runnable {
                   + shared
                   + "|@ file(s) on @|bold "
                   + project
-                  + "|@. Run @|bold sail sync|@ to propagate."));
+                  + "|@."
+                  + propagationSuffix()));
       return 0;
     }
 
@@ -411,9 +413,7 @@ public final class ProjectFilesCommand implements Runnable {
       }
       System.out.println(
           Ansi.AUTO.string(
-              "  @|green ✓|@ Stopped sharing @|bold "
-                  + path
-                  + "|@. Run @|bold sail sync|@ to propagate."));
+              "  @|green ✓|@ Stopped sharing @|bold " + path + "|@." + propagationSuffix()));
       return 0;
     }
 
@@ -491,5 +491,11 @@ public final class ProjectFilesCommand implements Runnable {
 
   private static int decodedSize(String base64) {
     return Base64.getDecoder().decode(base64).length;
+  }
+
+  /** A leading-space propagation hint, or empty on a standalone box where sync does not apply. */
+  static String propagationSuffix() {
+    var hint = HostSync.propagationHint(HostSync.config());
+    return hint.isEmpty() ? "" : " " + hint;
   }
 }

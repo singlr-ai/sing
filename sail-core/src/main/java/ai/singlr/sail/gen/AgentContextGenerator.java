@@ -439,78 +439,45 @@ public final class AgentContextGenerator {
         """;
   }
 
-  /** Appends the spec-driven development section when a specs directory is configured. */
+  /** Appends the spec-driven development section when specs are enabled for the project. */
   private static void appendSpecSection(StringBuilder sb, SailYaml config) {
     if (config.agent() == null || config.agent().specsDir() == null) {
       return;
     }
-    var specsDir = "~/workspace/" + config.agent().specsDir();
     sb.append("\n## Spec-Driven Development\n\n");
-    sb.append("This project uses spec-driven development. ");
-    sb.append("Specs live in `").append(specsDir).append("/` (absolute path — ");
-    sb.append("not inside any repo).\n");
     sb.append(
         """
+        This project uses spec-driven development. Specs live in the **Sail database** — the shared,
+        synced source of truth — and you manage them with the `sail spec` CLI, never by editing
+        files. What you create syncs to every devbox on the project.
 
-        ### Directory Structure
-        ```
-        %s/
-        ├── oauth-flow/
-        │   ├── spec.yaml        # Metadata: id, title, status, assignee, depends_on, repo/repos, agent, branch
-        │   ├── spec.md          # Detailed specification
-        │   └── plan.md          # Optional implementation plan
-        └── search-api/
-            ├── spec.yaml
-            └── spec.md
-        ```
+        ### Working with specs
+        - `sail spec board` — kanban summary; `sail spec list [--status pending] [--assignee me]`
+        - `sail spec show <id>` — metadata, dependencies, and the full body
+        - `sail spec create --id <id> --title "<title>" --body-file <file>` — create one; add
+          `--depends-on a,b`, `--repos api,web`, `--agent codex|claude-code`, `--model <id>`,
+          `--reasoning-effort none|low|medium|high|xhigh` as the work warrants
+        - `sail spec edit <id> --status <status>` — change metadata;
+          `sail spec content <id> --set --body-file <file>` — revise the body
 
-        **Important:** Specs are managed separately from source repos. Never create a `specs/`
-        directory inside a repo. Always use the absolute path `%1$s/` for all spec operations.
-
-        ### spec.yaml Format
-        ```yaml
-        id: oauth-flow
-        title: OAuth 2.0 authorization code flow
-        status: in_progress
-        assignee: claude-code
-        depends_on: []
-        repo: app
-        agent: codex
-        model: gpt-5.5
-        reasoning_effort: high
-        branch: feat/oauth-flow
-        ```
-
-        Use `repo: <path>` for a single target repository and `repos: [api, web]` for cross-repo
-        work. The values must match `repos[].path` in `sail.yaml`. If a multi-repository
-        project omits repo targeting, `sail spec dispatch` will not auto-create a branch.
-
-        Use `agent: codex` or `agent: claude-code` when a spec should run on a specific
-        installed agent. If omitted, `sail spec dispatch` uses `agent.type` from `sail.yaml`.
-
-        Use `model` and `reasoning_effort` when the selected agent supports those controls. Codex
-        supports both; unsupported combinations fail during dispatch instead of silently falling
-        back.
+        Repo, agent, and model values must match `sail.yaml` (`repos[].path`, installed agents). In
+        a multi-repo project, set `--repos` before dispatch or `sail spec dispatch` will not
+        auto-create a branch.
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
-        Spec status is managed by `sail`, not by you. Do not modify spec status directly during autonomous execution.
-
-        ### Interactive Mode
-        When the engineer asks you to brainstorm or write a spec:
-        1. Create a directory under `%1$s/` named after the spec id
-        2. Write `%1$s/<id>/spec.yaml` with metadata, repo targeting, and status `pending`
-        3. Write `%1$s/<id>/spec.md` with the detailed specification
+        Status is managed by `sail`, not by you. Do not change a spec's status during autonomous
+        execution.
 
         ### Dependencies
-        The `depends_on` field lists spec ids that must be `done` before this spec can start.
-        Never start a spec whose dependencies are not all `done`.
+        `--depends-on` lists spec ids that must be `done` before a spec can start. Never start a
+        spec whose dependencies are not all `done`; `sail spec dispatch` enforces this when it picks
+        the next ready spec.
 
-        ### Assignee Filtering
-        Only pick up specs where `assignee` matches your agent type.
-        Leave unassigned specs (`assignee: null`) for the engineer to assign.
-        """
-            .formatted(specsDir));
+        ### Interactive Mode
+        When the engineer asks you to brainstorm or write specs, draft each body to a temporary
+        markdown file and run `sail spec create ...`. There is no `specs/` directory to edit.
+        """);
   }
 
   /** Appends the autonomous operation section when guardrails or a task file are configured. */

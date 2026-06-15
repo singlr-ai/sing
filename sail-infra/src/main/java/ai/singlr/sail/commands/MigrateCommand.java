@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import ai.singlr.sail.common.Strings;
+import ai.singlr.sail.config.SyncConfig;
 import ai.singlr.sail.engine.AuthorizedKeysSync;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerSpecImporter;
@@ -96,7 +97,12 @@ public final class MigrateCommand implements Runnable {
       var animate = !jsonOutput && System.console() != null;
       var runs =
           applyMigrations(
-              db, dbPath.toString(), importer::importAll, prompter, animate, jsonOutput);
+              db,
+              dbPath.toString(),
+              specImportStep(importer, dbPath.resolveSibling("spec-import.done")),
+              prompter,
+              animate,
+              jsonOutput);
       importProjects(db, jsonOutput);
       importFiles(db, jsonOutput);
       relocateHostConfig(jsonOutput);
@@ -215,6 +221,38 @@ public final class MigrateCommand implements Runnable {
           dbPath, result.schemaBefore(), result.schemaAfter(), importReport, result.dataRuns());
     }
     return result.dataRuns();
+  }
+
+  /**
+   * Gates the container spec scan: it runs only on a standalone box that has not run it before. A
+   * main or node never scans — its specs arrive over sync (node) or are authored in its own DB
+   * (main) — and the {@code spec-import.done} marker makes even a standalone box a one-time
+   * backfill, not a per-upgrade re-probe. The DB is the source of truth; this only rescues pre-DB
+   * file specs.
+   */
+  static Supplier<ContainerSpecImporter.Report> specImportStep(
+      ContainerSpecImporter importer, Path marker) {
+    return specImportStep(importer, marker, HostSync.config());
+  }
+
+  static Supplier<ContainerSpecImporter.Report> specImportStep(
+      ContainerSpecImporter importer, Path marker, SyncConfig sync) {
+    if (!HostSync.isStandalone(sync) || Files.exists(marker)) {
+      return ContainerSpecImporter.Report::empty;
+    }
+    return () -> {
+      var report = importer.importAll();
+      markImportDone(marker);
+      return report;
+    };
+  }
+
+  private static void markImportDone(Path marker) {
+    try {
+      Files.writeString(marker, "done");
+    } catch (Exception ignored) {
+      return;
+    }
   }
 
   private static <T> T phase(boolean animate, String message, Supplier<T> work) {

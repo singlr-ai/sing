@@ -1200,16 +1200,15 @@ class AgentContextGeneratorTest {
     var md = AgentContextGenerator.generateClaudeMd(config);
 
     assertTrue(md.contains("## Spec-Driven Development"));
-    assertTrue(md.contains("specs/"));
-    assertTrue(md.contains("spec.yaml"));
-    assertTrue(md.contains("spec.md"));
+    assertTrue(md.contains("Sail database"));
+    assertTrue(md.contains("sail spec create"));
+    assertTrue(md.contains("sail spec board"));
     assertTrue(md.contains("Status Lifecycle"));
     assertTrue(md.contains("pending"));
     assertTrue(md.contains("in_progress"));
-    assertTrue(md.contains("depends_on"));
-    assertTrue(md.contains("Assignee Filtering"));
+    assertTrue(md.contains("depends-on"));
     assertTrue(md.contains("Interactive Mode"));
-    assertTrue(md.contains("not inside any repo"));
+    assertFalse(md.contains("spec.yaml"), "specs are DB rows, not files");
   }
 
   @Test

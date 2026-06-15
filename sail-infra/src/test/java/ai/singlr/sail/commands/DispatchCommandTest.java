@@ -15,6 +15,9 @@ import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.AgentTaskPrompt;
+import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.SpecStore;
+import ai.singlr.sail.store.Sqlite;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -264,5 +267,40 @@ class DispatchCommandTest {
         DispatchCommand.branchRepoDir("/home/dev/workspace", List.of(sing, chorus), chorus);
 
     assertEquals("/home/dev/workspace/chorus", repoDir);
+  }
+
+  @TempDir Path dbDir;
+
+  @Test
+  void projectSpecsOnlyReturnsTheRequestedBucket() {
+    var db = Sqlite.open(dbDir.resolve("sail.db"));
+    new SchemaManager(db).migrate();
+    var store = new SpecStore(db);
+    store.create(row("mine", "acme", SpecStatus.PENDING));
+    store.create(row("other", "zenith", SpecStatus.PENDING));
+
+    var specs = DispatchCommand.projectSpecs(store, "acme");
+
+    assertEquals(List.of("mine"), specs.stream().map(Spec::id).toList());
+  }
+
+  private static SpecStore.SpecRow row(String id, String project, SpecStatus status) {
+    return new SpecStore.SpecRow(
+        id,
+        project,
+        id + " title",
+        status,
+        null,
+        null,
+        null,
+        null,
+        null,
+        0,
+        "me",
+        null,
+        null,
+        "me",
+        List.of(),
+        List.of());
   }
 }

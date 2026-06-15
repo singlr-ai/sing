@@ -8,7 +8,6 @@ package ai.singlr.sail.commands;
 import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.SailEventPublisher;
 import ai.singlr.sail.common.Strings;
-import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SyncConfig;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
@@ -28,7 +27,6 @@ import ai.singlr.sail.sync.SpecReplica;
 import ai.singlr.sail.sync.SyncEngine;
 import ai.singlr.sail.sync.SyncSession;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -88,13 +86,12 @@ public final class SyncCommand implements Callable<Integer> {
           Banner.errorLine("--interval must be a positive number of seconds.", Ansi.AUTO));
       return 1;
     }
-    String target;
-    try {
-      target = resolveMain(main, hostSync());
-    } catch (IllegalStateException e) {
-      System.err.println(Banner.errorLine(e.getMessage(), Ansi.AUTO));
-      return 1;
+    var resolution = resolveMain(main, HostSync.config());
+    if (resolution.target() == null) {
+      System.out.println(Ansi.AUTO.string("  @|faint " + resolution.message() + "|@"));
+      return 0;
     }
+    var target = resolution.target();
     try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
       var host = HostInfo.hostname();
       var changeLog = new ChangeLog(db);
@@ -113,36 +110,27 @@ public final class SyncCommand implements Callable<Integer> {
 
   private record Boxes(SpecReplica spec, FileReplica file, FdeStore fdes, FileStore files) {}
 
-  /** The main target: the {@code --main} flag if given, else the configured one. */
-  static String resolveMain(String flag, SyncConfig sync) {
+  /**
+   * Where this box syncs to. A non-null {@link MainTarget#target()} means reconcile against it; a
+   * null target with a {@link MainTarget#message()} means there is nothing to sync — a single box,
+   * or the main hub itself — which the caller reports as friendly info, not an error.
+   */
+  record MainTarget(String target, String message) {}
+
+  static MainTarget resolveMain(String flag, SyncConfig sync) {
     if (Strings.isNotBlank(flag)) {
-      return flag;
+      return new MainTarget(flag, null);
+    }
+    if (Strings.isNotBlank(sync.main())) {
+      return new MainTarget(sync.main(), null);
     }
     if (sync.isMain()) {
-      return throwUnresolved("This box is the main devbox; it has nothing to sync to.");
+      return new MainTarget(
+          null, "This box is the main devbox — other boxes sync to it; it has nothing to sync to.");
     }
-    if (sync.main() != null) {
-      return sync.main();
-    }
-    return throwUnresolved(
-        "No main devbox configured. Set one with: sudo sail host sync --main <user@host>,"
-            + " or pass --main.");
-  }
-
-  private static String throwUnresolved(String message) {
-    throw new IllegalStateException(message);
-  }
-
-  private static SyncConfig hostSync() {
-    var path = SailPaths.hostConfigPath();
-    if (!Files.exists(path)) {
-      return SyncConfig.unset();
-    }
-    try {
-      return HostYaml.fromMap(YamlUtil.parseFile(path)).sync();
-    } catch (IOException e) {
-      return SyncConfig.unset();
-    }
+    return new MainTarget(
+        null,
+        "Single devbox — nothing to sync. Add a second box with: sail host sync --main <user@host>.");
   }
 
   private int runOnce(Boxes boxes, String target) throws Exception {
