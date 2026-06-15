@@ -18,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 class FilePickerTest {
 
   @TempDir Path root;
+  private final FileSource source = new HostFileSource();
 
   @BeforeEach
   void tree() throws Exception {
@@ -35,26 +36,28 @@ class FilePickerTest {
 
   @Test
   void listsFoldersFirstThenFilesAlphabetical() throws Exception {
-    var names = FilePicker.list(root).stream().map(e -> e.path().getFileName().toString()).toList();
+    var names =
+        FilePicker.list(source, root).stream().map(e -> e.path().getFileName().toString()).toList();
     assertEquals(java.util.List.of("scripts", "src", "README.md"), names);
   }
 
   @Test
   void aLoneDirectoryNumberDescendsAndDotDotReturns() throws Exception {
     var s0 = start();
-    var entries = FilePicker.list(s0.cwd());
+    var entries = FilePicker.list(source, s0.cwd());
 
     var descended = FilePicker.step(s0, entries, "2");
     assertEquals(FilePicker.Status.BROWSING, descended.status());
     assertEquals(root.resolve("src"), descended.state().cwd());
 
-    var up = FilePicker.step(descended.state(), FilePicker.list(descended.state().cwd()), "..");
+    var up =
+        FilePicker.step(descended.state(), FilePicker.list(source, descended.state().cwd()), "..");
     assertEquals(root, up.state().cwd());
   }
 
   @Test
   void dotDotIsFencedAtTheRoot() throws Exception {
-    var step = FilePicker.step(start(), FilePicker.list(root), "..");
+    var step = FilePicker.step(start(), FilePicker.list(source, root), "..");
     assertEquals(root, step.state().cwd());
     assertTrue(step.message().contains("top"));
   }
@@ -62,7 +65,7 @@ class FilePickerTest {
   @Test
   void numbersToggleFilesOnAndOff() throws Exception {
     var s0 = start();
-    var entries = FilePicker.list(s0.cwd());
+    var entries = FilePicker.list(source, s0.cwd());
 
     var picked = FilePicker.step(s0, entries, "3");
     assertTrue(picked.state().picked().contains(root.resolve("README.md")));
@@ -73,8 +76,8 @@ class FilePickerTest {
 
   @Test
   void aSelectsTheWholeCurrentFolder() throws Exception {
-    var inSrc = FilePicker.step(start(), FilePicker.list(root), "2").state();
-    var step = FilePicker.step(inSrc, FilePicker.list(inSrc.cwd()), "a");
+    var inSrc = FilePicker.step(start(), FilePicker.list(source, root), "2").state();
+    var step = FilePicker.step(inSrc, FilePicker.list(source, inSrc.cwd()), "a");
     assertTrue(step.state().picked().contains(root.resolve("src")));
   }
 
@@ -85,7 +88,7 @@ class FilePickerTest {
     picked.add(root.resolve("README.md"));
     var state = new FilePicker.State(root, root, picked);
 
-    var files = FilePicker.selectedFiles(state);
+    var files = FilePicker.selectedFiles(source, state);
 
     assertEquals(
         java.util.List.of(
@@ -97,7 +100,7 @@ class FilePickerTest {
 
   @Test
   void doneConfirmsAndQuitCancels() throws Exception {
-    var entries = FilePicker.list(root);
+    var entries = FilePicker.list(source, root);
     assertEquals(FilePicker.Status.CONFIRMED, FilePicker.step(start(), entries, "done").status());
     assertEquals(FilePicker.Status.CONFIRMED, FilePicker.step(start(), entries, "d").status());
     assertEquals(FilePicker.Status.CANCELLED, FilePicker.step(start(), entries, "q").status());
@@ -105,7 +108,7 @@ class FilePickerTest {
 
   @Test
   void unknownChoiceIsRejectedWithoutChangingState() throws Exception {
-    var entries = FilePicker.list(root);
+    var entries = FilePicker.list(source, root);
     var step = FilePicker.step(start(), entries, "99");
     assertEquals(FilePicker.Status.BROWSING, step.status());
     assertTrue(step.state().picked().isEmpty());
@@ -114,7 +117,7 @@ class FilePickerTest {
 
   @Test
   void emptyInputJustRedraws() throws Exception {
-    var step = FilePicker.step(start(), FilePicker.list(root), "  ");
+    var step = FilePicker.step(start(), FilePicker.list(source, root), "  ");
     assertEquals(FilePicker.Status.BROWSING, step.status());
   }
 
@@ -125,7 +128,8 @@ class FilePickerTest {
     Files.writeString(root.resolve("node_modules/pkg/index.js"), "junk");
     Files.writeString(root.resolve(".git/config"), "[core]");
 
-    var names = FilePicker.list(root).stream().map(e -> e.path().getFileName().toString()).toList();
+    var names =
+        FilePicker.list(source, root).stream().map(e -> e.path().getFileName().toString()).toList();
 
     assertFalse(names.contains("node_modules"));
     assertFalse(names.contains(".git"));
@@ -139,7 +143,7 @@ class FilePickerTest {
     var picked = new java.util.LinkedHashSet<Path>();
     picked.add(root);
 
-    var files = FilePicker.selectedFiles(new FilePicker.State(root, root, picked));
+    var files = FilePicker.selectedFiles(source, new FilePicker.State(root, root, picked));
 
     assertTrue(files.contains(root.resolve("README.md")));
     assertFalse(
@@ -162,7 +166,7 @@ class FilePickerTest {
     var picked = new java.util.LinkedHashSet<Path>();
     picked.add(root.resolve("README.md"));
     var rendered =
-        FilePicker.render(new FilePicker.State(root, root, picked), FilePicker.list(root));
+        FilePicker.render(new FilePicker.State(root, root, picked), FilePicker.list(source, root));
 
     assertTrue(rendered.contains("[1] scripts/"));
     assertTrue(rendered.contains("[3] README.md"));

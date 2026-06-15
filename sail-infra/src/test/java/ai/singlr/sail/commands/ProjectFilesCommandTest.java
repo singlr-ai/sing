@@ -74,7 +74,9 @@ class ProjectFilesCommandTest {
     var source = tempDir.resolve("deploy.sh");
     Files.writeString(source, "echo hi");
 
-    var path = ProjectFilesCommand.Add.store(files, "acme", source, "scripts/deploy.sh");
+    var path =
+        ProjectFilesCommand.Add.store(
+            files, "acme", "scripts/deploy.sh", Files.readAllBytes(source));
     new FileMaterializer(files, projectsDir).materialize("acme");
 
     assertEquals("scripts/deploy.sh", path);
@@ -87,7 +89,8 @@ class ProjectFilesCommandTest {
     var source = tempDir.resolve("notes.md");
     Files.writeString(source, "hello");
 
-    var path = ProjectFilesCommand.Add.store(files, "acme", source, "docs/notes.md");
+    var path =
+        ProjectFilesCommand.Add.store(files, "acme", "docs/notes.md", Files.readAllBytes(source));
 
     assertEquals("docs/notes.md", path);
     assertTrue(files.find("acme", "docs/notes.md").isPresent());
@@ -95,38 +98,40 @@ class ProjectFilesCommandTest {
 
   @Test
   void addRejectsAPathThatEscapesTheProject() throws Exception {
-    var source = tempDir.resolve("evil");
-    Files.writeString(source, "x");
-
     assertThrows(
         IllegalArgumentException.class,
-        () -> ProjectFilesCommand.Add.store(files, "acme", source, "../escape"));
+        () -> ProjectFilesCommand.Add.store(files, "acme", "../escape", "x".getBytes()));
   }
 
   @Test
   void shareProblemAcceptsRealFilesAndFlagsTheRest() throws Exception {
+    var host = new ai.singlr.sail.engine.HostFileSource();
     var ok = tempDir.resolve("ok.txt");
     Files.writeString(ok, "hi");
-    assertNull(ProjectFilesCommand.Add.shareProblem(ok, "ok.txt"));
+    assertNull(ProjectFilesCommand.Add.shareProblem(host, ok, "ok.txt"));
 
-    assertEquals("unsafe path", ProjectFilesCommand.Add.shareProblem(ok, "../escape"));
-    assertEquals("not a regular file", ProjectFilesCommand.Add.shareProblem(tempDir, "dir"));
+    assertEquals("unsafe path", ProjectFilesCommand.Add.shareProblem(host, ok, "../escape"));
     assertEquals(
-        "not a regular file",
-        ProjectFilesCommand.Add.shareProblem(tempDir.resolve("gone"), "gone"));
+        "unreadable", ProjectFilesCommand.Add.shareProblem(host, tempDir.resolve("gone"), "gone"));
   }
 
   @Test
   void shareProblemRejectsAnOversizedFile() throws Exception {
+    var host = new ai.singlr.sail.engine.HostFileSource();
     var big = tempDir.resolve("big.bin");
     try (var raf = new java.io.RandomAccessFile(big.toFile(), "rw")) {
       raf.setLength(ProjectFilesCommand.Add.MAX_SHARE_BYTES + 1);
     }
 
-    assertTrue(ProjectFilesCommand.Add.shareProblem(big, "big.bin").contains("larger than"));
+    assertTrue(ProjectFilesCommand.Add.shareProblem(host, big, "big.bin").contains("larger than"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> ProjectFilesCommand.Add.store(files, "acme", big, "big.bin"));
+        () ->
+            ProjectFilesCommand.Add.store(
+                files,
+                "acme",
+                "big.bin",
+                new byte[(int) ProjectFilesCommand.Add.MAX_SHARE_BYTES + 1]));
   }
 
   @Test
@@ -168,7 +173,7 @@ class ProjectFilesCommandTest {
   void rmTombstonesAndRemovesTheLocalCopy() throws Exception {
     var source = tempDir.resolve("a.txt");
     Files.writeString(source, "data");
-    ProjectFilesCommand.Add.store(files, "acme", source, "a.txt");
+    ProjectFilesCommand.Add.store(files, "acme", "a.txt", Files.readAllBytes(source));
     new FileMaterializer(files, projectsDir).materialize("acme");
     assertTrue(Files.exists(filesDir("acme").resolve("a.txt")));
 
