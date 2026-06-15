@@ -6,17 +6,12 @@
 package ai.singlr.sail.engine;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Pure navigation engine for the interactive "pick files to share" prompt. It holds no I/O: the
@@ -79,35 +74,19 @@ public final class FilePicker {
   /** The outcome of applying one line of input: the next state, the status, and a message. */
   public record Step(State state, Status status, String message) {}
 
-  /** Lists a directory: sub-folders first, then files, each alphabetical; junk folders hidden. */
-  public static List<Entry> list(Path dir) throws IOException {
-    try (Stream<Path> entries = Files.list(dir)) {
-      return entries
-          .filter(p -> !isIgnoredDir(p))
-          .map(FilePicker::toEntry)
-          .sorted(
-              Comparator.comparing(Entry::directory)
-                  .reversed()
-                  .thenComparing(e -> e.path().getFileName().toString()))
-          .toList();
-    }
+  /** Lists a directory from {@code source}: sub-folders first, then files; junk folders hidden. */
+  public static List<Entry> list(FileSource source, Path dir) throws IOException {
+    return source.children(dir).stream()
+        .filter(e -> !isIgnoredDir(e))
+        .sorted(
+            Comparator.comparing(Entry::directory)
+                .reversed()
+                .thenComparing(e -> e.path().getFileName().toString()))
+        .toList();
   }
 
-  private static boolean isIgnoredDir(Path p) {
-    return Files.isDirectory(p) && IGNORED_DIRS.contains(p.getFileName().toString());
-  }
-
-  private static Entry toEntry(Path p) {
-    var dir = Files.isDirectory(p);
-    long size = 0;
-    if (!dir) {
-      try {
-        size = Files.size(p);
-      } catch (IOException ignored) {
-        size = 0;
-      }
-    }
-    return new Entry(p, dir, size);
+  private static boolean isIgnoredDir(Entry e) {
+    return e.directory() && IGNORED_DIRS.contains(e.path().getFileName().toString());
   }
 
   /**
@@ -206,47 +185,20 @@ public final class FilePicker {
   }
 
   /**
-   * Expands the picked set to concrete regular files, de-duplicated and sorted. A picked folder is
-   * walked recursively, skipping {@link #IGNORED_DIRS} and tolerating unreadable subtrees (skipped,
-   * never fatal) so one permission error cannot abort a whole selection.
+   * Expands the picked set to concrete regular files from {@code source}, de-duplicated and sorted.
+   * A picked folder is walked recursively (junk pruned, unreadable subtrees tolerated by the
+   * source); a picked file is taken as-is.
    */
-  public static List<Path> selectedFiles(State state) throws IOException {
+  public static List<Path> selectedFiles(FileSource source, State state) throws IOException {
     var files = new LinkedHashSet<Path>();
     for (var picked : state.picked()) {
-      if (Files.isDirectory(picked)) {
-        Files.walkFileTree(picked, new CollectingVisitor(files));
-      } else if (Files.isRegularFile(picked)) {
+      if (source.isDirectory(picked)) {
+        files.addAll(source.walkFiles(picked));
+      } else {
         files.add(picked);
       }
     }
     return files.stream().sorted().toList();
-  }
-
-  private record CollectingVisitor(Set<Path> files) implements FileVisitor<Path> {
-    @Override
-    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-      return IGNORED_DIRS.contains(dir.getFileName().toString())
-          ? FileVisitResult.SKIP_SUBTREE
-          : FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-      if (attrs.isRegularFile()) {
-        files.add(file);
-      }
-      return FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult visitFileFailed(Path file, IOException exc) {
-      return FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
-      return FileVisitResult.CONTINUE;
-    }
   }
 
   /**
