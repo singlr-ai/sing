@@ -180,7 +180,7 @@ public final class FilePicker {
     return out.toString();
   }
 
-  private static String humanSize(long bytes) {
+  static String humanSize(long bytes) {
     if (bytes < 1024) {
       return bytes + " B";
     }
