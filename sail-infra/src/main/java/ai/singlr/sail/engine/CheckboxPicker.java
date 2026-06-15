@@ -151,26 +151,56 @@ public final class CheckboxPicker {
     return new Move(s, Outcome.BROWSING, null);
   }
 
-  /** Renders the screen as display lines: a header, the checkbox rows, and the key legend. */
-  public static List<String> render(Screen s) {
+  /**
+   * Renders the screen to at most {@code terminalRows} display lines: a header, a scrolling window
+   * of checkbox rows that always keeps the cursor visible, and the key legend. Capping to the
+   * terminal height is what keeps the in-place redraw honest — a listing taller than the screen
+   * would scroll the terminal and strand the cursor off-screen, which is exactly what makes the
+   * arrows feel dead.
+   */
+  public static List<String> render(Screen s, int terminalRows) {
     var here = s.root().relativize(s.cwd()).toString();
+    var total = s.entries().size();
+    var listRows = Math.max(1, terminalRows - 2);
+    var offset = scrollOffset(s.cursor(), total, listRows);
+    var end = Math.min(offset + listRows, total);
+
     var lines = new ArrayList<String>();
-    lines.add("  " + (here.isEmpty() ? "." : here) + "  —  check files to share");
-    if (s.entries().isEmpty()) {
+    var position = total == 0 ? "0/0" : (s.cursor() + 1) + "/" + total;
+    lines.add(
+        "  " + (here.isEmpty() ? "." : here) + "  —  check files to share   (" + position + ")");
+    if (total == 0) {
       lines.add("    (empty folder)");
     }
-    for (var i = 0; i < s.entries().size(); i++) {
-      var e = s.entries().get(i);
-      var pointer = i == s.cursor() ? "›" : " ";
-      var box = s.picked().contains(e.path()) ? "[x]" : "[ ]";
-      var name = e.path().getFileName() + (e.directory() ? "/" : "");
-      var detail = e.directory() ? "" : "  " + FilePicker.humanSize(e.size());
-      lines.add(String.format("  %s %s %-28s%s", pointer, box, name, detail));
+    for (var i = offset; i < end; i++) {
+      lines.add(row(s, i));
     }
-    lines.add(
-        "  ↑↓ move · space check · → open · ← up · a all · enter/s share · q quit  ("
-            + s.picked().size()
-            + " checked)");
+    lines.add(legend(s.picked().size(), offset > 0, end < total));
     return lines;
+  }
+
+  static int scrollOffset(int cursor, int total, int listRows) {
+    if (total <= listRows) {
+      return 0;
+    }
+    var centered = cursor - listRows / 2;
+    return Math.max(0, Math.min(centered, total - listRows));
+  }
+
+  private static String row(Screen s, int i) {
+    var e = s.entries().get(i);
+    var pointer = i == s.cursor() ? "›" : " ";
+    var box = s.picked().contains(e.path()) ? "[x]" : "[ ]";
+    var name = e.path().getFileName() + (e.directory() ? "/" : "");
+    var detail = e.directory() ? "" : "  " + FilePicker.humanSize(e.size());
+    return String.format("  %s %s %-28s%s", pointer, box, name, detail);
+  }
+
+  private static String legend(int checked, boolean moreAbove, boolean moreBelow) {
+    var scroll = (moreAbove ? "↑" : " ") + (moreBelow ? "↓" : " ");
+    return "  ↑↓ move · space check · → open · ← up · a all · enter/s share · q quit  ("
+        + checked
+        + " checked) "
+        + scroll;
   }
 }

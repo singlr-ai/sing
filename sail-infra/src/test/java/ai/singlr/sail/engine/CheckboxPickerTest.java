@@ -122,10 +122,11 @@ class CheckboxPickerTest {
   @Test
   void renderShowsCursorCheckboxesCountAndLegend() {
     var checked = CheckboxPicker.apply(screen(), CheckboxPicker.Key.TOGGLE).screen();
-    var lines = CheckboxPicker.render(checked);
+    var lines = CheckboxPicker.render(checked, 24);
     var text = String.join("\n", lines);
 
     assertTrue(text.contains("check files to share"));
+    assertTrue(text.contains("(1/2)"), "shows cursor position");
     assertTrue(text.contains("[x] a.txt"));
     assertTrue(text.contains("[ ] src/"));
     assertTrue(lines.get(1).contains("›"), "cursor points at the first row");
@@ -136,6 +137,33 @@ class CheckboxPickerTest {
   @Test
   void renderMarksAnEmptyFolder() {
     var empty = CheckboxPicker.Screen.of(ROOT, ROOT, List.of(), new LinkedHashSet<>());
-    assertTrue(String.join("\n", CheckboxPicker.render(empty)).contains("(empty folder)"));
+    assertTrue(String.join("\n", CheckboxPicker.render(empty, 24)).contains("(empty folder)"));
+  }
+
+  @Test
+  void renderNeverExceedsTheTerminalHeightAndWindowsAroundTheCursor() {
+    var entries = new java.util.ArrayList<FilePicker.Entry>();
+    for (var i = 0; i < 100; i++) {
+      entries.add(new FilePicker.Entry(ROOT.resolve("f" + i + ".txt"), false, i));
+    }
+    var deep =
+        new CheckboxPicker.Screen(ROOT, ROOT, List.copyOf(entries), 60, new LinkedHashSet<>());
+
+    var lines = CheckboxPicker.render(deep, 12);
+
+    assertTrue(lines.size() <= 12, "fits the terminal: " + lines.size());
+    var text = String.join("\n", lines);
+    assertTrue(text.contains("› [ ] f60.txt"), "the cursor row is visible");
+    assertFalse(text.contains("f0.txt"), "rows above the window are not drawn");
+    assertTrue(text.contains("(61/100)"));
+  }
+
+  @Test
+  void scrollOffsetKeepsTheCursorInViewAtBothEnds() {
+    assertEquals(0, CheckboxPicker.scrollOffset(0, 100, 10));
+    assertEquals(0, CheckboxPicker.scrollOffset(3, 100, 10));
+    assertEquals(90, CheckboxPicker.scrollOffset(99, 100, 10));
+    assertEquals(0, CheckboxPicker.scrollOffset(5, 8, 10), "no scroll when it all fits");
+    assertEquals(45, CheckboxPicker.scrollOffset(50, 100, 10), "centers mid-list");
   }
 }
