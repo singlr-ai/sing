@@ -10,12 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Generates spec management skills for AI coding agents. When {@code agent.specs_dir} is
- * configured, produces agent-native skill files that teach the agent to create, list, update, and
- * display specs without manual YAML editing.
+ * Generates the spec-board skill for AI coding agents. Specs live in the Sail database — the
+ * shared, synced source of truth — so the skill teaches the agent to manage them through the {@code
+ * sail spec} CLI ({@code create}/{@code list}/{@code board}/{@code show}/{@code edit}), never by
+ * editing YAML files on disk. The CLI reaches the control-plane API over the socket already mounted
+ * in the container, so what the agent creates here syncs to every other box.
  *
  * <ul>
- *   <li>Claude Code: {@code .claude/skills/spec-board/SKILL.md} + supporting files
+ *   <li>Claude Code: {@code .claude/skills/spec-board/SKILL.md} + a spec body template
  *   <li>Codex: instructions embedded in {@code AGENTS.md} via {@link #codexInstructions}
  * </ul>
  */
@@ -24,22 +26,23 @@ public final class SpecSkillGenerator {
   private SpecSkillGenerator() {}
 
   /**
-   * Generates spec skill files for the given agent when specs are configured.
+   * Generates spec skill files for the given agent when specs are enabled for the project.
    *
    * @param agent the target agent type
-   * @param specsDir the specs directory name (e.g., "specs")
+   * @param specsDir the configured specs directory name; when {@code null}, specs are disabled and
+   *     no skill is generated. (Retained as the project's "uses specs" switch even though specs are
+   *     now stored in the database rather than this directory.)
    * @param basePath the workspace base path (e.g., {@code /home/dev/workspace/})
-   * @return generated files, empty if agent is Codex (uses inline instructions instead)
+   * @return generated files, empty if specs are disabled or the agent is Codex (inline
+   *     instructions)
    */
   public static List<GeneratedFile> generateFiles(
       AgentCli agent, String specsDir, String basePath) {
     if (specsDir == null) {
       return List.of();
     }
-    var absSpecsDir = "~/workspace/" + specsDir;
-
     return switch (agent) {
-      case CLAUDE_CODE -> claudeSkillFiles(absSpecsDir, basePath);
+      case CLAUDE_CODE -> claudeSkillFiles(basePath);
       case CODEX -> List.of();
     };
   }
@@ -48,37 +51,35 @@ public final class SpecSkillGenerator {
    * Returns spec management instructions for Codex, which has no skill system. These are appended
    * to the generated AGENTS.md content.
    *
-   * @param specsDir the specs directory name
-   * @return markdown instructions, or empty string if specsDir is null
+   * @param specsDir the configured specs directory name; {@code null} disables specs (empty string)
+   * @return markdown instructions, or empty string when specs are disabled
    */
   public static String codexInstructions(String specsDir) {
     if (specsDir == null) {
       return "";
     }
-    var absSpecsDir = "~/workspace/" + specsDir;
     return """
 
         ## Spec Management
 
-        You are the spec manager for this project. When the engineer asks you to create, list, \
-        update, or show specs, follow these instructions exactly.
+        You are the spec manager for this project. Specs live in the Sail database, not in files. \
+        When the engineer asks you to create, list, update, or show specs, use the `sail spec` CLI \
+        exactly as described below.
 
         """
-        + coreInstructions(absSpecsDir)
+        + coreInstructions()
         + specTemplate();
   }
 
-  private static List<GeneratedFile> claudeSkillFiles(String specsDir, String basePath) {
+  private static List<GeneratedFile> claudeSkillFiles(String basePath) {
     var files = new ArrayList<GeneratedFile>();
     var skillDir = basePath + ".claude/skills/spec-board/";
-
-    files.add(new GeneratedFile(skillDir + "SKILL.md", claudeSkillMd(specsDir), false));
+    files.add(new GeneratedFile(skillDir + "SKILL.md", claudeSkillMd(), false));
     files.add(new GeneratedFile(skillDir + "spec-template.md", specTemplateMd(), false));
-
     return List.copyOf(files);
   }
 
-  private static String claudeSkillMd(String specsDir) {
+  private static String claudeSkillMd() {
     return """
         ---
         name: spec-board
@@ -89,51 +90,53 @@ public final class SpecSkillGenerator {
         disable-model-invocation: true
         ---
 
-        You are the spec manager for this project. The engineer interacts with you to plan and
-        track work instead of editing YAML by hand.
+        You are the spec manager for this project. Specs live in the Sail database — the shared,
+        synced source of truth — so you manage them with the `sail spec` CLI, never by editing
+        files. Anything you create here syncs to every other devbox on the project.
 
         ## Commands
 
         ### `/spec-board list` or "show me the board"
         """
-        + listInstructions(specsDir)
+        + listInstructions()
         + """
 
         ### `/spec-board create <id> <title>` or "create a spec for ..."
         """
-        + createInstructions(specsDir)
+        + createInstructions()
         + """
 
         ### `/spec-board show <id>` or "show me the auth spec"
         """
-        + showInstructions(specsDir)
+        + showInstructions()
         + """
 
         ### `/spec-board update <id> <status>` or "move auth to in_progress"
         """
-        + updateInstructions(specsDir)
+        + updateInstructions()
         + """
 
         ### Bulk creation — "turn these into specs" or "create specs for all of these"
         """
-        + bulkCreateInstructions(specsDir)
+        + bulkCreateInstructions()
         + """
 
         ## Reference
 
         """
-        + coreReference(specsDir)
+        + coreReference()
         + """
 
-        ## Spec Template
+        ## Spec Body Template
 
-        When creating `spec.md`, use the template in [spec-template.md](spec-template.md).
+        When writing a spec body, use the template in [spec-template.md](spec-template.md).
         """;
   }
 
-  private static String listInstructions(String specsDir) {
+  private static String listInstructions() {
     return """
-        Scan `%s/*/spec.yaml` and display specs grouped by status columns:
+        Run `sail spec board` for the kanban summary, or `sail spec list` for the full set (add
+        `--status pending` or `--assignee me` to filter). Render the result as status columns:
 
         ```
         ┌─────────────┬─────────────────┬──────────────┬──────────────┐
@@ -147,158 +150,116 @@ public final class SpecSkillGenerator {
         └─────────────┴─────────────────┴──────────────┴──────────────┘
         ```
 
-        Show the title under each id. Mark specs whose dependencies are not yet met with \
-        a lock icon or note.
-        """
-        .formatted(specsDir);
+        Show the title under each id. The board marks the next ready spec; flag specs whose \
+        dependencies are not yet done as blocked.
+        """;
   }
 
-  private static String createInstructions(String specsDir) {
+  private static String createInstructions() {
     return """
-        1. Derive an id from the title (lowercase, hyphens, e.g., "OAuth Flow" → `oauth-flow`)
-        2. Create directory `%1$s/<id>/`
-        3. Write `%1$s/<id>/spec.yaml`:
-           ```yaml
-           id: <id>
-           title: "<title>"
-           status: pending
-           depends_on: []
-           repo: <repo-path>
-           agent: <claude-code|codex>
-           model: <model-id>
-           reasoning_effort: <none|low|medium|high|xhigh>
+        1. Derive an id from the title (lowercase, hyphens, e.g., "OAuth Flow" → `oauth-flow`).
+        2. Write the spec body to a temporary markdown file using the spec template, e.g. \
+        `/tmp/<id>.md`.
+        3. Create the spec in the database:
+           ```sh
+           sail spec create --id <id> --title "<title>" --body-file /tmp/<id>.md
            ```
-        4. Write `%1$s/<id>/spec.md` using the spec template
-        5. Confirm: "Created spec `<id>` — fill in the details in `%1$s/<id>/spec.md`"
+           Add options as the conversation warrants:
+           - `--depends-on a,b` — spec ids that must be `done` first
+           - `--repos repo-a,repo-b` — target repos (must match `repos[].path` in `sail.yaml`)
+           - `--agent codex|claude-code` — overrides the project default
+           - `--model <id>` `--reasoning-effort none|low|medium|high|xhigh` — for agents that \
+        support them
+        4. Confirm: "Created spec `<id>`."
 
-        If the engineer provided detailed requirements during the conversation, fill in the \
-        spec.md with those details instead of leaving placeholders.
-
-        Ask the engineer if this spec depends on any existing specs, and set `depends_on` \
-        accordingly.
-
-        Ask which repository the spec targets when the project has multiple repos. Use \
-        `repo: <path>` for one repo and `repos: [repo-a, repo-b]` for cross-repo work. \
-        Values must match `repos[].path` in `sail.yaml`.
-
-        Ask which agent should execute the spec when the project has multiple installed agents. \
-        Use `agent: codex` or `agent: claude-code`. If omitted, Sail uses `agent.type` from \
-        `sail.yaml`.
-
-        Ask which model and reasoning effort to use when the selected agent supports them. \
-        For Codex, use `model: gpt-5.5` and `reasoning_effort: high` when the engineer wants \
-        GPT-5.5 with high reasoning.
-        """
-        .formatted(specsDir);
+        If the engineer gave detailed requirements in the conversation, write them into the body \
+        file instead of leaving placeholders. Ask which repo, agent, model, and dependencies apply \
+        when the project's configuration makes them relevant.
+        """;
   }
 
-  private static String showInstructions(String specsDir) {
+  private static String showInstructions() {
     return """
-        1. Read `%s/<id>/spec.yaml`
-        2. Read `%s/<id>/spec.md`
-        3. Display metadata, dependencies, and the full markdown content
-        """
-        .formatted(specsDir, specsDir);
+        Run `sail spec show <id>` — it prints the metadata, dependencies, and the full body. Use
+        `--json` if you need to parse fields.
+        """;
   }
 
-  private static String updateInstructions(String specsDir) {
+  private static String updateInstructions() {
     return """
-        Valid statuses: `pending`, `in_progress`, `review`, `done`
+        Valid statuses: `pending`, `in_progress`, `review`, `done`.
 
-        1. Read `%1$s/<id>/spec.yaml`
-        2. Update the `status` field
-        3. Write the updated `%1$s/<id>/spec.yaml`
-        4. Confirm: "Updated `<id>` → `<new-status>`"
-        """
-        .formatted(specsDir);
+        ```sh
+        sail spec edit <id> --status <new-status>
+        ```
+
+        Confirm: "Updated `<id>` → `<new-status>`". To revise the body, write the new markdown to a
+        temp file and run `sail spec content <id> --set --body-file /tmp/<id>.md`.
+        """;
   }
 
-  private static String bulkCreateInstructions(String specsDir) {
+  private static String bulkCreateInstructions() {
     return """
         When the engineer has brainstormed multiple features or tasks and wants to turn them \
         into specs:
 
-        1. Extract each distinct unit of work from the conversation
-        2. For each, derive an id and title
-        3. Infer dependencies from the natural ordering and relationships discussed
-        4. Create each `%s/<id>/spec.yaml` and `%s/<id>/spec.md`
-        5. Show the resulting board view
+        1. Extract each distinct unit of work from the conversation.
+        2. For each, derive an id and title and write a body file.
+        3. Infer dependencies from the natural ordering discussed and pass them via `--depends-on`.
+        4. Run one `sail spec create` per unit.
+        5. Show the resulting board with `sail spec board`.
 
         This is the primary daytime workflow: brainstorm with the engineer, then materialize \
         the plan into specs with one confirmation.
-        """
-        .formatted(specsDir, specsDir);
+        """;
   }
 
-  private static String coreReference(String specsDir) {
+  private static String coreReference() {
     return """
-        ### spec.yaml Format
-        ```yaml
-        id: oauth-flow
-        title: OAuth 2.0 authorization code flow
-        status: in_progress
-        assignee: claude-code
-        depends_on: []
-        repo: app
-        agent: codex
-        model: gpt-5.5
-        reasoning_effort: high
-        branch: feat/oauth-flow
+        ### Creating a spec
+        ```sh
+        sail spec create --id oauth-flow --title "OAuth 2.0 authorization code flow" \\
+          --body-file /tmp/oauth-flow.md --depends-on data-model --repos app --agent codex \\
+          --model gpt-5.5 --reasoning-effort high
         ```
 
         ### Status Lifecycle
         `pending` → `in_progress` → `review` → `done`
         - **pending**: ready to be picked up
-        - **in_progress**: agent is actively working on it (set by `sail spec dispatch`)
+        - **in_progress**: an agent is actively working on it (set by `sail spec dispatch`)
         - **review**: PR created, waiting for human review (set by `sail`)
-        - **done**: PR merged, work complete (set by engineer via `sail`)
-        Status is managed by `sail`, not by the agent. Do not modify status directly during autonomous execution.
+        - **done**: PR merged, work complete (set by the engineer via `sail`)
 
-        ### Important
-        Specs live at `%1$s/` — an absolute path in the workspace root, NOT inside any repo.
-        Never create a `specs/` directory inside a source repository.
+        During autonomous execution Sail manages status itself — do not change it. The engineer's
+        `/spec-board update` is the exception, when they explicitly ask to move a spec.
 
-        ### Fields
-        - **id** (required): directory name, lowercase with hyphens
+        ### Fields (set at create or via `sail spec edit`)
+        - **id** (required): stable identifier, lowercase with hyphens
         - **title** (required): short human-readable description
-        - **status** (required): one of pending, in_progress, review, done
-        - **assignee** (optional): agent type or engineer name
-        - **depends_on** (optional): list of spec ids that must be done first
-        - **repo** (optional): single target repository path from `sail.yaml` `repos[].path`
-        - **repos** (optional): list of target repository paths for cross-repo work
-        - **agent** (optional): agent CLI for this spec (`claude-code` or `codex`)
-        - **model** (optional): model id for agents that support model selection
-        - **reasoning_effort** (optional): `none`, `low`, `medium`, `high`, or `xhigh`
-        - **branch** (optional): git branch name for this spec's work
+        - **status**: one of pending, in_progress, review, done
+        - **assignee**: agent type or engineer name
+        - **depends-on**: spec ids that must be done first
+        - **repos**: target repository paths from `sail.yaml` `repos[].path`
+        - **agent**: agent CLI for this spec (`claude-code` or `codex`)
+        - **model** / **reasoning-effort**: for agents that support them
+        - **branch**: git branch name for this spec's work
 
-        In multi-repo projects, always include `repo` or `repos` before dispatch so Sail can \
-        create the branch in the right repository. If omitted, dispatch only auto-branches when \
-        the project has exactly one configured repo.
-
-        In multi-agent projects, include `agent` when a spec should run on a non-default agent. \
-        If omitted, dispatch uses `agent.type` from `sail.yaml`.
-
-        Include `model` and `reasoning_effort` only for agents that support them. Sail passes \
-        these to Codex and rejects unsupported combinations for other agents.
-
-        ### Directory Structure
-        ```
-        %s/
-        └── <spec-id>/
-            ├── spec.yaml     # Metadata
-            ├── spec.md       # Detailed specification
-            └── plan.md       # Optional implementation plan
-        ```
+        In multi-repo projects, always set `--repos` before dispatch so Sail branches the right
+        repository. In multi-agent projects, set `--agent` when a spec should run on a non-default
+        agent; otherwise dispatch uses `agent.type` from `sail.yaml`.
 
         ### Dependency Rules
-        A spec cannot be started if any of its `depends_on` specs are not `done`.
-        When listing specs, visually indicate which pending specs are blocked.
-        """
-        .formatted(specsDir, specsDir);
+        A spec cannot be started until every id in its `depends-on` is `done`. When listing specs,
+        visually indicate which pending specs are blocked.
+
+        ### Where specs live
+        Specs are rows in the Sail database, replicated across devboxes by `sail sync`. There is no
+        `specs/` directory to edit — always go through `sail spec`.
+        """;
   }
 
   private static String specTemplate() {
-    return "When creating a new `spec.md`, use this structure:\n\n```markdown\n"
+    return "When writing a spec body, use this structure:\n\n```markdown\n"
         + specTemplateMd()
         + "```\n";
   }
@@ -335,12 +296,12 @@ public final class SpecSkillGenerator {
         """;
   }
 
-  private static String coreInstructions(String specsDir) {
-    return listInstructions(specsDir)
-        + createInstructions(specsDir)
-        + showInstructions(specsDir)
-        + updateInstructions(specsDir)
-        + bulkCreateInstructions(specsDir)
-        + coreReference(specsDir);
+  private static String coreInstructions() {
+    return listInstructions()
+        + createInstructions()
+        + showInstructions()
+        + updateInstructions()
+        + bulkCreateInstructions()
+        + coreReference();
   }
 }

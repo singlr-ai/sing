@@ -11,7 +11,6 @@ import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.BranchPolicy;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.Spec;
-import ai.singlr.sail.config.SpecAuditEvent;
 import ai.singlr.sail.config.SpecDirectory;
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
@@ -30,8 +29,8 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SnapshotManager;
-import ai.singlr.sail.engine.SpecAudit;
-import ai.singlr.sail.engine.SpecWorkspace;
+import ai.singlr.sail.store.SpecStore;
+import ai.singlr.sail.store.Sqlite;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -45,9 +44,10 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * Dispatches the next ready spec to an agent for autonomous execution. Reads per-spec metadata from
- * the container, finds the next pending spec, reads its {@code spec.md}, and launches the
- * configured agent.
+ * Dispatches the next ready spec to an agent for autonomous execution. Reads the project's specs
+ * from the control-plane database (the source of truth, replicated by sync), picks the next ready
+ * one, marks it {@code in_progress}, and launches the configured agent with its body — so a stopped
+ * or file-drifted container never blocks dispatch.
  */
 @Command(
     name = "dispatch",
@@ -90,7 +90,7 @@ public final class DispatchCommand implements Runnable {
       names = "--restart",
       description =
           "Re-dispatch a spec whose status is not 'pending'. Requires --spec. Resets status to"
-              + " pending and records a 'restarted' audit event before dispatching.")
+              + " pending and records a 'restarted' lifecycle event before dispatching.")
   private boolean restart;
 
   @Option(
@@ -132,22 +132,11 @@ public final class DispatchCommand implements Runnable {
     }
     var config = SailYaml.fromMap(YamlUtil.parseFile(singYamlPath));
 
-    if (config.agent() == null || config.agent().specsDir() == null) {
-      throw new IllegalStateException(
-          "No specs_dir configured in agent block. Add it to sail.yaml.");
+    if (config.agent() == null) {
+      throw new IllegalStateException("No agent configured in sail.yaml's agent block.");
     }
 
     var sshUser = config.sshUser();
-    var specsDir = "/home/" + sshUser + "/workspace/" + config.agent().specsDir();
-    var specWorkspace = new SpecWorkspace(shell, name, specsDir);
-    var specAudit = new SpecAudit(shell, name, specsDir);
-    var host = HostInfo.hostname();
-
-    var specs = specWorkspace.readSpecs();
-    if (specs.isEmpty()) {
-      printNoSpecs();
-      return;
-    }
 
     var agentSession = new AgentSession(shell);
     var existingSession = agentSession.queryStatus(name);
@@ -161,19 +150,19 @@ public final class DispatchCommand implements Runnable {
               + name);
     }
 
-    var resolution = resolveSpec(specId, restart, specs, specWorkspace, specAudit, host);
-    var nextSpec = resolution.spec();
-    if (nextSpec == null) {
+    var prepared = prepareDispatch(name, specId, restart);
+    if (prepared == null) {
       printNoSpecs();
       return;
     }
+    var resolution = prepared.resolution();
+    var nextSpec = resolution.spec();
+    var specBody = prepared.body();
 
     var agentType = nextSpec.agent() != null ? nextSpec.agent() : config.agent().type();
     var targetRepos = DispatchRepos.resolve(config, nextSpec, repoOverrides);
     var taskSpec = DispatchRepos.withTargetRepos(nextSpec, targetRepos);
     var branchName = BranchPolicy.branchName(config, nextSpec);
-    specWorkspace.updateStatus(nextSpec.id(), "in_progress");
-    specAudit.append(nextSpec.id(), SpecAuditEvent.dispatched(agentType, host, null));
 
     if (resolution.restarted()) {
       publishLifecycle(
@@ -186,7 +175,6 @@ public final class DispatchCommand implements Runnable {
         nextSpec.id(),
         dispatchedEventData(branchName, background));
 
-    var specBody = Objects.requireNonNullElse(specWorkspace.readSpecBody(nextSpec.id()), "");
     var description = !specBody.isBlank() ? specBody : nextSpec.title();
     var task = AgentTaskPrompt.build(taskSpec, description);
 
@@ -349,21 +337,64 @@ public final class DispatchCommand implements Runnable {
     }
   }
 
+  /** What {@link #prepareDispatch} produces: the resolved spec and its body, both from the DB. */
+  record Prepared(SpecResolution resolution, String body) {}
+
+  /**
+   * Reads the project's specs from the control-plane database — the source of truth — picks the one
+   * to dispatch, marks it {@code in_progress}, and returns it with its body. Returns {@code null}
+   * when the project has no specs or none are ready. The container is never read: a stopped or
+   * file-drifted project is irrelevant because the spec lives in the DB, replicated by sync.
+   */
+  private Prepared prepareDispatch(String project, String specId, boolean restart) {
+    try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
+      var store = new SpecStore(db);
+      var specs = projectSpecs(store, project);
+      if (specs.isEmpty()) {
+        return null;
+      }
+      var resolution = resolveSpec(specId, restart, specs, store);
+      if (resolution.spec() == null) {
+        return null;
+      }
+      store.updateStatus(resolution.spec().id(), SpecStatus.IN_PROGRESS);
+      var body =
+          store.getContent(resolution.spec().id()).map(SpecStore.SpecContent::body).orElse("");
+      return new Prepared(resolution, body);
+    }
+  }
+
+  /** Every spec bucketed to this project, mapped from its stored row to the config value type. */
+  static List<Spec> projectSpecs(SpecStore store, String project) {
+    return store.list(new SpecStore.SpecFilter(project, null, null, null, null)).stream()
+        .map(DispatchCommand::toSpec)
+        .toList();
+  }
+
+  private static Spec toSpec(SpecStore.SpecRow row) {
+    return new Spec(
+        row.id(),
+        row.project(),
+        row.title(),
+        row.status(),
+        row.assignee(),
+        row.dependsOn(),
+        row.repos(),
+        row.agent(),
+        row.model(),
+        row.reasoningEffort(),
+        row.branch());
+  }
+
   /**
    * Picks the spec to dispatch. Enforces that {@code --spec} only targets pending specs unless
-   * {@code --restart} is set, in which case the spec's status is reset to {@code pending} and a
-   * {@code restarted} audit event is appended. Returns a {@link SpecResolution} so the caller can
-   * distinguish "picked next pending" from "reset a non-pending spec" without re-querying the
-   * workspace.
+   * {@code --restart} is set, in which case the spec's status is reset to {@code pending} in the
+   * DB. Returns a {@link SpecResolution} so the caller can distinguish "picked next pending" from
+   * "reset a non-pending spec" and publish the matching lifecycle event (which is the durable audit
+   * trail).
    */
   static SpecResolution resolveSpec(
-      String specId,
-      boolean restart,
-      List<Spec> specs,
-      SpecWorkspace workspace,
-      SpecAudit audit,
-      String host)
-      throws Exception {
+      String specId, boolean restart, List<Spec> specs, SpecStore store) {
     if (specId == null) {
       var next = SpecDirectory.nextReady(specs);
       return next == null ? SpecResolution.none() : SpecResolution.of(next);
@@ -382,13 +413,9 @@ public final class DispatchCommand implements Runnable {
               + "' is not pending (current status: "
               + found.status().wire()
               + "). A spec is dispatched only when pending. To dispatch it again, pass --restart"
-              + " (this resets status to pending and records the restart in audit.jsonl).");
+              + " (this resets status to pending and records the restart as a lifecycle event).");
     }
-    workspace.updateStatus(specId, "pending");
-    audit.append(
-        specId,
-        SpecAuditEvent.restarted(
-            SpecAuditEvent.SAIL_AGENT, host, "restarted from " + found.status().wire()));
+    store.updateStatus(specId, SpecStatus.PENDING);
     return SpecResolution.restarted(found, found.status().wire());
   }
 

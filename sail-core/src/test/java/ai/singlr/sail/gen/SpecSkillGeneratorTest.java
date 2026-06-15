@@ -44,12 +44,14 @@ class SpecSkillGeneratorTest {
   }
 
   @Test
-  void claudeSkillMdReferencesSpecsDir() {
+  void claudeSkillMdManagesSpecsThroughTheCliNotFiles() {
     var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "my-specs", BASE);
     var content = files.get(0).content();
 
-    assertTrue(content.contains("my-specs/<id>/spec.yaml"));
-    assertTrue(content.contains("my-specs/<id>/spec.md"));
+    assertTrue(content.contains("sail spec create"));
+    assertTrue(content.contains("sail spec board"));
+    assertTrue(content.contains("sail spec edit"));
+    assertFalse(content.contains("spec.yaml"), "specs are DB rows, not files");
   }
 
   @Test
@@ -111,8 +113,8 @@ class SpecSkillGeneratorTest {
 
     assertFalse(instructions.isEmpty());
     assertTrue(instructions.contains("Spec Management"));
-    assertTrue(instructions.contains("specs/<id>/spec.yaml"));
-    assertTrue(instructions.contains("spec.md"));
+    assertTrue(instructions.contains("sail spec create"));
+    assertFalse(instructions.contains("spec.yaml"), "specs are DB rows, not files");
   }
 
   @Test
@@ -143,14 +145,14 @@ class SpecSkillGeneratorTest {
   }
 
   @Test
-  void customSpecsDirIsUsedInAllAgents() {
-    var customDir = "work-items";
+  void specsDirOnlyGatesGenerationItDoesNotLeakIntoContent() {
+    var claude = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "work-items", BASE);
+    assertTrue(claude.get(0).content().contains("sail spec create"));
+    assertFalse(claude.get(0).content().contains("work-items"));
 
-    var claude = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, customDir, BASE);
-    assertTrue(claude.get(0).content().contains("work-items/<id>/spec.yaml"));
-
-    var codex = SpecSkillGenerator.codexInstructions(customDir);
-    assertTrue(codex.contains("work-items/<id>/spec.yaml"));
+    var codex = SpecSkillGenerator.codexInstructions("work-items");
+    assertTrue(codex.contains("sail spec create"));
+    assertFalse(codex.contains("work-items"));
   }
 
   @Test
@@ -166,7 +168,7 @@ class SpecSkillGeneratorTest {
     var files = SpecSkillGenerator.generateFiles(AgentCli.CLAUDE_CODE, "specs", BASE);
     var content = files.get(0).content();
 
-    assertTrue(content.contains("depends_on"));
+    assertTrue(content.contains("depends-on"));
     assertTrue(content.contains("blocked"));
   }
 }
