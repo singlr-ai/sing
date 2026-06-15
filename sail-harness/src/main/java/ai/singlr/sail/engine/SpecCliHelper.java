@@ -86,6 +86,7 @@ public final class SpecCliHelper {
                     [--depends-on a,b] [--repos a,b] [--agent A] [--model M]
                     [--reasoning-effort none|low|medium|high|xhigh] [--priority N] [--plan-file F]
         spec update <id> [--status S] [--title T] [--depends-on a,b] [--repos a,b] [...]
+        spec content <id> --body-file F [--plan-file F]   revise the body
         spec archive <id>
       USAGE
         exit "${1:-0}"
@@ -109,6 +110,11 @@ public final class SpecCliHelper {
           id="$1"; shift
           collect_fields "$@"
           api -X PUT "${FIELDS[@]}" "$BASE/$id";;
+        content)
+          [ $# -ge 1 ] || die "content needs a spec id"
+          id="$1"; shift
+          collect_fields "$@"
+          api -X PUT "${FIELDS[@]}" "$BASE/$id/content";;
         archive)
           [ $# -ge 1 ] || die "archive needs a spec id"
           api -X PUT --data-urlencode "actor=$ACTOR" --data-urlencode "status=archived" "$BASE/$1";;

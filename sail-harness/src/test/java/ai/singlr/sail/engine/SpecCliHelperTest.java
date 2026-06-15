@@ -38,7 +38,8 @@ class SpecCliHelperTest {
   @Test
   void scriptHandlesEverySubcommand() {
     var content = SpecCliHelper.scriptContent();
-    for (var sub : new String[] {"board)", "list)", "show)", "create)", "update)", "archive)"}) {
+    for (var sub :
+        new String[] {"board)", "list)", "show)", "create)", "update)", "content)", "archive)"}) {
       assertTrue(content.contains(sub), "missing subcommand: " + sub);
     }
   }
