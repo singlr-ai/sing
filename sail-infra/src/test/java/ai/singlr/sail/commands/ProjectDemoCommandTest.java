@@ -43,10 +43,8 @@ class ProjectDemoCommandTest {
   }
 
   @Test
-  void demoRepoConstantsAreSet() {
-    assertEquals("singlr-ai/sing-demo", ProjectDemoCommand.DEMO_REPO);
+  void demoProjectNameIsDemo() {
     assertEquals("demo", ProjectDemoCommand.DEMO_PROJECT);
-    assertEquals("main", ProjectDemoCommand.DEMO_REF);
   }
 
   @Test

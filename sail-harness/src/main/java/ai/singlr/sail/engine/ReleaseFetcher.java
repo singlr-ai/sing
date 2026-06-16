@@ -15,8 +15,10 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * Fetches release artifacts from GitHub Releases. No authentication required — releases are public.
- * Uses {@link HttpClient} from the JDK, same pattern as {@link GitHubFetcher}.
+ * Fetches release artifacts from GitHub Releases for {@code sail upgrade}. No authentication
+ * required — releases are public. This is the one remaining GitHub touch and is orthogonal to
+ * project coordination: it downloads the signed binary, nothing else. Uses the JDK {@link
+ * HttpClient}.
  */
 public final class ReleaseFetcher {
 
