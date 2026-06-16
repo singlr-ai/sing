@@ -16,12 +16,14 @@ import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.GitCredentials;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectCatalog;
+import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ProjectPhase;
 import ai.singlr.sail.engine.ProjectProvisioner;
 import ai.singlr.sail.engine.ProvisionListener;
 import ai.singlr.sail.engine.ProvisionTracker;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -84,6 +86,7 @@ public final class ProjectCreateCommand implements Runnable {
           "Root privileges required. Run with: sudo sail project create");
     }
 
+    refreshCanonicalFromCatalog();
     var singYamlPath = resolveSailYamlPath();
     if (!Files.exists(singYamlPath)) {
       var hint = new StringBuilder();
@@ -287,6 +290,22 @@ public final class ProjectCreateCommand implements Runnable {
             "Aborted: Node-dependent agents require Node.js in the project runtimes.");
       }
     };
+  }
+
+  /**
+   * Refreshes the canonical descriptor from the catalog (the source of truth) before reading it, so
+   * {@code create} provisions a definition edited or synced on main rather than a stale local copy.
+   * A no-op when {@code -f} is given (an explicit override), the project is absent from the catalog
+   * (a brand-new local authoring), or no name was supplied.
+   */
+  private void refreshCanonicalFromCatalog() throws IOException {
+    if (ProjectDefinitions.explicitFile(file) != null || name == null) {
+      return;
+    }
+    var definition = ProjectDefinitions.definition(name, null);
+    if (definition.isPresent()) {
+      ProjectDefinitions.materialize(name, definition.get());
+    }
   }
 
   private Path resolveSailYamlPath() {

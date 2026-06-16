@@ -15,9 +15,8 @@ import ai.singlr.sail.engine.GitCredentials;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectApplier;
 import ai.singlr.sail.engine.ProjectDefaults;
-import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ShellExecutor;
-import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -65,16 +64,19 @@ public final class ProjectApplyCommand implements Runnable {
   private void execute() throws Exception {
     NameValidator.requireValidProjectName(name);
 
-    var singYamlPath = SailPaths.resolveSailYaml(name, file);
-    if (!Files.exists(singYamlPath)) {
-      throw new IllegalStateException(
-          "Project descriptor not found: "
-              + singYamlPath.toAbsolutePath()
-              + "\n  Ensure ~/.sail/projects/"
-              + name
-              + "/sail.yaml exists.");
-    }
-    SailYaml config = SailYaml.fromMap(YamlUtil.parseFile(singYamlPath));
+    var explicit = ProjectDefinitions.explicitFile(file);
+    var definitionText =
+        ProjectDefinitions.definition(name, explicit)
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "No descriptor found for project '"
+                            + name
+                            + "'. Sync it from main with 'sail sync', or author one with 'sail"
+                            + " project init'."));
+    SailYaml config = SailYaml.fromMap(YamlUtil.parseMap(definitionText));
+    var singYamlPath =
+        explicit != null ? explicit : ProjectDefinitions.materialize(name, definitionText);
 
     var shell = new ShellExecutor(dryRun);
     var mgr = new ContainerManager(shell);

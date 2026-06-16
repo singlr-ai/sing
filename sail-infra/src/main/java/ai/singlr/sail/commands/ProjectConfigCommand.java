@@ -14,11 +14,11 @@ import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerManager.ContainerInfo;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.NameValidator;
+import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
-import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import picocli.CommandLine.Command;
@@ -56,14 +56,7 @@ public final class ProjectConfigCommand implements Runnable {
   private void execute() throws Exception {
     NameValidator.requireValidProjectName(name);
 
-    var singYamlPath = SailPaths.resolveSailYaml(name, file);
-    if (!Files.exists(singYamlPath)) {
-      throw new IllegalStateException(
-          "Project descriptor not found: "
-              + singYamlPath.toAbsolutePath()
-              + "\n  Create a sail.yaml in the current directory, or specify one with --file.");
-    }
-    var config = SailYaml.fromMap(YamlUtil.parseFile(singYamlPath));
+    var config = ProjectDefinitions.load(name, ProjectDefinitions.explicitFile(file));
 
     var shell = new ShellExecutor(false);
     var mgr = new ContainerManager(shell);
