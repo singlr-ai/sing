@@ -10,267 +10,155 @@ You have a bare-metal server. You work on multiple projects simultaneously, each
 
 `sail` provisions the server, creates project environments as Incus system containers, manages their lifecycle, and orchestrates AI agents inside them with spec-driven workflows, guardrails, and rollback safety. Each project gets a complete Ubuntu 24.04 userspace with its own filesystem, network stack, and rootless Podman runtime.
 
-## Day 0: Server + Project Setup
+## Install
 
 ```bash
-# Install sail (single binary, no dependencies)
 curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
-
-# Initialize server (one-time, needs sudo)
-sudo sail host init
 ```
 
-`host init` installs Incus, creates a storage pool (dir by default, ZFS with `--storage zfs --disk /dev/sdX`), configures networking, and caches the base Ubuntu 24.04 image.
+A single static binary. `sail upgrade` updates it in place (and runs `sail migrate` to converge the database and provisioned host).
+
+## The model: one main, many nodes
+
+An organization runs **one main devbox** — the source of truth for the team's specs and project definitions, all held in a SQLite control-plane database. Every engineer has **their own box** (bare-metal Ubuntu running `sail`). A box pointed at a main is a **node**: it syncs specs and projects down from main and pushes its own work back.
+
+There is no GitHub in this loop and no project board. The database **is** the board; `sail sync` is how it travels — over the locked-down `sail` SSH gateway, pure public-key auth, with conflict-parking so no one's work is ever clobbered.
+
+### Stand up a main
 
 ```bash
-# Generate a new sail.yaml interactively
-sail project init
-
-# Create the environment
-sail project create acme-health
+sudo sail host init             # install Incus, storage pool, network, base image
+sudo sail host ssh-identity     # provision the locked `sail` gateway user + shared data dir
+sudo sail host sync --as-main   # declare this box the org's source of truth
 ```
 
-Team projects are coordinated through the control-plane database and replicated to each
-engineer's box with `sail sync` (see the db-sync model) — not pulled from a git repo.
-
-`project create` provisions an Incus container with everything declared in `sail.yaml` — installs runtimes, starts Podman services, clones repos, configures git identity, generates agent context files, and sets up the harness.
+Authorize an engineer (they send you the public key `sail join` printed on their box):
 
 ```bash
-# Print SSH config for your editor
-sail project connect acme-health
+sail fde add mady --role member --key "ssh-ed25519 AAAA… sail-sync@madybox"
 ```
 
-Add the output to `~/.ssh/config`, then connect in Zed: `Cmd+Shift+P` → "Connect to SSH Host" → `acme-health`.
+`--role` is `admin`, `member`, or `viewer` (read-only). Registering the key also refreshes the gateway's `authorized_keys`.
 
-## Day 2: The Two Modes
-
-Engineers work in two modes. `sail` supports both from the same project.
-
-### Interactive Mode (Daytime)
-
-Open Zed, connect via SSH remote dev, start the agent from Zed's Agent Panel. You're in the loop — brainstorming, exploring code, writing specs, reviewing output. `sail` is invisible here; the generated context files (CLAUDE.md, SECURITY.md, `.context/`) guide the agent.
+### Join as a node
 
 ```bash
-sail project restart acme-health     # start container, show connection info
+sudo sail host init             # one-time control plane (a node needs no ssh-identity)
+sail join <main-ip>             # generate this box's sync key, point it at main,
+                                # and print the exact `sail fde add …` line for the operator
+# …operator runs that line on main…
+sail sync                       # reconcile: pull specs + projects + shared files from main
 ```
 
-Developer processes (`java -jar`, `npm run dev`) run interactively in Zed terminal tabs. Infrastructure services (Postgres, Meilisearch, etc.) are managed by Podman with `--restart=always` and survive container reboots automatically.
+`sail join` never assumes `root` — it prompts for the handle main should authorize (defaulting to your own user, never `root`). Only a *public* key ever leaves your box.
 
-### Autonomous Mode (Overnight)
+## Projects
 
-Write specs during the day. Walk away. The agent works through them overnight.
+A project is declared by a `sail.yaml` (runtimes, services, repos, agent config). The **database is the source of truth** for that definition; the on-disk `~/.sail/projects/<name>/sail.yaml` is a materialized view.
 
 ```bash
-sail spec dispatch acme-health   # pick next ready spec, launch agent
+sail project init                 # interactively author a new sail.yaml
+sail project create acme-health   # provision the Incus container from the definition
+sail project config acme-health   # show the definition + live container status
+sail project edit acme-health     # change the definition (saves to the catalog; syncs out)
+sail project connect acme-health  # print SSH config for your editor
 ```
 
-`dispatch` scans `specs/*/spec.yaml` from the container, finds the next pending spec (respecting dependencies and assignee), reads the detailed `spec.md`, and launches the agent with full context. Guardrails enforce time limits. Auto-snapshot provides rollback safety.
+`project create` provisions an Incus container with everything declared in `sail.yaml` — installs runtimes, starts Podman services with `--restart=always`, clones repos, configures git identity, generates agent context files, and pushes the project's `files/` bundle into `~/workspace/`.
 
-## Spec-Driven Workflow
-
-Specs are the unit of work. Each spec lives in its own directory inside `specs/`, checked into a shared repo so the team can see and assign work.
-
-### Structure
-
-```
-specs/
-├── oauth-flow/
-│   ├── spec.yaml             # Metadata: id, title, status, assignee, depends_on
-│   ├── spec.md               # What to build and why (brainstormed with agent in Zed)
-│   └── plan.md               # How to build it (optional, for complex specs)
-├── payment-integration/
-│   ├── spec.yaml
-│   ├── spec.md
-│   └── plan.md
-└── fix-footer-typo/
-    ├── spec.yaml
-    └── spec.md               # Simple spec, no plan needed
-```
-
-### spec.yaml
-
-```yaml
-id: payment-integration
-title: "Stripe payment webhook"
-status: pending
-assignee: bob
-depends_on:
-  - oauth-flow
-repo: webapp
-agent: codex
-model: gpt-5.5
-reasoning_effort: high
-branch: feat/payment-integration
-```
-
-`repo`/`repos` routes work to the right repository in multi-repo projects. `agent` routes a spec
-to a specific installed agent (`claude-code` or `codex`); if omitted, dispatch uses
-`agent.type` from `sail.yaml`. `model` and `reasoning_effort` tune agents that support those
-controls; unsupported combinations fail fast.
-
-### Lifecycle
-
-```
-pending → in_progress → review → done → archive
-```
-
-**pending**: Ready for an agent to pick up. **in_progress**: Agent is working. **review**: Work complete, security review and code review hooks run automatically. **done**: All reviews pass. **archive**: Cleaned up (`sail task archive`).
-
-### The Full Loop
-
-```
-Morning (Zed, interactive):
-  Engineer + agent brainstorm → write specs/oauth-flow/spec.md
-  Optionally plan → write specs/oauth-flow/plan.md
-  Push specs to shared repo
-
-Evening:
-  sail spec dispatch acme-health
-
-Overnight:
-  Agent reads spec.md, works, commits, pushes branch
-  Reviews run automatically at spec completion
-  Guardrails enforce time limits
-
-Next morning:
-  sail agent status              # all projects at a glance
-  sail agent report acme-health  # detailed: commits, spec progress, review results
-  Review PRs, merge or address findings
-```
-
-### Team Coordination
-
-Specs live in a shared private repo (e.g., `your-org/projects/acme-health/specs/`). Multiple engineers, each with their own container:
-
-- Alice specs out OAuth, assigns to herself
-- Bob specs out payments, depends on Alice's OAuth work
-- `sail spec dispatch` respects `assignee` — each engineer's agent only picks up their specs (or unassigned ones)
-- Dependencies prevent premature work — payments won't start until OAuth is done
-
-No project board needed. The spec directory *is* the board. Git history is the audit trail.
-
-### Fleet Migration
-
-After upgrading `sail`, bring existing project containers up to the current spec layout and agent
-instructions with one command:
+**Getting a teammate's project:** `sail sync` brings its definition *and* its shared `files/` bundle onto your box; then `sudo sail project create <name>` spins it up locally (pass `--git-token` for private repos). Editing is database-first: `sail project edit` changes the catalog and replicates to every box on the next sync — hand-editing the materialized file is not the path.
 
 ```bash
-sail project migrate --all --pull-specs
+# zero-config demo (Outline wiki — Postgres + Redis), bundled in the binary
+sudo sail project demo
 ```
 
-For a single project:
+## Specs: the unit of work
+
+Specs live in the control-plane database, not in git. Engineers manage them with `sail spec`; agents inside a container use the in-container `spec` CLI over a bind-mounted socket — one source of truth, no sync glue.
 
 ```bash
-sail project migrate acme-health --pull-specs
+sail spec create acme-health --title "Stripe payment webhook"
+sail spec board acme-health        # the team board: who's on what, what's ready
+sail spec list acme-health
+sail spec show acme-health auth
+sail spec edit acme-health auth --assignee mady --depends-on oauth
+sail spec history acme-health auth # full revision history; restore any version
 ```
 
-The migration starts stopped projects, regenerates agent context files, converts legacy
-`specs/index.yaml` entries into `specs/<id>/spec.yaml`, removes the legacy index after a safe
-conversion, and reports spec Git sync state. Use `--json` for automation or `--keep-index` if you
-want to retain the old index file during manual review.
+A spec carries `title`, `status`, `assignee`, `depends_on`, `repos`, `agent`, `model`, `reasoning_effort`, `branch`. `repos` routes work to the right repository in a multi-repo project; `agent` routes to a specific installed agent (`claude-code` or `codex`), defaulting to `agent.type` in `sail.yaml`.
 
-## Context Generation
+**Lifecycle:** `pending → in_progress → review → done` (plus `draft` and `archived`). Dispatch moves a spec to `in_progress`; the lifecycle reactor moves it to `review` when the agent session ends. Dependencies prevent premature work — a spec won't start until everything in `depends_on` is `done`.
 
-`sail agent run` (or `sail agent context regen`) generates a complete agent environment from `sail.yaml`. Context files are agent-agnostic — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`. Same content, different format.
+**Team coordination:** Mady specs out payments depending on Uday's OAuth work; she `sail sync`s and her board shows both. `sail spec dispatch` respects `assignee`, so each engineer's agent picks up only their specs (or unassigned ones). Disjoint edits auto-merge on sync; a true same-field clash parks as a conflict for `sail conflicts` — the local copy is never overwritten.
+
+## Day 2: the two modes
+
+### Interactive (daytime)
+
+Connect your editor over SSH remote dev, drive the agent from its panel. You're in the loop — brainstorming, writing specs, reviewing. `sail` is invisible; the generated context files (`CLAUDE.md`, `SECURITY.md`, `.context/`) guide the agent. Developer processes (`java -jar`, `npm run dev`) run in editor terminal tabs; infra services run under Podman `--restart=always` and survive reboots.
+
+### Autonomous (overnight)
+
+```bash
+sail spec dispatch acme-health   # pick the next ready spec, launch the agent in the background
+```
+
+`dispatch` reads the next pending spec from the database (respecting dependencies and assignee), launches the agent with full context, starts the guardrail watcher, and auto-snapshots for rollback safety.
+
+```bash
+sail agent status                 # all projects at a glance
+sail agent status acme-health     # single-project detail
+sail agent log acme-health -f     # stream output live
+sail agent report acme-health     # morning-after summary: commits, spec progress, reviews
+sail agent stop acme-health       # SIGTERM → SIGKILL after a grace period
+sail agent audit acme-health      # cross-agent security audit
+sail agent review acme-health     # cross-agent code review
+```
+
+## Context generation
+
+`sail agent run` (or `sail agent context regen`) generates an agent-agnostic environment from `sail.yaml` — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`. Files the engineer owns (a hand-written `CLAUDE.md`) are never overwritten.
 
 | Generated | Purpose |
 |-----------|---------|
 | `CLAUDE.md` / `AGENTS.md` | Tech stack, conventions, runtimes, services, autonomous work protocol |
 | `SECURITY.md` | Zero-trust principles, OWASP Top 10, input validation, secrets management |
-| `.context/` repository | Persistent knowledge across sessions (system overview, patterns, failure log) |
-| Methodology skills | `/spec` (write spec first), `/verify` (run tests and block on failures) |
-| Post-task hooks | Auto-trigger security audit and code review at spec completion |
+| `.context/` | Persistent knowledge across sessions (system overview, patterns, failure log) |
+| Methodology skills | `/spec` (write spec first), `/verify` (run tests, block on failures) |
+| Post-task hooks | Security audit + code review at spec completion |
 
-The autonomous work protocol in the context file tells the agent how to read specs, update status, and hand off — this works identically across Claude Code and Codex.
-
-### `.context/` — Institutional Memory
-
-```
-.context/
-  system/       # always loaded — project overview, key decisions
-  patterns/     # discovered architectural patterns and conventions
-  failures/     # what went wrong and how it was fixed
-```
-
-Agents read `system/README.md` at session start and update these files as they learn. Committed alongside code so knowledge persists across sessions and engineers.
-
-## Methodology
-
-```yaml
-agent:
-  methodology:
-    approach: spec-driven    # spec-driven | tdd | free-form
-    verify: "mvn clean test"
-    lint: "mvn spotless:check"
-```
-
-- **`spec-driven`**: Agent writes a spec before coding. Generated as a `/spec` skill.
-- **`tdd`**: Agent writes failing tests first, then implements until green.
-- **`free-form`**: No methodology constraints.
-- **`verify`** / **`lint`**: Commands injected as skills the agent runs after implementation.
-
-## Guardrails
-
-```yaml
-agent:
-  guardrails:
-    max_duration: 4h
-    action: snapshot-and-stop
-```
-
-When the time limit triggers, the agent is stopped and rolled back to the pre-launch snapshot. The watcher starts automatically with `sail spec dispatch` and `sail agent run --background`.
-
-Actions: `snapshot-and-stop` (rollback), `stop` (keep changes), `notify` (webhook, agent continues).
-
-## Agent Commands
-
-```bash
-# Dispatch
-sail spec dispatch acme-health              # next ready spec, background launch
-sail spec dispatch acme-health --spec auth  # specific spec by ID
-
-# Run (context regen + launch)
-sail agent run acme-health                   # interactive mode (Zed)
-sail agent run acme-health --task "..."      # headless with explicit task
-sail agent run acme-health --background      # background, picks next spec
-
-# Monitor
-sail agent status                      # all projects at a glance
-sail agent status acme-health          # single project detail
-sail agent log acme-health -f          # stream output live
-sail agent report acme-health          # morning-after summary
-
-# Control
-sail agent stop acme-health            # SIGTERM → SIGKILL after 3s
-sail agent watch acme-health           # enforce guardrails (auto-started by dispatch)
-
-# Quality
-sail agent audit acme-health           # cross-agent security audit
-sail agent review acme-health          # cross-agent code review
-sail agent sweep acme-health           # codebase cleanup pass
-```
-
-## Multi-Agent Support
-
-`sail` is agent-agnostic. Configure the primary agent and optionally install others for cross-agent review:
+## Methodology & guardrails
 
 ```yaml
 agent:
   type: claude-code
-  install:
-    - claude-code
-    - codex
-  security_audit:
-    enabled: true
-    # auditor: codex      # defaults to a different agent than primary
-  code_review:
-    enabled: true
+  auto_branch: true
+  auto_snapshot: true
+  methodology:
+    approach: spec-driven        # spec-driven | tdd | free-form
+    verify: "mvn clean test"
+    lint: "mvn spotless:check"
+  guardrails:
+    max_duration: 4h
+    action: snapshot-and-stop    # snapshot-and-stop | stop | notify
 ```
 
-Claude or Codex can execute a spec. Set `agent: codex` in `spec.yaml` to override the
-project default for that unit of work. For Codex, `model` and `reasoning_effort` map to
-`codex exec --model ... --config model_reasoning_effort=...`. The hooks fire at spec completion,
-not session stop — so reviews always see complete, coherent work.
+`verify`/`lint` are injected as skills the agent runs after implementing. When a guardrail trips, the watcher (auto-started by `dispatch` / `agent run --background`) stops the agent and, for `snapshot-and-stop`, rolls back to the pre-launch snapshot.
+
+## Multi-agent
+
+`sail` is agent-agnostic. Install more than one and use a different agent for review than for implementation:
+
+```yaml
+agent:
+  type: claude-code
+  install: [claude-code, codex]
+  security_audit: { enabled: true }
+  code_review:    { enabled: true }
+```
+
+Set `agent: codex` on a spec to override the project default for that unit of work. Hooks fire at spec completion — so reviews always see complete, coherent work.
 
 ## Example `sail.yaml`
 
@@ -313,21 +201,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  meilisearch:
-    image: getmeili/meilisearch:latest
-    ports: [7700]
-    environment:
-      MEILI_ENV: development
-
 agent:
   type: claude-code
   auto_branch: true
   auto_snapshot: true
-  specs_dir: specs
   methodology:
     approach: spec-driven
     verify: "mvn clean test"
-    lint: "mvn spotless:check"
   guardrails:
     max_duration: 4h
     action: snapshot-and-stop
@@ -338,33 +218,42 @@ ssh:
     - "ssh-ed25519 AAAA... you@laptop"
 ```
 
-## Project Lifecycle
+## Project lifecycle
 
 ```bash
-sail project create acme-health   # provision container from sail.yaml
-sail project start acme-health               # start stopped container
-sail project stop acme-health             # stop container (preserves state)
-sail project restart acme-health           # start + show connection info
-sail project containers                           # list all projects with status
-sail project snapshot create acme-health             # create snapshot
-sail project snapshot restore acme-health snap-01  # rollback to snapshot
+sail project create acme-health                    # provision from the definition
+sail project start acme-health                     # start a stopped container
+sail project stop acme-health                      # stop (preserves state)
+sail project restart acme-health                   # start + show connection info
+sail project containers                            # list all projects with status
+sail project snapshot create acme-health
+sail project snapshot restore acme-health snap-01  # rollback to a snapshot
 
-# Modify running projects
-sail project add service acme-health
-sail project add repo acme-health
+# modify a project (database-first; replicates on sync)
+sail project edit acme-health                      # edit the whole definition
+sail project service add acme-health               # add a service
+sail project repo add acme-health                  # add a repo
+sail project files ls --project acme-health        # shared, synced workspace files
 sudo sail project resources set acme-health --memory 16GB
-sail project destroy acme-health  # delete container and state
+sail project destroy acme-health                   # delete container and state
 ```
 
-## Building from Source
+## Upgrading
+
+```bash
+sail upgrade
+```
+
+Downloads the signed binary, verifies its checksum, installs it, runs `sail migrate` (which converges the database — seeding the demo, importing legacy descriptors, reconciling `authorized_keys`), and restarts `sail-api` if it was running. Single-box installs need no new commands; sync is opt-in.
+
+## Building from source
 
 Requires JDK 25+ and Maven 3.9+.
 
 ```bash
-mvn clean test                    # run tests (588 tests)
-mvn clean package                 # build JAR
+mvn clean verify                  # build + run the full test suite with coverage gates
 
-# Native image (requires GraalVM JDK 25)
+# native image (requires GraalVM JDK 25)
 JAVA_HOME=/usr/lib/jvm/graalvm-jdk-25 mvn clean package -Pnative -DskipTests
 ```
 
