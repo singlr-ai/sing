@@ -292,7 +292,9 @@ public final class SchemaManager {
               updated_at TEXT NOT NULL,
               UNIQUE (project, path)
           )""",
-          "ALTER TABLE api_tokens ADD COLUMN expires_at TEXT");
+          "ALTER TABLE api_tokens ADD COLUMN expires_at TEXT",
+          "ALTER TABLE projects ADD COLUMN rev TEXT",
+          "ALTER TABLE projects ADD COLUMN base_rev TEXT");
 
   private final Sqlite db;
 
