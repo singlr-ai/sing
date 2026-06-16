@@ -13,8 +13,9 @@ import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
+import ai.singlr.sail.engine.DemoProject;
+import ai.singlr.sail.engine.DemoSeeder;
 import ai.singlr.sail.engine.GitCredentials;
-import ai.singlr.sail.engine.GitHubFetcher;
 import ai.singlr.sail.engine.ProjectPhase;
 import ai.singlr.sail.engine.ProjectProvisioner;
 import ai.singlr.sail.engine.ProvisionListener;
@@ -22,6 +23,9 @@ import ai.singlr.sail.engine.ProvisionTracker;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.WorkspaceFiles;
+import ai.singlr.sail.store.ProjectStore;
+import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.Sqlite;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -41,9 +45,7 @@ import picocli.CommandLine.Spec;
     mixinStandardHelpOptions = true)
 public final class ProjectDemoCommand implements Runnable {
 
-  static final String DEMO_REPO = "singlr-ai/sing-demo";
-  static final String DEMO_PROJECT = "demo";
-  static final String DEMO_REF = "main";
+  static final String DEMO_PROJECT = DemoProject.NAME;
 
   @Option(names = "--dry-run", description = "Print commands instead of executing them.")
   private boolean dryRun;
@@ -103,7 +105,7 @@ public final class ProjectDemoCommand implements Runnable {
       out.println();
     }
 
-    var yamlContent = fetchDemoYaml(out, ansi);
+    var yamlContent = loadDemoDefinition(out, ansi);
     var resolvedYaml = resolveAutoDetected(yamlContent, out, ansi);
 
     var outputDir = Path.of(DEMO_PROJECT);
@@ -114,13 +116,13 @@ public final class ProjectDemoCommand implements Runnable {
       out.println(ansi.string("  @|green \u2713|@ " + singYamlPath + " written"));
     }
 
-    var filesPulled = fetchDemoFiles(outputDir, out, ansi);
+    var filesPulled = writeDemoFiles(outputDir, out, ansi);
 
     if (dryRun) {
       if (json) {
         var map = new LinkedHashMap<String, Object>();
         map.put("name", DEMO_PROJECT);
-        map.put("repo", DEMO_REPO);
+        map.put("source", "catalog");
         map.put("output", singYamlPath.toAbsolutePath().toString());
         map.put("files_pulled", filesPulled);
         map.put("dry_run", true);
@@ -179,55 +181,40 @@ public final class ProjectDemoCommand implements Runnable {
     }
   }
 
-  private String fetchDemoYaml(PrintStream out, Ansi ansi) throws Exception {
-    var projectPath = DEMO_PROJECT + "/" + SailPaths.PROJECT_DESCRIPTOR;
-    if (!json) {
-      out.println(ansi.string("  @|bold Fetching|@ " + projectPath + " from " + DEMO_REPO + "..."));
+  private String loadDemoDefinition(PrintStream out, Ansi ansi) {
+    try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
+      new SchemaManager(db).migrate();
+      DemoSeeder.seedIfAbsent(db);
+      var definition =
+          new ProjectStore(db)
+              .findByName(DEMO_PROJECT)
+              .map(ProjectStore.ProjectRow::definition)
+              .orElseThrow(
+                  () ->
+                      new IllegalStateException(
+                          "Demo project is missing from the catalog. Run 'sudo sail migrate'."));
+      if (!json) {
+        out.println(ansi.string("  @|green \u2713|@ demo project loaded from the catalog"));
+      }
+      return definition;
     }
-    var content = GitHubFetcher.fetchRawFile(DEMO_REPO, projectPath, null, DEMO_REF);
-    if (content == null) {
-      throw new IllegalStateException(
-          "Demo project not found at "
-              + DEMO_REPO
-              + "/"
-              + projectPath
-              + "\n  Check https://github.com/"
-              + DEMO_REPO);
-    }
-    if (!json) {
-      out.println(ansi.string("  @|green \u2713|@ " + projectPath + " loaded"));
-    }
-    return content;
   }
 
-  private int fetchDemoFiles(Path outputDir, PrintStream out, Ansi ansi) throws Exception {
-    var filesPath = DEMO_PROJECT + "/files";
-    if (!json) {
-      out.println(ansi.string("  @|bold Fetching|@ workspace files..."));
-    }
-    var entries = GitHubFetcher.fetchDirectoryTree(DEMO_REPO, filesPath, null, DEMO_REF);
-    if (entries.isEmpty()) {
-      if (!json) {
-        out.println(ansi.string("  @|faint \u2192 No files/ directory found (skipped)|@"));
-      }
-      return 0;
-    }
+  private int writeDemoFiles(Path outputDir, PrintStream out, Ansi ansi) throws IOException {
+    var files = DemoProject.files();
     var filesDir = outputDir.resolve("files");
-    for (var entry : entries) {
-      var localPath = filesDir.resolve(entry.relativePath());
+    for (var entry : files.entrySet()) {
+      var localPath = filesDir.resolve(entry.getKey());
       if (localPath.getParent() != null) {
         Files.createDirectories(localPath.getParent());
       }
-      var content = GitHubFetcher.fetchRawFile(DEMO_REPO, entry.path(), null, DEMO_REF);
-      if (content != null) {
-        Files.writeString(localPath, content);
-        WorkspaceFiles.setExecutableIfNeeded(localPath);
-        if (!json) {
-          out.println(ansi.string("  @|green \u2713|@ files/" + entry.relativePath()));
-        }
+      Files.writeString(localPath, entry.getValue());
+      WorkspaceFiles.setExecutableIfNeeded(localPath);
+      if (!json) {
+        out.println(ansi.string("  @|green \u2713|@ files/" + entry.getKey()));
       }
     }
-    return entries.size();
+    return files.size();
   }
 
   private String resolveAutoDetected(String yamlContent, PrintStream out, Ansi ansi) {

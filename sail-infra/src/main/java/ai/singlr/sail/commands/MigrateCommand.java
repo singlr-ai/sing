@@ -7,6 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.engine.AuthorizedKeysSync;
+import ai.singlr.sail.engine.DemoSeeder;
 import ai.singlr.sail.engine.FileImporter;
 import ai.singlr.sail.engine.ProjectImporter;
 import ai.singlr.sail.engine.SailPaths;
@@ -87,6 +88,7 @@ public final class MigrateCommand implements Runnable {
       var runs = applyMigrations(db, dbPath.toString(), prompter, animate, jsonOutput);
       importProjects(db, jsonOutput);
       importFiles(db, jsonOutput);
+      seedDemo(db, jsonOutput);
       relocateHostConfig(jsonOutput);
       syncAuthorizedKeys(db, jsonOutput);
       return runs;
@@ -116,6 +118,17 @@ public final class MigrateCommand implements Runnable {
     if (!jsonOutput && report.imported() > 0) {
       System.out.println(
           Ansi.AUTO.string("  @|green ✓|@ project files: " + report.imported() + " imported"));
+    }
+  }
+
+  /**
+   * Seeds the bundled demo project into the catalog so {@code sail project demo} is a
+   * database-resident project like any other — no GitHub. Idempotent: only inserts when no {@code
+   * demo} project exists, so a customised or destroyed demo is never clobbered.
+   */
+  private static void seedDemo(Sqlite db, boolean jsonOutput) {
+    if (DemoSeeder.seedIfAbsent(db) && !jsonOutput) {
+      System.out.println(Ansi.AUTO.string("  @|green ✓|@ demo project seeded"));
     }
   }
 

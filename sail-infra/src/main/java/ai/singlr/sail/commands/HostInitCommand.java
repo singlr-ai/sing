@@ -9,6 +9,7 @@ import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
+import ai.singlr.sail.engine.DemoSeeder;
 import ai.singlr.sail.engine.DiskDetector;
 import ai.singlr.sail.engine.HostDetector;
 import ai.singlr.sail.engine.HostProvisioner;
@@ -209,6 +210,7 @@ public final class HostInitCommand implements Runnable {
       System.out.println(Ansi.AUTO.string("    @|bold Server:|@   " + hostYaml.serverIp()));
     }
 
+    DemoSeeder.seedIfAbsent();
     printApiServiceNextSteps(shell);
   }
 
