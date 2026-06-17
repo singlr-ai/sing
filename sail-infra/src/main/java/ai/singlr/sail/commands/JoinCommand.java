@@ -59,6 +59,16 @@ public final class JoinCommand implements Runnable {
       description = "FDE handle main will authorise (skips the prompt; required with --json).")
   private String handle;
 
+  @Option(
+      names = "--name",
+      description = "Your full name for the team roster (default: git user.name).")
+  private String fullName;
+
+  @Option(
+      names = "--email",
+      description = "Your email for the team roster (default: git user.email).")
+  private String email;
+
   @Option(names = "--json", description = "Output in JSON format.")
   private boolean json;
 
@@ -74,8 +84,17 @@ public final class JoinCommand implements Runnable {
     nonSailUserWarning(target)
         .ifPresent(warning -> System.err.println(Banner.errorLine(warning, Ansi.AUTO)));
     var resolvedHandle = resolveHandle();
+    var resolvedName = resolveOptional(fullName, gitConfig("user.name"), "Your full name");
+    var resolvedEmail = resolveOptional(email, gitConfig("user.email"), "Your email");
     var identity = new SyncIdentity(new ShellExecutor(false));
-    var plan = plan(SailPaths.hostConfigPath(), identity, normalized, resolvedHandle);
+    var plan =
+        plan(
+            SailPaths.hostConfigPath(),
+            identity,
+            normalized,
+            resolvedHandle,
+            resolvedName,
+            resolvedEmail);
     probeReachability(normalized);
     print(plan);
   }
@@ -85,7 +104,13 @@ public final class JoinCommand implements Runnable {
    * Pure of any prompting or stdout so it can be exercised directly in tests with a
    * {@code @TempDir} config and a stub identity.
    */
-  static Plan plan(Path hostConfig, SyncIdentity identity, String target, String handle)
+  static Plan plan(
+      Path hostConfig,
+      SyncIdentity identity,
+      String target,
+      String handle,
+      String name,
+      String email)
       throws Exception {
     if (!Files.exists(hostConfig)) {
       throw new IllegalStateException("Server not initialized. Run 'sail host init' first.");
@@ -96,7 +121,7 @@ public final class JoinCommand implements Runnable {
     var updated = HostSyncCommand.configure(host, false, target);
     requireWritable(hostConfig, target);
     YamlUtil.dumpToFile(updated.toMap(), hostConfig);
-    return new Plan(target, handle, publicKey);
+    return new Plan(target, handle, name, email, publicKey);
   }
 
   private static void requireWritable(Path hostConfig, String target) {
@@ -233,18 +258,42 @@ public final class JoinCommand implements Runnable {
   }
 
   private static String gitEmailLocalPart() {
+    var email = gitConfig("user.email");
+    if (email == null) {
+      return null;
+    }
+    var at = email.indexOf('@');
+    return at > 0 ? email.substring(0, at) : null;
+  }
+
+  private static String gitConfig(String key) {
     try {
-      var result = new ShellExecutor(false).exec(List.of("git", "config", "--get", "user.email"));
+      var result = new ShellExecutor(false).exec(List.of("git", "config", "--get", key));
       if (result.ok()) {
-        var email = result.stdout().strip();
-        var at = email.indexOf('@');
-        if (at > 0) {
-          return email.substring(0, at);
-        }
+        var value = result.stdout().strip();
+        return value.isBlank() ? null : value;
       }
     } catch (Exception ignored) {
     }
     return null;
+  }
+
+  /**
+   * Resolves an optional roster field (name/email): an explicit flag wins, a non-interactive run
+   * uses the git default, and an interactive run prompts with the git default. May be blank — the
+   * FDE works without it, so the printed line just omits the flag.
+   */
+  private String resolveOptional(String flag, String gitDefault, String label) {
+    if (Strings.isNotBlank(flag)) {
+      return flag.strip();
+    }
+    if (json || System.console() == null) {
+      return gitDefault;
+    }
+    var suffix = Strings.isNotBlank(gitDefault) ? " @|faint [" + gitDefault + "]|@" : "";
+    System.out.print(Ansi.AUTO.string("  " + label + "?" + suffix + " "));
+    var line = ConsoleHelper.readLine();
+    return line == null || line.isBlank() ? gitDefault : line.strip();
   }
 
   private static void probeReachability(String target) {
@@ -263,8 +312,16 @@ public final class JoinCommand implements Runnable {
   }
 
   /** The {@code sail fde add} line main's operator runs to authorise this node. */
-  static String authorizeLine(String handle, String publicKey) {
-    return "sail fde add " + handle + " --role member --key \"" + publicKey + "\"";
+  static String authorizeLine(String handle, String name, String email, String publicKey) {
+    var line = new StringBuilder("sail fde add " + handle + " --role member");
+    if (Strings.isNotBlank(name)) {
+      line.append(" --name \"").append(name).append('"');
+    }
+    if (Strings.isNotBlank(email)) {
+      line.append(" --email \"").append(email).append('"');
+    }
+    line.append(" --key \"").append(publicKey).append('"');
+    return line.toString();
   }
 
   private void print(Plan plan) {
@@ -273,11 +330,13 @@ public final class JoinCommand implements Runnable {
 
   /** Renders the join result — machine JSON or the human next-steps block. Pure for testing. */
   static String render(Plan plan, boolean json) {
-    var authorize = authorizeLine(plan.handle(), plan.publicKey());
+    var authorize = authorizeLine(plan.handle(), plan.name(), plan.email(), plan.publicKey());
     if (json) {
       var map = new LinkedHashMap<String, Object>();
       map.put("target", plan.target());
       map.put("suggested_handle", plan.handle());
+      map.put("suggested_name", plan.name());
+      map.put("suggested_email", plan.email());
       map.put("public_key", plan.publicKey());
       map.put("authorize_command", authorize);
       return YamlUtil.dumpJson(map);
@@ -297,5 +356,5 @@ public final class JoinCommand implements Runnable {
   }
 
   /** Result of a join: the target, the chosen handle, and this node's public sync key. */
-  record Plan(String target, String handle, String publicKey) {}
+  record Plan(String target, String handle, String name, String email, String publicKey) {}
 }

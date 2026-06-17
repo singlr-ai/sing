@@ -38,6 +38,7 @@ import picocli.CommandLine.Spec;
     subcommands = {
       FdeCommand.Add.class,
       FdeCommand.ListFdes.class,
+      FdeCommand.Update.class,
       FdeCommand.Remove.class,
       FdeCommand.Enroll.class,
       FdeCommand.Key.class
@@ -118,7 +119,12 @@ public final class FdeCommand implements Runnable {
             try (var db = Sqlite.open(dbPath())) {
               var fdeStore = new FdeStore(db);
               if (fdeStore.byHandle(handle).isPresent()) {
-                throw new IllegalArgumentException("FDE '" + handle + "' already exists.");
+                throw new IllegalArgumentException(
+                    "FDE '"
+                        + handle
+                        + "' already exists. Change it with 'sail fde update "
+                        + handle
+                        + "'.");
               }
               var fde =
                   key == null
@@ -147,6 +153,49 @@ public final class FdeCommand implements Runnable {
         throw new IllegalArgumentException(
             "That key (" + key.fingerprint() + ") is already registered.");
       }
+    }
+  }
+
+  @Command(
+      name = "update",
+      description = "Update an FDE's display name, email, or role.",
+      mixinStandardHelpOptions = true)
+  static final class Update implements Runnable {
+
+    @Parameters(index = "0", description = "FDE handle.")
+    private String handle;
+
+    @Option(names = "--name", description = "New display name.")
+    private String displayName;
+
+    @Option(names = "--email", description = "New email address.")
+    private String email;
+
+    @Option(names = "--role", description = "New role: admin, member, or viewer.")
+    private String role;
+
+    @Spec private CommandSpec spec;
+
+    @Override
+    public void run() {
+      CliCommand.run(
+          spec,
+          () -> {
+            if (displayName == null && email == null && role == null) {
+              throw new IllegalArgumentException(
+                  "Nothing to update. Pass --name, --email, and/or --role.");
+            }
+            try (var db = Sqlite.open(dbPath())) {
+              var updated =
+                  new FdeStore(db)
+                      .update(handle, displayName, email, role)
+                      .orElseThrow(
+                          () -> new IllegalArgumentException("Unknown FDE '" + handle + "'."));
+              System.out.println(
+                  Ansi.AUTO.string(
+                      "  @|green ✓|@ Updated " + updated.handle() + " (" + updated.role() + ")"));
+            }
+          });
     }
   }
 

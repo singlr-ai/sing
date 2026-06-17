@@ -125,6 +125,39 @@ public final class FdeStore {
     return db.queryOne(SELECT + " WHERE id = ?", FdeStore::map, id);
   }
 
+  /**
+   * Amends an existing FDE in place — only the non-null arguments change; the rest are left as they
+   * are, and the surrogate id (and the keys, tokens, and sessions that reference it) is preserved.
+   * Returns the updated FDE, or empty if the handle is unknown. The change propagates to every node
+   * on its next roster pull.
+   */
+  public Optional<Fde> update(String handle, String displayName, String email, String role) {
+    var existing = byHandle(handle).orElse(null);
+    if (existing == null) {
+      return Optional.empty();
+    }
+    if (role != null && !ROLES.contains(role)) {
+      throw new IllegalArgumentException(
+          "Invalid role: " + role + ". Must be one of " + ROLES + ".");
+    }
+    var updated =
+        new Fde(
+            existing.id(),
+            existing.handle(),
+            displayName != null ? displayName : existing.displayName(),
+            email != null ? email : existing.email(),
+            role != null ? role : existing.role(),
+            existing.status(),
+            existing.createdAt());
+    db.execute(
+        "UPDATE fdes SET display_name = ?, email = ?, role = ? WHERE handle = ?",
+        updated.displayName(),
+        updated.email(),
+        updated.role(),
+        handle);
+    return Optional.of(updated);
+  }
+
   public List<Fde> list() {
     return db.query(SELECT + " ORDER BY handle", FdeStore::map);
   }

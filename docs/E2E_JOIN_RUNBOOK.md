@@ -150,22 +150,43 @@ sail conflicts                       # expect push-demo listed; resolve it (take
 sail sync                            # expect convergence; conflicts = 0 afterward
 ```
 
-### 5. Files materialize; local edits are kept
+### 5. Projects and files sync from main; local edits are kept
+
+**5a — a project definition created on main lands on the node ("pull a project from main" = sync):**
+```bash
+# MAIN — create a project; this catalogs its definition (and provisions a container on main)
+sail project create testsync --yes
+# NODE
+sail sync                                      # expect "1 new project(s) synced from main: testsync"
+cat ~/.sail/projects/testsync/sail.yaml        # expect the descriptor, materialized from the catalog
+sail project config testsync                   # reads the catalog (DB-authoritative) — same definition
+sudo sail project create testsync              # (optional) provision the synced definition locally
+```
+
+**5b — a definition edited on main propagates (the DB is the source of truth):**
+```bash
+# MAIN
+sail project edit testsync                     # change e.g. the description; saves to the catalog
+# NODE
+sail sync && sail project config testsync      # expect the edited definition (not a stale local file)
+```
+
+**5c — shared files materialize, and a local edit is kept, not overwritten:**
 ```bash
 # MAIN
 echo "shared config v1" > /tmp/shared.env
-sail project files add --project <proj> /tmp/shared.env --as config/shared.env
+sail project files add --project testsync /tmp/shared.env --as config/shared.env
 # NODE
 sail sync
-sail project files ls --project <proj>          # expect config/shared.env
-cat ~/.sail/projects/<proj>/config/shared.env   # expect "shared config v1"
+sail project files ls --project testsync            # expect config/shared.env (in the bordered table)
+cat ~/.sail/projects/testsync/files/config/shared.env   # expect "shared config v1"
 
-# Now prove a local edit is preserved, not overwritten:
+# now prove a local edit survives:
 # NODE
-echo "node local change" >> ~/.sail/projects/<proj>/config/shared.env
+echo "node local change" >> ~/.sail/projects/testsync/files/config/shared.env
 # MAIN
 echo "shared config v2" > /tmp/shared.env
-sail project files add --project <proj> /tmp/shared.env --as config/shared.env
+sail project files add --project testsync /tmp/shared.env --as config/shared.env
 # NODE
 sail sync     # expect a "Kept 1 locally-modified file(s)" warning; your edit survives
 ```

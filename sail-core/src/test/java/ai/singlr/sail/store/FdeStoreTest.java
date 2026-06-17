@@ -207,4 +207,36 @@ class FdeStoreTest {
     store.add("dup", null, null);
     assertThrows(SqliteException.class, () -> store.add("dup", null, null));
   }
+
+  @Test
+  void updateAmendsOnlyTheGivenFieldsAndPreservesTheId() {
+    var added = store.add("mady", null, null, "member");
+
+    var updated = store.update("mady", "Mady M", "mady@example.com", null).orElseThrow();
+
+    assertEquals(added.id(), updated.id(), "the surrogate id is preserved");
+    assertEquals("Mady M", updated.displayName());
+    assertEquals("mady@example.com", updated.email());
+    assertEquals("member", updated.role(), "an unspecified field is left as it was");
+    assertEquals("Mady M", store.byHandle("mady").orElseThrow().displayName());
+  }
+
+  @Test
+  void updateCanChangeTheRole() {
+    store.add("mady", "Mady M", "mady@example.com", "member");
+    assertEquals("admin", store.update("mady", null, null, "admin").orElseThrow().role());
+    assertEquals("Mady M", store.byHandle("mady").orElseThrow().displayName());
+  }
+
+  @Test
+  void updateIsEmptyForAnUnknownHandle() {
+    assertTrue(store.update("ghost", "X", null, null).isEmpty());
+  }
+
+  @Test
+  void updateRejectsAnInvalidRole() {
+    store.add("mady", null, null, "member");
+    assertThrows(
+        IllegalArgumentException.class, () -> store.update("mady", null, null, "superuser"));
+  }
 }
