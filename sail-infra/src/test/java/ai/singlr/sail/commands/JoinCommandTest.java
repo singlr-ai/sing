@@ -58,10 +58,14 @@ class JoinCommandTest {
   void planPointsTheBoxAtMainAndReturnsItsPublicKey() throws Exception {
     var hostConfig = writeHostConfig();
 
-    var plan = JoinCommand.plan(hostConfig, identity(), "sail@maindevbox", "mady");
+    var plan =
+        JoinCommand.plan(
+            hostConfig, identity(), "sail@maindevbox", "mady", "Mady M", "mady@example.com");
 
     assertEquals("sail@maindevbox", plan.target());
     assertEquals("mady", plan.handle());
+    assertEquals("Mady M", plan.name());
+    assertEquals("mady@example.com", plan.email());
     assertEquals(PUB, plan.publicKey());
 
     var written = HostYaml.fromMap(YamlUtil.parseFile(hostConfig));
@@ -77,7 +81,7 @@ class JoinCommandTest {
     var error =
         assertThrows(
             IllegalStateException.class,
-            () -> JoinCommand.plan(missing, identity(), "sail@main", "mady"));
+            () -> JoinCommand.plan(missing, identity(), "sail@main", "mady", null, null));
     assertTrue(error.getMessage().contains("host init"));
   }
 
@@ -87,14 +91,23 @@ class JoinCommandTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> JoinCommand.plan(hostConfig, identity(), "not a target!", "mady"));
+        () -> JoinCommand.plan(hostConfig, identity(), "not a target!", "mady", null, null));
   }
 
   @Test
-  void authorizeLineIsACopyPasteFdeAddCommand() {
+  void authorizeLineCarriesNameAndEmailWhenPresent() {
+    assertEquals(
+        "sail fde add mady --role member --name \"Mady M\" --email \"mady@example.com\" --key \""
+            + PUB
+            + "\"",
+        JoinCommand.authorizeLine("mady", "Mady M", "mady@example.com", PUB));
+  }
+
+  @Test
+  void authorizeLineOmitsBlankNameAndEmail() {
     assertEquals(
         "sail fde add mady --role member --key \"" + PUB + "\"",
-        JoinCommand.authorizeLine("mady", PUB));
+        JoinCommand.authorizeLine("mady", null, "  ", PUB));
   }
 
   @Test
@@ -203,16 +216,20 @@ class JoinCommandTest {
 
   @Test
   void renderJsonEmitsTheAuthorizeCommand() {
-    var out = JoinCommand.render(new JoinCommand.Plan("sail@host", "mady", PUB), true);
+    var out =
+        JoinCommand.render(
+            new JoinCommand.Plan("sail@host", "mady", "Mady M", "mady@example.com", PUB), true);
 
     assertTrue(out.contains("\"target\""));
     assertTrue(out.contains("\"authorize_command\""));
-    assertTrue(out.contains("sail fde add mady --role member --key"));
+    assertTrue(out.contains("\"suggested_name\""));
+    assertTrue(out.contains("Mady M"));
+    assertTrue(out.contains("sail fde add mady --role member --name"));
   }
 
   @Test
   void renderHumanShowsTheTargetAndAuthorizeLine() {
-    var out = JoinCommand.render(new JoinCommand.Plan("sail@host", "mady", PUB), false);
+    var out = JoinCommand.render(new JoinCommand.Plan("sail@host", "mady", null, null, PUB), false);
 
     assertTrue(out.contains("sail@host"));
     assertTrue(out.contains("sail fde add mady --role member"));
