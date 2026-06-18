@@ -117,4 +117,11 @@ class SyncCommandTest {
     assertEquals(2, event.data().get("merged"));
     assertEquals(4, event.data().get("conflicts"));
   }
+
+  @Test
+  void reasonUsesTheMessageOrFallsBackToTheExceptionType() {
+    assertEquals("boom", SyncCommand.reason(new IllegalStateException("boom")));
+    assertEquals("RuntimeException", SyncCommand.reason(new RuntimeException()));
+    assertEquals("IllegalStateException", SyncCommand.reason(new IllegalStateException("  ")));
+  }
 }
