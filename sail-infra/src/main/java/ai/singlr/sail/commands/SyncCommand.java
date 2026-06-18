@@ -145,11 +145,26 @@ public final class SyncCommand implements Callable<Integer> {
         "Single devbox — nothing to sync. Add a second box with: sail host sync --main <user@host>.");
   }
 
-  private int runOnce(Boxes boxes, String target) throws Exception {
-    var report = reconcile(boxes, target);
-    System.out.println(render(report, json));
-    notifyBoardUpdated(report);
-    return 0;
+  private int runOnce(Boxes boxes, String target) {
+    try {
+      var report = reconcile(boxes, target);
+      System.out.println(render(report, json));
+      notifyBoardUpdated(report);
+      return 0;
+    } catch (Exception e) {
+      System.err.println(
+          Banner.errorLine("Sync with " + target + " failed: " + reason(e), Ansi.AUTO));
+      return 1;
+    }
+  }
+
+  /** A human-readable reason for a failed round, falling back to the exception type. */
+  static String reason(Exception e) {
+    var message = e.getMessage();
+    if (message == null || message.isBlank()) {
+      return e.getClass().getSimpleName();
+    }
+    return message;
   }
 
   private int watchLoop(Boxes boxes, String target) throws InterruptedException {
@@ -163,7 +178,7 @@ public final class SyncCommand implements Callable<Integer> {
       } catch (Exception e) {
         System.err.println(
             Banner.errorLine(
-                "Sync round failed (" + e.getMessage() + "); retrying in " + intervalSeconds + "s.",
+                "Sync round failed (" + reason(e) + "); retrying in " + intervalSeconds + "s.",
                 Ansi.AUTO));
       }
       Thread.sleep(intervalSeconds * 1000L);
