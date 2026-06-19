@@ -294,7 +294,17 @@ public final class SchemaManager {
           )""",
           "ALTER TABLE api_tokens ADD COLUMN expires_at TEXT",
           "ALTER TABLE projects ADD COLUMN rev TEXT",
-          "ALTER TABLE projects ADD COLUMN base_rev TEXT");
+          "ALTER TABLE projects ADD COLUMN base_rev TEXT",
+          """
+          CREATE TABLE spec_dependencies_v2 (
+              spec_id TEXT NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
+              depends_on TEXT NOT NULL,
+              PRIMARY KEY (spec_id, depends_on)
+          )""",
+          "INSERT INTO spec_dependencies_v2 (spec_id, depends_on)"
+              + " SELECT spec_id, depends_on FROM spec_dependencies",
+          "DROP TABLE spec_dependencies",
+          "ALTER TABLE spec_dependencies_v2 RENAME TO spec_dependencies");
 
   private final Sqlite db;
 
