@@ -364,4 +364,31 @@ class SpecStoreTest {
     assertTrue(store.findById("child").isEmpty());
     assertTrue(store.getContent("child").isEmpty());
   }
+
+  @Test
+  void aSpecCanDependOnOneThatHasNotArrivedYet() {
+    var billing =
+        new SpecStore.SpecRow(
+            "billing",
+            "test-project",
+            "Billing",
+            SpecStatus.PENDING,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            null,
+            List.of("auth"),
+            List.of());
+
+    store.create(billing);
+
+    assertEquals(List.of("auth"), store.findById("billing").orElseThrow().dependsOn());
+    assertTrue(store.findById("auth").isEmpty(), "the dependency need not exist");
+  }
 }
