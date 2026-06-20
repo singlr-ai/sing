@@ -58,4 +58,20 @@ class ProjectListCommandTest {
   void emptyEverywhereIsEmpty() {
     assertEquals(List.of(), ProjectListCommand.merge(List.of(), List.of()));
   }
+
+  @Test
+  void jsonRendersStatusAndIpPerProject() {
+    var notProvisioned = new ContainerInfo("billing", new ContainerState.NotCreated(), null);
+    var json = ProjectListCommand.renderJson(List.of(running("acme"), notProvisioned));
+
+    assertEquals(
+        "[{\"name\": \"acme\", \"status\": \"running\", \"ip\": \"10.0.0.5\"}, "
+            + "{\"name\": \"billing\", \"status\": \"not_provisioned\"}]",
+        json);
+  }
+
+  @Test
+  void jsonForNoProjectsIsAnEmptyArray() {
+    assertEquals("[]", ProjectListCommand.renderJson(List.of()));
+  }
 }

@@ -47,7 +47,7 @@ public final class ProjectListCommand implements Runnable {
     var projects = merge(containers, catalogNames());
 
     if (json) {
-      printJson(projects);
+      System.out.println(renderJson(projects));
       return;
     }
 
@@ -91,24 +91,27 @@ public final class ProjectListCommand implements Runnable {
     }
   }
 
-  private void printJson(List<ContainerInfo> projects) {
+  /** Renders the project roster as JSON — pure, so the shape is unit-tested. */
+  static String renderJson(List<ContainerInfo> projects) {
     var list = new ArrayList<Map<String, Object>>();
     for (var c : projects) {
       var map = new LinkedHashMap<String, Object>();
       map.put("name", c.name());
-      map.put(
-          "status",
-          switch (c.state()) {
-            case ContainerState.Running ignored -> "running";
-            case ContainerState.Stopped ignored -> "stopped";
-            case ContainerState.NotCreated ignored -> "not_provisioned";
-            case ContainerState.Error ignored -> "error";
-          });
+      map.put("status", statusOf(c.state()));
       if (c.state() instanceof ContainerState.Running r && r.ipv4() != null) {
         map.put("ip", r.ipv4());
       }
       list.add(map);
     }
-    System.out.println(YamlUtil.dumpJson(list));
+    return YamlUtil.dumpJson(list);
+  }
+
+  private static String statusOf(ContainerState state) {
+    return switch (state) {
+      case ContainerState.Running ignored -> "running";
+      case ContainerState.Stopped ignored -> "stopped";
+      case ContainerState.NotCreated ignored -> "not_provisioned";
+      case ContainerState.Error ignored -> "error";
+    };
   }
 }
