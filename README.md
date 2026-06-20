@@ -26,13 +26,15 @@ There is no GitHub in this loop and no project board. The database **is** the bo
 
 ### Stand up a main
 
+One convergent command provisions the box, installs the local control plane, and declares it the org's source of truth:
+
 ```bash
-sudo sail host init             # install Incus, storage pool, network, base image
-sudo sail host ssh-identity     # provision the locked `sail` gateway user + shared data dir
-sudo sail host sync --as-main   # declare this box the org's source of truth
+sudo sail init --as-main
 ```
 
-Authorize an engineer (they send you the public key `sail join` printed on their box):
+It is idempotent — re-run it any time. Under the hood it runs the granular steps, which stay usable on their own: `host init` (Incus, storage, network, base image), `host service install` (the `sail-api` control plane), `host ssh-identity` (the locked `sail` gateway user), and `host sync --as-main`.
+
+Authorize an engineer (they send you the public key their `sail init --main` printed on their box):
 
 ```bash
 sail fde add mady --role member --key "ssh-ed25519 AAAA… sail-sync@madybox"
@@ -43,14 +45,15 @@ sail fde add mady --role member --key "ssh-ed25519 AAAA… sail-sync@madybox"
 ### Join as a node
 
 ```bash
-sudo sail host init             # one-time control plane (a node needs no ssh-identity)
-sail join <main-ip>             # generate this box's sync key, point it at main,
-                                # and print the exact `sail fde add …` line for the operator
+sudo sail init --main <main-ip>   # provision, install sail-api, generate this box's sync key,
+                                  # point it at main, and print the `sail fde add …` line
 # …operator runs that line on main…
-sail sync                       # reconcile: pull specs + projects + shared files from main
+sail sync                         # pull specs + projects + shared files from main
 ```
 
-`sail join` never assumes `root` — it prompts for the handle main should authorize (defaulting to your own user, never `root`). Only a *public* key ever leaves your box.
+`sail init --main` orchestrates `host init`, `host service install`, and `join` — run any on its own if you prefer. It never assumes `root`: it prompts for the handle main should authorize (defaulting to your own user, never `root`). Only a *public* key ever leaves your box.
+
+> Working from a Mac or other thin client instead of on the box itself? `sail client <host>` points your local CLI at a remote sail host and forwards commands over SSH.
 
 ## Projects
 
@@ -67,6 +70,8 @@ sail project connect acme-health  # print SSH config for your editor
 `project create` provisions an Incus container with everything declared in `sail.yaml` — installs runtimes, starts Podman services with `--restart=always`, clones repos, configures git identity, generates agent context files, and pushes the project's `files/` bundle into `~/workspace/`.
 
 **Getting a teammate's project:** `sail sync` brings its definition *and* its shared `files/` bundle onto your box; then `sudo sail project create <name>` spins it up locally (pass `--git-token` for private repos). Editing is database-first: `sail project edit` changes the catalog and replicates to every box on the next sync — hand-editing the materialized file is not the path.
+
+**The synced definition is identity-free.** Each engineer's git identity and authorized SSH key live in the descriptor as placeholders — `${GIT_NAME}`, `${GIT_EMAIL}`, `${SSH_PUBLIC_KEY}` — that resolve from *your* box at provision time (local `git config` and this box's sail key). A teammate's project commits as you and trusts only your key; no one's identity or keys ride the sync onto someone else's box. Tunable resources (`cpu`/`memory`/`disk`) sync both ways — bump them on any box and a later `sail sync` resizes everyone's container in place, no recreate.
 
 ```bash
 # zero-config demo (Outline wiki — Postgres + Redis), bundled in the binary
@@ -179,8 +184,8 @@ runtimes:
   maven: "3.9.9"
 
 git:
-  name: "Acme Engineering"
-  email: "eng@acme.com"
+  name: ${GIT_NAME}       # per-developer; resolved from each box's local git config, never synced
+  email: ${GIT_EMAIL}
   auth: token
 
 repos:
@@ -215,7 +220,7 @@ agent:
 ssh:
   user: dev
   authorized_keys:
-    - "ssh-ed25519 AAAA... you@laptop"
+    - ${SSH_PUBLIC_KEY}   # per-developer; resolved from each box's own sail key, never synced
 ```
 
 ## Project lifecycle
@@ -244,7 +249,9 @@ sail project destroy acme-health                   # delete container and state
 sail upgrade
 ```
 
-Downloads the signed binary, verifies its checksum, installs it, runs `sail migrate` (which converges the database — seeding the demo, importing legacy descriptors, reconciling `authorized_keys`), and restarts `sail-api` if it was running. Single-box installs need no new commands; sync is opt-in.
+Downloads the signed binary, verifies its checksum, installs it, runs `sail migrate` (which converges the database — seeding the demo, importing legacy descriptors, scrubbing per-developer identity from synced definitions, reconciling the gateway's `authorized_keys`), and restarts `sail-api` if it was running. Single-box installs need no new commands; sync is opt-in.
+
+> Upgrade your **main** box first, then the nodes: the identity scrub becomes authoritative on main and the placeholdered definitions flow down on the next sync.
 
 ## Building from source
 
