@@ -74,7 +74,7 @@ public final class ProjectApplyCommand implements Runnable {
                             + name
                             + "'. Sync it from main with 'sail sync', or author one with 'sail"
                             + " project init'."));
-    SailYaml config = SailYaml.fromMap(YamlUtil.parseMap(definitionText));
+    SailYaml config = ProjectDefinitions.resolveForProvisioning(definitionText);
     var singYamlPath =
         explicit != null ? explicit : ProjectDefinitions.materialize(name, definitionText);
 

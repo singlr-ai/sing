@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import ai.singlr.sail.config.PlaceholderResolver;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.store.ProjectStore;
@@ -87,6 +88,22 @@ public final class ProjectDefinitions {
                             + "'. Author one with 'sail project init', or sync it from main with"
                             + " 'sail sync'."));
     return SailYaml.fromMap(YamlUtil.parseMap(text));
+  }
+
+  /**
+   * Parses a definition for provisioning, resolving the personal-field placeholders ({@code
+   * ${GIT_NAME}}, {@code ${GIT_EMAIL}}, {@code ${SSH_PUBLIC_KEY}}) from this box's own identity. A
+   * definition with no placeholders — one authored locally with concrete values, not yet synced —
+   * is parsed unchanged and never touches the local identity. This is the seam where the fleet's
+   * identity-free definition becomes a container that commits as the engineer and trusts their key.
+   */
+  public static SailYaml resolveForProvisioning(String definitionText) {
+    return resolveForProvisioning(definitionText, LocalIdentity.detect());
+  }
+
+  static SailYaml resolveForProvisioning(String definitionText, LocalIdentity identity) {
+    var resolved = PlaceholderResolver.resolve(definitionText, identity::valueFor);
+    return SailYaml.fromMap(YamlUtil.parseMap(resolved));
   }
 
   /** Writes a definition to the canonical descriptor (the materialized view of the catalog). */

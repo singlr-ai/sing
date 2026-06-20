@@ -94,4 +94,47 @@ class ProjectStoreTest {
     assertNull(store.findByName("acme").orElseThrow().createdBy());
     assertThrows(SqliteException.class, () -> store.upsert("broken", null, null));
   }
+
+  @Test
+  void upsertRedactsPersonalFieldsBeforeStoring() {
+    store.upsert(
+        "acme",
+        "git:\n  name: Uday Chandra\n  email: uday@example.com\n"
+            + "ssh:\n  authorized_keys:\n    - ssh-ed25519 SECRETKEY main\n",
+        "uday");
+
+    var definition = store.findByName("acme").orElseThrow().definition();
+    assertTrue(definition.contains("${GIT_NAME}"));
+    assertTrue(definition.contains("${SSH_PUBLIC_KEY}"));
+    assertFalse(definition.contains("Uday Chandra"));
+    assertFalse(definition.contains("SECRETKEY"));
+  }
+
+  @Test
+  void theSyncedSnapshotCarriesPlaceholdersNotIdentity() {
+    store.upsert("acme", "git:\n  name: Uday\n  email: uday@example.com\n", "uday");
+
+    var snapshot = store.comparableSnapshot("acme");
+    assertTrue(snapshot.get("definition").toString().contains("${GIT_NAME}"));
+    assertFalse(snapshot.get("definition").toString().contains("uday@example.com"));
+  }
+
+  @Test
+  void canonicalizeScrubsAPreBrickRowAndCountsIt() {
+    db.execute(
+        "INSERT INTO projects (name, definition, created_at, updated_at)"
+            + " VALUES ('legacy', 'git:\n  name: Uday\n  email: uday@example.com\n', 'now', 'now')");
+
+    assertEquals(1, store.canonicalizeDefinitions());
+
+    var definition = store.findByName("legacy").orElseThrow().definition();
+    assertTrue(definition.contains("${GIT_NAME}"));
+    assertFalse(definition.contains("uday@example.com"));
+  }
+
+  @Test
+  void canonicalizeIsANoOpForAlreadyRedactedRows() {
+    store.upsert("acme", "git:\n  name: Uday\n  email: uday@example.com\n", "uday");
+    assertEquals(0, store.canonicalizeDefinitions(), "upsert already redacted it");
+  }
 }

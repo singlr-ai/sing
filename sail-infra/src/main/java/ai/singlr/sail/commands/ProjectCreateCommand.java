@@ -102,7 +102,7 @@ public final class ProjectCreateCommand implements Runnable {
       throw new IllegalStateException(hint.toString());
     }
 
-    SailYaml config = SailYaml.fromMap(YamlUtil.parseFile(singYamlPath));
+    SailYaml config = ProjectDefinitions.resolveForProvisioning(Files.readString(singYamlPath));
 
     if (config.name() == null || config.name().isBlank()) {
       throw new IllegalStateException("sail.yaml must have a 'name' field.");

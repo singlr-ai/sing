@@ -7,6 +7,7 @@ package ai.singlr.sail.store;
 
 import ai.singlr.sail.common.DateTimeUtils;
 import ai.singlr.sail.common.Strings;
+import ai.singlr.sail.config.PersonalFields;
 import ai.singlr.sail.config.YamlUtil;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -53,12 +54,18 @@ public final class ProjectStore implements ConflictResolver {
    * Inserts the project or replaces its definition, preserving the original {@code
    * created_by}/{@code created_at}, and journals it as a local edit the next sync pushes.
    * Idempotent in effect; re-applying the same definition still records a revision that converges.
+   *
+   * <p>The definition is {@linkplain PersonalFields#redact redacted} first, so the catalogued,
+   * synced state never carries this box's git identity or SSH keys — each box resolves those
+   * locally at provision time. This is the one seam where a definition a human authored enters the
+   * catalog; revisions arriving over sync are already redacted at their origin.
    */
   public void upsert(String name, String definition, String actor) {
+    var canonical = PersonalFields.redact(definition);
     db.transaction(
         () -> {
-          writeRow(name, definition, actor);
-          recordRevision(name, definition, null, "local", false, false);
+          writeRow(name, canonical, actor);
+          recordRevision(name, canonical, null, "local", false, false);
         });
   }
 
@@ -139,6 +146,25 @@ public final class ProjectStore implements ConflictResolver {
           () -> recordRevision(row.name(), row.definition(), null, "local", false, false));
     }
     return pending.size();
+  }
+
+  /**
+   * Rewrites every catalogued definition to its {@linkplain PersonalFields#redact redacted} form,
+   * so a catalog written before this brick — carrying one box's git identity and SSH keys — is
+   * scrubbed and the placeholder form propagates on the next sync. A no-op for definitions already
+   * redacted; returns how many it changed. Because redaction is deterministic, a node that runs
+   * this against its main-derived rows reaches the same content main does and the two converge
+   * without conflict.
+   */
+  public int canonicalizeDefinitions() {
+    var changed = 0;
+    for (var row : list()) {
+      if (!PersonalFields.redact(row.definition()).equals(row.definition())) {
+        upsert(row.name(), row.definition(), row.updatedBy());
+        changed++;
+      }
+    }
+    return changed;
   }
 
   /**

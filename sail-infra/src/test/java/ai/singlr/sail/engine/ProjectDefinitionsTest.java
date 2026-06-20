@@ -79,4 +79,52 @@ class ProjectDefinitionsTest {
     assertEquals(null, ProjectDefinitions.explicitFile(null));
     assertEquals(Path.of("custom.yaml"), ProjectDefinitions.explicitFile("custom.yaml"));
   }
+
+  @Test
+  void resolveForProvisioningFillsPlaceholdersFromTheLocalBox() throws Exception {
+    var keyPath = dir.resolve("sync_ed25519.pub");
+    Files.writeString(keyPath, "ssh-ed25519 AAAAMADY mady@box\n");
+    var identity = new LocalIdentity(gitConfig("Mady M", "mady@example.com"), keyPath);
+
+    var config =
+        ProjectDefinitions.resolveForProvisioning(
+            "name: acme\n"
+                + "resources:\n  cpu: 2\n  memory: 8GB\n  disk: 50GB\n"
+                + "git:\n  name: ${GIT_NAME}\n  email: ${GIT_EMAIL}\n"
+                + "ssh:\n  user: dev\n  authorized_keys:\n    - ${SSH_PUBLIC_KEY}\n",
+            identity);
+
+    assertEquals("Mady M", config.git().name());
+    assertEquals("mady@example.com", config.git().email());
+    assertEquals("ssh-ed25519 AAAAMADY mady@box", config.ssh().authorizedKeys().getFirst());
+  }
+
+  @Test
+  void resolveForProvisioningNeedsNoIdentityWhenThereAreNoPlaceholders() {
+    var noIdentity = new LocalIdentity(gitConfig("", ""), dir.resolve("missing.pub"));
+    var config =
+        ProjectDefinitions.resolveForProvisioning(
+            "name: acme\nresources:\n  cpu: 2\n  memory: 8GB\n  disk: 50GB\n", noIdentity);
+    assertEquals("acme", config.name());
+  }
+
+  private static ShellExec gitConfig(String name, String email) {
+    var values = java.util.Map.of("user.name", name, "user.email", email);
+    return new ShellExec() {
+      @Override
+      public Result exec(java.util.List<String> command) {
+        return new Result(0, values.getOrDefault(command.getLast(), ""), "");
+      }
+
+      @Override
+      public Result exec(java.util.List<String> command, Path workDir, java.time.Duration timeout) {
+        return exec(command);
+      }
+
+      @Override
+      public boolean isDryRun() {
+        return false;
+      }
+    };
+  }
 }

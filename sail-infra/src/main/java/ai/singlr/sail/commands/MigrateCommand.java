@@ -88,6 +88,7 @@ public final class MigrateCommand implements Runnable {
       var runs = applyMigrations(db, dbPath.toString(), prompter, animate, jsonOutput);
       importProjects(db, jsonOutput);
       backfillProjectRevisions(db, jsonOutput);
+      scrubProjectIdentity(db, jsonOutput);
       importFiles(db, jsonOutput);
       seedDemo(db, jsonOutput);
       relocateHostConfig(jsonOutput);
@@ -119,6 +120,23 @@ public final class MigrateCommand implements Runnable {
     if (!jsonOutput && backfilled > 0) {
       System.out.println(
           Ansi.AUTO.string("  @|green ✓|@ project catalog: " + backfilled + " made syncable"));
+    }
+  }
+
+  /**
+   * Scrubs each catalogued definition of the per-developer git identity and SSH keys a pre-brick
+   * catalog stored concretely, rewriting them to placeholders so one box's identity stops riding
+   * the synced state onto everyone else's. Idempotent; quiet when every definition is already
+   * clean.
+   */
+  private static void scrubProjectIdentity(Sqlite db, boolean jsonOutput) {
+    var scrubbed = new ProjectStore(db).canonicalizeDefinitions();
+    if (!jsonOutput && scrubbed > 0) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|green ✓|@ project catalog: "
+                  + scrubbed
+                  + " scrubbed of per-developer identity"));
     }
   }
 
