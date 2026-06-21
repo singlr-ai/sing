@@ -10,11 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.store.FileStore;
+import ai.singlr.sail.store.ProjectStore;
 import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
@@ -218,6 +220,28 @@ class ConflictsCommandTest {
   void resolverForDispatchesOnEntityType() {
     assertInstanceOf(FileStore.class, ConflictsCommand.resolverFor(db, "file"));
     assertInstanceOf(SpecStore.class, ConflictsCommand.resolverFor(db, "spec"));
+    assertInstanceOf(ProjectStore.class, ConflictsCommand.resolverFor(db, "project"));
+  }
+
+  @Test
+  void resolverForRejectsAnUnknownEntityType() {
+    var error =
+        assertThrows(
+            IllegalStateException.class, () -> ConflictsCommand.resolverFor(db, "mystery"));
+    assertTrue(error.getMessage().contains("mystery"));
+  }
+
+  @Test
+  void mergeIsOfferedOnlyForSpecsNotProjectsOrFiles() {
+    conflicts.record("project", "acme", "{}", "{}", "{}", List.of("definition"));
+    conflicts.record("file", "acme/x.txt", "{}", "{}", "{}", List.of("content"));
+
+    assertFalse(
+        ConflictsCommand.Resolve.mergeable(conflicts.pendingFor("project", "acme").orElseThrow()),
+        "a project definition is a single blob — resolve with --mine/--theirs");
+    assertFalse(
+        ConflictsCommand.Resolve.mergeable(
+            conflicts.pendingFor("file", "acme/x.txt").orElseThrow()));
   }
 
   @Test

@@ -128,8 +128,9 @@ public final class FdeStore {
   /**
    * Amends an existing FDE in place — only the non-null arguments change; the rest are left as they
    * are, and the surrogate id (and the keys, tokens, and sessions that reference it) is preserved.
-   * Returns the updated FDE, or empty if the handle is unknown. The change propagates to every node
-   * on its next roster pull.
+   * Returns the updated FDE, or empty if the handle is unknown. The roster is main-authoritative
+   * and replicates one-way, so a change made on main reaches every node on its next pull; a change
+   * made on a node stays local and is overwritten by the next sync (the CLI guards against that).
    */
   public Optional<Fde> update(String handle, String displayName, String email, String role) {
     var existing = byHandle(handle).orElse(null);

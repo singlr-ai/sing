@@ -54,6 +54,24 @@ public final class FdeCommand implements Runnable {
     return SailPaths.controlPlaneDb();
   }
 
+  /**
+   * Refuses an FDE roster edit on a node. The roster is main-authoritative and replicates one-way,
+   * so an add/update/remove on a node is silently overwritten by the next sync — failing loud with
+   * the right place to run it is far better than losing the edit.
+   */
+  private static void requireMainForRosterEdit(String action) {
+    if (HostSync.isNode(HostSync.config())) {
+      throw new IllegalStateException(rosterEditOnNodeMessage(action));
+    }
+  }
+
+  static String rosterEditOnNodeMessage(String action) {
+    return "The FDE roster is managed on the main devbox. "
+        + action
+        + " on a node is not propagated — it would be overwritten on the next sync.\n"
+        + "  Run this on main; the change replicates to every node automatically.";
+  }
+
   private static void registerKey(Sqlite db, FdeStore.Fde fde, String publicKey) throws Exception {
     var key = SshPublicKey.parse(publicKey);
     try {
@@ -115,6 +133,7 @@ public final class FdeCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
+            requireMainForRosterEdit("Adding an FDE");
             var key = publicKey == null ? null : SshPublicKey.parse(publicKey);
             try (var db = Sqlite.open(dbPath())) {
               var fdeStore = new FdeStore(db);
@@ -181,6 +200,7 @@ public final class FdeCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
+            requireMainForRosterEdit("Updating an FDE");
             if (displayName == null && email == null && role == null) {
               throw new IllegalArgumentException(
                   "Nothing to update. Pass --name, --email, and/or --role.");
@@ -218,6 +238,7 @@ public final class FdeCommand implements Runnable {
       CliCommand.run(
           spec,
           () -> {
+            requireMainForRosterEdit("Removing an FDE");
             try (var db = Sqlite.open(dbPath())) {
               var fdeStore = new FdeStore(db);
               var fde =
