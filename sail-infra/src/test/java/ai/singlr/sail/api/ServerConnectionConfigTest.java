@@ -32,9 +32,12 @@ class ServerConnectionConfigTest {
 
   @Test
   void missingTokenWithoutConfigThrows() {
-    assertThrows(
-        IOException.class,
-        () -> ServerConnectionConfig.resolve("http://localhost:7070", null, missingConfig()));
+    var error =
+        assertThrows(
+            IOException.class,
+            () -> ServerConnectionConfig.resolve("http://localhost:7070", null, missingConfig()));
+    assertTrue(error.getMessage().contains("host service install"));
+    assertTrue(error.getMessage().contains("sail login"));
   }
 
   @Test

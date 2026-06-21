@@ -11,6 +11,7 @@ import ai.singlr.sail.engine.Banner;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.store.ConflictResolver;
 import ai.singlr.sail.store.FileStore;
+import ai.singlr.sail.store.ProjectStore;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import ai.singlr.sail.store.SyncConflicts;
@@ -45,7 +46,9 @@ import picocli.CommandLine.Parameters;
     subcommands = {ConflictsCommand.Show.class, ConflictsCommand.Resolve.class})
 public final class ConflictsCommand implements Callable<Integer> {
 
+  static final String SPEC = "spec";
   static final String FILE = "file";
+  static final String PROJECT = "project";
 
   @Option(names = "--json", description = "Output the pending conflicts as JSON.")
   private boolean json;
@@ -112,7 +115,12 @@ public final class ConflictsCommand implements Callable<Integer> {
   }
 
   static ConflictResolver resolverFor(Sqlite db, String entityType) {
-    return entityType.equals(FILE) ? new FileStore(db) : new SpecStore(db);
+    return switch (entityType) {
+      case SPEC -> new SpecStore(db);
+      case FILE -> new FileStore(db);
+      case PROJECT -> new ProjectStore(db);
+      default -> throw new IllegalStateException("Unknown conflict entity type: " + entityType);
+    };
   }
 
   @Command(
@@ -267,11 +275,13 @@ public final class ConflictsCommand implements Callable<Integer> {
     }
 
     /**
-     * A field-level merge needs both sides present and a mergeable structure, so it is offered only
-     * for spec conflicts that are not delete-vs-edit. A file's content is an opaque blob.
+     * A field-level merge needs both sides present and a structure with mergeable fields, so it is
+     * offered only for spec conflicts that are not delete-vs-edit. A file's content is an opaque
+     * blob and a project's definition is a single descriptor field, so both resolve with {@code
+     * --mine}/{@code --theirs}, never {@code --merge}.
      */
     static boolean mergeable(SyncConflicts.Conflict conflict) {
-      return !conflict.entityType().equals(FILE)
+      return conflict.entityType().equals(SPEC)
           && parse(conflict.baseSnapshot()) != null
           && parse(conflict.localSnapshot()) != null
           && parse(conflict.remoteSnapshot()) != null;

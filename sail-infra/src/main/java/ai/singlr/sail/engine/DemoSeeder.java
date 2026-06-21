@@ -12,8 +12,9 @@ import ai.singlr.sail.store.Sqlite;
 /**
  * Seeds the bundled {@link DemoProject} into the control-plane catalog so {@code sail project demo}
  * is just another database-resident project — no network, no GitHub. Idempotent: it inserts the
- * demo only when no project named {@code demo} exists, so an engineer who customised or destroyed
- * theirs is never clobbered, and re-running on every install and upgrade is a no-op once seeded.
+ * demo only when the catalog has no record of one at all, so an engineer who customised or purged
+ * theirs is never clobbered or resurrected, and re-running on every install, upgrade, and daemon
+ * start is a no-op once seeded.
  */
 public final class DemoSeeder {
 
@@ -35,10 +36,16 @@ public final class DemoSeeder {
     }
   }
 
-  /** Seeds the demo into {@code store}'s database if absent; returns true when it inserted it. */
+  /**
+   * Seeds the demo into {@code store}'s database only if the catalog has never recorded it; returns
+   * true when it inserted it. The check is the change-log history, not just the live row, so a demo
+   * that was purged ({@code project destroy demo --purge} leaves a deletion tombstone) is not
+   * resurrected on the next daemon start — which would otherwise undo the team-wide purge on the
+   * next sync.
+   */
   public static boolean seedIfAbsent(Sqlite db) {
     var store = new ProjectStore(db);
-    if (store.findByName(DemoProject.NAME).isPresent()) {
+    if (store.latestRev(DemoProject.NAME) != null) {
       return false;
     }
     store.upsert(DemoProject.NAME, DemoProject.DEFINITION, "sail");

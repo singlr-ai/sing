@@ -94,7 +94,7 @@ public final class ProjectStore implements ConflictResolver {
   // ── Sync roles (mirrors FileStore): the database is the replicated source of truth ──
 
   public Map<String, Object> comparableSnapshot(String id) {
-    return findByName(id).map(row -> comparable(row.definition())).orElse(null);
+    return findByName(id).map(row -> comparable(row.definition(), row.updatedBy())).orElse(null);
   }
 
   public Map<String, Object> comparableAtRev(String id, String rev) {
@@ -177,7 +177,7 @@ public final class ProjectStore implements ConflictResolver {
             adoptDeletion(id, rev);
           } else {
             var definition = definitionOf(snapshot);
-            writeRow(id, definition, "sync");
+            writeRow(id, definition, actorOf(snapshot));
             recordRevision(id, definition, rev, "sync", false, true);
           }
         });
@@ -200,7 +200,7 @@ public final class ProjectStore implements ConflictResolver {
             return new PushOutcome.Accepted(rev);
           }
           var definition = definitionOf(snapshot);
-          writeRow(id, definition, "sync");
+          writeRow(id, definition, actorOf(snapshot));
           return new PushOutcome.Accepted(
               recordRevision(id, definition, null, "sync", false, false));
         });
@@ -230,7 +230,7 @@ public final class ProjectStore implements ConflictResolver {
       return adoptBaseDeletion(id);
     }
     var definition = definitionOf(remote);
-    writeRow(id, definition, "sync");
+    writeRow(id, definition, actorOf(remote));
     return recordRevision(id, definition, null, "sync", false, true);
   }
 
@@ -319,6 +319,16 @@ public final class ProjectStore implements ConflictResolver {
     return definition == null ? null : definition.toString();
   }
 
+  /**
+   * The author carried in a synced snapshot, defaulting to {@code sync} when absent (a peer that
+   * predates attribution). Read on the receiving side so a synced project is attributed to the
+   * engineer who actually edited it rather than to {@code sync}.
+   */
+  private static String actorOf(Map<String, Object> snapshot) {
+    var actor = snapshot == null ? null : snapshot.get(ACTOR);
+    return actor == null ? "sync" : actor.toString();
+  }
+
   private String rawBaseRev(String id) {
     var value =
         db.queryOne(
@@ -335,11 +345,32 @@ public final class ProjectStore implements ConflictResolver {
         .orElse("");
   }
 
+  /**
+   * The base/historical comparable carries only the work field. {@link ConflictDetector} ignores
+   * reserved {@code _}-prefixed keys, and the merge base's author is never needed, so the stored
+   * snapshot — and therefore the content-addressed revision — stays {@code {definition}} and two
+   * boxes still mint the same rev for the same definition.
+   */
   private static Map<String, Object> comparable(String definition) {
     var map = new LinkedHashMap<String, Object>();
     map.put("definition", definition);
     return map;
   }
+
+  /**
+   * The transmitted comparable additionally carries {@code _actor} so the receiving box can
+   * attribute the synced row to its real author. It rides outside the work fields, so it never
+   * counts toward a conflict and never enters the revision hash.
+   */
+  private static Map<String, Object> comparable(String definition, String actor) {
+    var map = comparable(definition);
+    if (actor != null) {
+      map.put(ACTOR, actor);
+    }
+    return map;
+  }
+
+  private static final String ACTOR = "_actor";
 
   private static final String SELECT =
       "SELECT name, definition, created_by, created_at, updated_by, updated_at FROM projects";

@@ -7,7 +7,10 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.ShellExecutor;
+import ai.singlr.sail.engine.SystemdServiceInstaller.ServiceStatus;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -48,21 +51,14 @@ public final class HostServiceStatusCommand implements Runnable {
     var linger = installer.lingerStatus();
 
     if (json) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("installed", installed);
-      map.put("service_file", installer.serviceFilePath().toString());
-      map.put("systemd_link", installer.systemdLinkPath().toString());
-      map.put("user", username);
-      map.put("linger", linger);
-      if (status != null) {
-        map.put("load_state", status.loadState());
-        map.put("active_state", status.activeState());
-        map.put("sub_state", status.subState());
-        if (status.pid() != null) {
-          map.put("pid", status.pid());
-        }
-        map.put("running", status.running());
-      }
+      var map =
+          statusMap(
+              installed,
+              installer.serviceFilePath(),
+              installer.systemdLinkPath(),
+              username,
+              linger,
+              status);
       System.out.println(YamlUtil.dumpJson(map));
       return;
     }
@@ -72,8 +68,10 @@ public final class HostServiceStatusCommand implements Runnable {
     if (installed) {
       System.out.println(
           Ansi.AUTO.string("    @|bold Unit:|@      " + installer.serviceFilePath()));
-      System.out.println(
-          Ansi.AUTO.string("    @|bold Link:|@      " + installer.systemdLinkPath()));
+      if (installer.systemdLinkPath() != null) {
+        System.out.println(
+            Ansi.AUTO.string("    @|bold Link:|@      " + installer.systemdLinkPath()));
+      }
     }
     System.out.println(Ansi.AUTO.string("    @|bold User:|@      " + username));
     System.out.println(Ansi.AUTO.string("    @|bold Linger:|@    " + linger));
@@ -85,5 +83,37 @@ public final class HostServiceStatusCommand implements Runnable {
         System.out.println(Ansi.AUTO.string("    @|bold PID:|@       " + status.pid()));
       }
     }
+  }
+
+  /**
+   * The JSON view of the service status. A system-scoped service has no per-user systemd link, so
+   * {@code systemdLink} is null and the key is omitted rather than rendered — the SYSTEM-mode case
+   * that used to throw a {@link NullPointerException}.
+   */
+  static Map<String, Object> statusMap(
+      boolean installed,
+      Path serviceFile,
+      Path systemdLink,
+      String username,
+      String linger,
+      ServiceStatus status) {
+    var map = new LinkedHashMap<String, Object>();
+    map.put("installed", installed);
+    map.put("service_file", serviceFile.toString());
+    if (systemdLink != null) {
+      map.put("systemd_link", systemdLink.toString());
+    }
+    map.put("user", username);
+    map.put("linger", linger);
+    if (status != null) {
+      map.put("load_state", status.loadState());
+      map.put("active_state", status.activeState());
+      map.put("sub_state", status.subState());
+      if (status.pid() != null) {
+        map.put("pid", status.pid());
+      }
+      map.put("running", status.running());
+    }
+    return map;
   }
 }

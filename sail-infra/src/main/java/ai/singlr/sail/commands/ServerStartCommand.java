@@ -99,6 +99,7 @@ public final class ServerStartCommand implements Runnable {
     var migrationResult =
         MigrationRunner.applyAll(
             db, MigrateCommand.REGISTRY, DataMigration.Prompter.NON_INTERACTIVE);
+    MigrateCommand.applyDataBackfills(db, false);
     if (migrationResult.schemaAfter() > migrationResult.schemaBefore()) {
       System.out.println(
           Ansi.AUTO.string(
