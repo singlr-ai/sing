@@ -68,8 +68,10 @@ public final class HostServiceStatusCommand implements Runnable {
     if (installed) {
       System.out.println(
           Ansi.AUTO.string("    @|bold Unit:|@      " + installer.serviceFilePath()));
-      System.out.println(
-          Ansi.AUTO.string("    @|bold Link:|@      " + installer.systemdLinkPath()));
+      if (installer.systemdLinkPath() != null) {
+        System.out.println(
+            Ansi.AUTO.string("    @|bold Link:|@      " + installer.systemdLinkPath()));
+      }
     }
     System.out.println(Ansi.AUTO.string("    @|bold User:|@      " + username));
     System.out.println(Ansi.AUTO.string("    @|bold Linger:|@    " + linger));

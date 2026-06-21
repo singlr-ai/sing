@@ -17,7 +17,6 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectApplier;
 import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ShellExecutor;
-import ai.singlr.sail.gen.SailYamlGenerator;
 import java.io.PrintStream;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -108,7 +107,7 @@ public final class ProjectAddRepoCommand implements Runnable {
         applier.applyRepos(
             name, List.of(repo), sshUser, GitCredentials.singleTokenMap(token), config.git());
 
-    var updatedText = SailYamlGenerator.generate(SailYamlUpdater.addRepo(config, repo));
+    var updatedText = YamlUtil.dumpToString((SailYamlUpdater.addRepo(config, repo)).toMap());
     ProjectMutations.persist(
         name,
         explicit,

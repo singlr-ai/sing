@@ -58,6 +58,20 @@ class DemoSeederTest {
   }
 
   @Test
+  void doesNotResurrectAPurgedDemo() {
+    DemoSeeder.seedIfAbsent(db);
+    assertTrue(store.delete(DemoProject.NAME), "purge tombstones the demo");
+    assertTrue(store.findByName(DemoProject.NAME).isEmpty());
+
+    assertFalse(
+        DemoSeeder.seedIfAbsent(db),
+        "a purged demo must not be re-seeded on the next daemon start");
+    assertTrue(
+        store.findByName(DemoProject.NAME).isEmpty(),
+        "and the tombstone stands, so sync keeps it gone");
+  }
+
+  @Test
   void seededDemoDefinitionParsesAsAValidProject() {
     DemoSeeder.seedIfAbsent(db);
     var definition = store.findByName(DemoProject.NAME).orElseThrow().definition();

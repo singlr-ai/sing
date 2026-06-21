@@ -16,7 +16,6 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectApplier;
 import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ShellExecutor;
-import ai.singlr.sail.gen.SailYamlGenerator;
 import ai.singlr.sail.gen.ServicePresets;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -110,7 +109,7 @@ public final class ProjectAddServiceCommand implements Runnable {
     var result = applier.applyServices(name, Map.of(svcName, service));
 
     var updatedText =
-        SailYamlGenerator.generate(SailYamlUpdater.addService(config, svcName, service));
+        YamlUtil.dumpToString((SailYamlUpdater.addService(config, svcName, service)).toMap());
     ProjectMutations.persist(
         name,
         explicit,

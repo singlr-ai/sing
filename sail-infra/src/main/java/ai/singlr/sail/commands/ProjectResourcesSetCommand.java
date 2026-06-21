@@ -16,7 +16,6 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ShellExec;
 import ai.singlr.sail.engine.ShellExecutor;
-import ai.singlr.sail.gen.SailYamlGenerator;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -133,7 +132,8 @@ public final class ProjectResourcesSetCommand implements Runnable {
 
     if (descriptorChanged) {
       var updatedText =
-          SailYamlGenerator.generate(SailYamlUpdater.updateResources(config, cpu, memory, disk));
+          YamlUtil.dumpToString(
+              (SailYamlUpdater.updateResources(config, cpu, memory, disk)).toMap());
       ProjectMutations.persist(
           name,
           explicit,

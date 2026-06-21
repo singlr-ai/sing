@@ -14,7 +14,6 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectApplier;
 import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.ShellExecutor;
-import ai.singlr.sail.gen.SailYamlGenerator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import picocli.CommandLine.Command;
@@ -78,7 +77,7 @@ public final class ProjectRemoveServiceCommand implements Runnable {
     var result = applier.removeServices(name, List.of(serviceName));
 
     var updatedText =
-        SailYamlGenerator.generate(SailYamlUpdater.removeService(config, serviceName));
+        YamlUtil.dumpToString((SailYamlUpdater.removeService(config, serviceName)).toMap());
     ProjectMutations.persist(
         name,
         explicit,
