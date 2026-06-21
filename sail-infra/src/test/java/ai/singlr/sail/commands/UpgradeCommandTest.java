@@ -95,4 +95,15 @@ class UpgradeCommandTest {
         """);
     assertTrue(UpgradeCommand.readUnitEndpoint(unit).isEmpty());
   }
+
+  @Test
+  void aProvisionedBoxWithoutSailApiIsToldHowToInstallIt() {
+    var remediation = UpgradeCommand.missingApiRemediation(true).orElseThrow();
+    assertTrue(remediation.contains("sudo sail host service install"));
+  }
+
+  @Test
+  void anUnprovisionedBoxGetsNoSailApiNag() {
+    assertTrue(UpgradeCommand.missingApiRemediation(false).isEmpty());
+  }
 }

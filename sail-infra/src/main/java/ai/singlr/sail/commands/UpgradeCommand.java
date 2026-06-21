@@ -210,6 +210,22 @@ public final class UpgradeCommand implements Runnable {
    * immediately. Returns a short status string for the JSON payload. Failures are logged but never
    * fatal \u2014 the binary install already succeeded.
    */
+  /**
+   * Guidance when {@code sail upgrade} finds no sail-api on a box that should have one. A
+   * provisioned box (it has {@code host.yaml}) is a working dev box that dispatches agents and
+   * serves the board, so a missing service is a gap to fix, not a no-op — point at the one command
+   * that installs it. An unprovisioned box (a thin client) legitimately has no service, so there is
+   * nothing to say.
+   */
+  static Optional<String> missingApiRemediation(boolean provisioned) {
+    if (!provisioned) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        "  @|yellow Install it so you can dispatch agents and see the board here:|@"
+            + " @|bold sudo sail host service install|@");
+  }
+
   private RestartStatus restartSailApi(boolean dryRun) {
     var stepNum = 4;
     var totalSteps = 4;
@@ -239,9 +255,17 @@ public final class UpgradeCommand implements Runnable {
               HostServiceInstallers.currentUsername());
       if (!bootstrap.isInstalled()) {
         if (!json) {
+          var provisioned = Files.exists(SailPaths.hostConfigPath());
           System.out.println(
               Banner.stepDoneLine(
-                  stepNum, totalSteps, "sail-api not installed; nothing to restart", Ansi.AUTO));
+                  stepNum,
+                  totalSteps,
+                  provisioned
+                      ? "sail-api is not installed on this provisioned box"
+                      : "sail-api not installed; nothing to restart",
+                  Ansi.AUTO));
+          missingApiRemediation(provisioned)
+              .ifPresent(line -> System.out.println(Ansi.AUTO.string(line)));
         }
         return RestartStatus.NOT_INSTALLED;
       }

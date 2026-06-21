@@ -58,10 +58,22 @@ public record ServerConnectionConfig(String serverUrl, String token) {
 
     if (url == null) url = DEFAULT_URL;
     if (token == null) {
-      throw new IOException(
-          "No API token configured. Set SAIL_TOKEN, pass --token-file, or run 'sail login'.");
+      throw new IOException(noTokenMessage());
     }
     return new ServerConnectionConfig(url, token);
+  }
+
+  /**
+   * Why there is no token, and the fix for each kind of box. A dev box gets its token when sail-api
+   * first starts, so an old box that never installed the service needs {@code host service install}
+   * — not {@code sail login}, which is the thin-client path. Naming both (and the env/file
+   * overrides) keeps the message honest wherever it surfaces.
+   */
+  static String noTokenMessage() {
+    return "No API token configured — sail-api may not be installed or started on this box.\n"
+        + "  On a dev box: sudo sail host service install (installs and starts the control plane).\n"
+        + "  On a thin client: sail login.\n"
+        + "  Or set SAIL_TOKEN, or pass --token-file.";
   }
 
   /** Reads a token from a file, trimming surrounding whitespace; {@code null} path yields null. */
