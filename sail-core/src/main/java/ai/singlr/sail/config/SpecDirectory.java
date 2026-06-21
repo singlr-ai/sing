@@ -12,11 +12,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Reads and writes the {@code specs/} directory structure used for spec-driven agent work. Each
- * spec lives in its own directory with {@code spec.yaml} metadata and {@code spec.md} details.
- *
- * <p>This class is pure parsing/generation logic with no I/O — callers pass content strings in and
- * receive content strings back.
+ * Parses and generates the {@code specs/} directory format used for spec-driven agent work — each
+ * spec a directory with {@code spec.yaml} metadata and {@code spec.md} details. Pure
+ * parsing/generation only: callers pass content strings in and receive content strings back, and
+ * this class performs no file I/O itself.
  */
 public final class SpecDirectory {
 

@@ -10,9 +10,11 @@ import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.NameValidator;
+import ai.singlr.sail.engine.ProjectDefinitions;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -93,40 +95,75 @@ public final class ConnectCommand implements Runnable {
 
     var resolvedServerUser =
         Objects.requireNonNullElse(serverUser, System.getProperty("user.name"));
+    var containerUser = resolveContainerUser(name);
 
     if (json) {
-      var map = new LinkedHashMap<String, Object>();
-      map.put("project", name);
-      map.put("server_ip", resolvedServerIp);
-      map.put("server_user", resolvedServerUser);
-      map.put("container_ip", containerIp);
-      map.put("container_user", "dev");
-      System.out.println(YamlUtil.dumpJson(map));
+      System.out.println(
+          YamlUtil.dumpJson(
+              connectJson(name, resolvedServerIp, resolvedServerUser, containerIp, containerUser)));
       return;
     }
 
-    var snippet =
-        """
-          # Add to ~/.ssh/config on your Mac:
+    System.out.println(
+        connectSnippet(resolvedServerIp, resolvedServerUser, name, containerIp, containerUser));
+  }
 
-          Host singular-server
-              HostName %s
-              User %s
-              IdentityFile ~/.ssh/id_ed25519
+  /**
+   * The container login user from the project definition (catalog-first), defaulting to {@code dev}
+   * when the descriptor can't be read — a running container is reason enough to print a snippet, so
+   * a missing descriptor degrades to the default rather than failing.
+   */
+  private static String resolveContainerUser(String name) {
+    try {
+      return ProjectDefinitions.load(name, null).sshUser();
+    } catch (RuntimeException e) {
+      return "dev";
+    }
+  }
 
-          Host %s
-              HostName %s
-              User dev
-              ProxyJump singular-server
-              IdentityFile ~/.ssh/id_ed25519
+  static Map<String, Object> connectJson(
+      String name, String serverIp, String serverUser, String containerIp, String containerUser) {
+    var map = new LinkedHashMap<String, Object>();
+    map.put("project", name);
+    map.put("server_ip", serverIp);
+    map.put("server_user", serverUser);
+    map.put("container_ip", containerIp);
+    map.put("container_user", containerUser);
+    return map;
+  }
 
-          # Then connect:
-          #   ssh %s
-          #   zed ssh://dev@%s/home/dev/workspace
-          #
-          # Agent auth (port forwarding for subscription login):
-          #   ssh -N -L 3000:localhost:3000 %s"""
-            .formatted(resolvedServerIp, resolvedServerUser, name, containerIp, name, name, name);
-    System.out.println(snippet);
+  static String connectSnippet(
+      String serverIp, String serverUser, String name, String containerIp, String containerUser) {
+    return """
+        # Add to ~/.ssh/config on your Mac:
+
+        Host singular-server
+            HostName %s
+            User %s
+            IdentityFile ~/.ssh/id_ed25519
+
+        Host %s
+            HostName %s
+            User %s
+            ProxyJump singular-server
+            IdentityFile ~/.ssh/id_ed25519
+
+        # Then connect:
+        #   ssh %s
+        #   zed ssh://%s@%s/home/%s/workspace
+        #
+        # Agent auth (port forwarding for subscription login):
+        #   ssh -N -L 3000:localhost:3000 %s"""
+        .formatted(
+            serverIp,
+            serverUser,
+            name,
+            containerIp,
+            containerUser,
+            name,
+            containerUser,
+            name,
+            containerUser,
+            name);
   }
 }

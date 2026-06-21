@@ -225,6 +225,18 @@ class FleetSyncTest {
   }
 
   @Test
+  void aSyncedProjectIsAttributedToItsRealAuthorNotSync() {
+    main.projects.upsert("acme", "name: acme\nimage: ubuntu/24.04\n", "uday");
+
+    syncFromMain();
+
+    assertEquals(
+        "uday",
+        node.projects.findByName("acme").orElseThrow().updatedBy(),
+        "the synced row keeps its real author, not the literal 'sync'");
+  }
+
+  @Test
   void anUnjournaledSpecStaysInvisibleUntilBackfilled() {
     main.specs.create(spec("oauth", "OAuth flow", "done", List.of()));
     main.db.execute("DELETE FROM change_log WHERE entity_type = 'spec' AND entity_id = ?", "oauth");

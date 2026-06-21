@@ -87,16 +87,28 @@ public final class MigrateCommand implements Runnable {
       var prompter = nonInteractive ? DataMigration.Prompter.NON_INTERACTIVE : ttyPrompter();
       var animate = !jsonOutput && System.console() != null;
       var runs = applyMigrations(db, dbPath.toString(), prompter, animate, jsonOutput);
-      backfillSpecRevisions(db, jsonOutput);
-      importProjects(db, jsonOutput);
-      backfillProjectRevisions(db, jsonOutput);
-      scrubProjectIdentity(db, jsonOutput);
-      importFiles(db, jsonOutput);
-      seedDemo(db, jsonOutput);
+      applyDataBackfills(db, jsonOutput);
       relocateHostConfig(jsonOutput);
       syncAuthorizedKeys(db, jsonOutput);
       return runs;
     }
+  }
+
+  /**
+   * The database-only data backfills — every one idempotent and quiet when nothing is needed — that
+   * make pre-migration rows visible to sync and seed the bundled demo. Shared with {@link
+   * ServerStartCommand} so a daemon start is a genuine second chance: if the post-upgrade {@code
+   * migrate} sub-process ever fails, the next service start still converges the data. Host-level
+   * steps (relocating {@code host.yaml}, syncing {@code authorized_keys}) are not here — they need
+   * root and run only in the full {@link #runMigrations} path.
+   */
+  public static void applyDataBackfills(Sqlite db, boolean jsonOutput) {
+    backfillSpecRevisions(db, jsonOutput);
+    importProjects(db, jsonOutput);
+    backfillProjectRevisions(db, jsonOutput);
+    scrubProjectIdentity(db, jsonOutput);
+    importFiles(db, jsonOutput);
+    seedDemo(db, jsonOutput);
   }
 
   /**

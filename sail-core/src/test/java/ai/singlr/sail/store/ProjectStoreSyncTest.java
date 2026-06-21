@@ -46,11 +46,15 @@ class ProjectStoreSyncTest {
     return Map.of("definition", definition);
   }
 
+  private static Map<String, Object> def(String definition, String actor) {
+    return Map.of("definition", definition, "_actor", actor);
+  }
+
   @Test
   void upsertJournalsAComparableRevision() {
     store.upsert("acme", "name: acme\n", "uday");
 
-    assertEquals(def("name: acme\n"), store.comparableSnapshot("acme"));
+    assertEquals(def("name: acme\n", "uday"), store.comparableSnapshot("acme"));
     assertNotEquals(null, store.latestRev("acme"));
     assertTrue(store.syncEntityIds().contains("acme"));
   }
@@ -63,7 +67,7 @@ class ProjectStoreSyncTest {
     store.upsert("acme", "v2", "uday");
 
     assertNotEquals(rev1, store.latestRev("acme"));
-    assertEquals(def("v2"), store.comparableSnapshot("acme"));
+    assertEquals(def("v2", "uday"), store.comparableSnapshot("acme"));
     assertEquals(def("v1"), store.comparableAtRev("acme", rev1));
   }
 
@@ -71,7 +75,7 @@ class ProjectStoreSyncTest {
   void applyRevisionAdoptsMainsStateAtItsExactRevAsTheBase() {
     store.applyRevision("acme", def("from-main"), "rev-xyz");
 
-    assertEquals(def("from-main"), store.comparableSnapshot("acme"));
+    assertEquals(def("from-main", "sync"), store.comparableSnapshot("acme"));
     assertEquals("rev-xyz", store.latestRev("acme"));
     assertEquals("rev-xyz", store.baseRevOf("acme"));
   }
@@ -85,7 +89,7 @@ class ProjectStoreSyncTest {
     var accepted = assertInstanceOf(PushOutcome.Accepted.class, outcome);
     assertNotEquals("rev-base", accepted.rev());
     assertEquals(accepted.rev(), store.latestRev("acme"));
-    assertEquals(def("pushed"), store.comparableSnapshot("acme"));
+    assertEquals(def("pushed", "sync"), store.comparableSnapshot("acme"));
   }
 
   @Test
@@ -96,7 +100,7 @@ class ProjectStoreSyncTest {
     var outcome = store.commitRevision("acme", def("racing"), "rev-base");
 
     var stale = assertInstanceOf(PushOutcome.Stale.class, outcome);
-    assertEquals(def("moved"), stale.currentSnapshot());
+    assertEquals(def("moved", "sync"), stale.currentSnapshot());
   }
 
   @Test
@@ -126,7 +130,7 @@ class ProjectStoreSyncTest {
 
     store.resolveConflict("acme", def("theirs"), def("theirs"));
 
-    assertEquals(def("theirs"), store.comparableSnapshot("acme"));
+    assertEquals(def("theirs", "sync"), store.comparableSnapshot("acme"));
   }
 
   @Test
@@ -155,7 +159,7 @@ class ProjectStoreSyncTest {
 
     store.resolveConflict("acme", def("mine"), def("theirs"));
 
-    assertEquals(def("mine"), store.comparableSnapshot("acme"));
+    assertEquals(def("mine", "resolve"), store.comparableSnapshot("acme"));
     assertNotEquals("rev-theirs", store.latestRev("acme"));
     assertNotEquals(
         store.baseRevOf("acme"), store.latestRev("acme"), "a forward local edit awaits push");
