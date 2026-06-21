@@ -1,14 +1,14 @@
 # sail
 
-A single native binary that provisions bare-metal servers and manages isolated dev environments for AI-assisted engineering. One binary, zero dependencies, fully declarative.
+**Kubernetes for coding agents.** A single native binary that turns bare-metal servers
+into isolated, spec-driven dev environments where AI agents do the work — with hard
+isolation, rollback safety, cross-agent review, and team-wide coordination.
 
-Built with Java 25 + picocli + GraalVM native-image. <1ms startup.
+Sail is not a coding agent. It's everything *around* them: the environments they run in,
+the specs they pick up, the reviews they pass, and the shared state a team works from.
 
-## Why
-
-You have a bare-metal server. You work on multiple projects simultaneously, each needing its own JDK, Postgres, Meilisearch, Redpanda, and AI coding agents — fully isolated so a runaway agent in one project can't affect another.
-
-`sail` provisions the server, creates project environments as Incus system containers, manages their lifecycle, and orchestrates AI agents inside them with spec-driven workflows, guardrails, and rollback safety. Each project gets a complete Ubuntu 24.04 userspace with its own filesystem, network stack, and rootless Podman runtime.
+Built with Java 25 + picocli + GraalVM native-image. One binary, zero runtime
+dependencies, <1ms startup.
 
 ## Install
 
@@ -16,255 +16,126 @@ You have a bare-metal server. You work on multiple projects simultaneously, each
 curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
 ```
 
-A single static binary. `sail upgrade` updates it in place (and runs `sail migrate` to converge the database and provisioned host).
+`sail upgrade` updates the binary in place and converges the database. Linux (amd64) runs
+the full host; macOS (arm64) runs as a thin client that drives a remote host over SSH.
 
 ## The model: one main, many nodes
 
-An organization runs **one main devbox** — the source of truth for the team's specs and project definitions, all held in a SQLite control-plane database. Every engineer has **their own box** (bare-metal Ubuntu running `sail`). A box pointed at a main is a **node**: it syncs specs and projects down from main and pushes its own work back.
+An org runs **one main box** — the source of truth for the team's specs and project
+definitions, held in a SQLite control plane. Every engineer has **their own box**; a box
+pointed at main is a **node** that syncs specs, project definitions, and shared files down
+from main and pushes its own work back.
 
-There is no GitHub in this loop and no project board. The database **is** the board; `sail sync` is how it travels — over the locked-down `sail` SSH gateway, pure public-key auth, with conflict-parking so no one's work is ever clobbered.
+There's no GitHub in this loop and no separate board — the database *is* the board, and
+`sail sync` is how it travels: over a locked-down SSH gateway, pure public-key auth, with
+three-way conflict resolution so no one's work is ever clobbered. Compute is never
+scheduled across boxes; the star coordinates *state*, not *execution*.
 
-### Stand up a main
+## Quick start
 
-One convergent command provisions the box, installs the local control plane, and declares it the org's source of truth:
+**Stand up the main** — one convergent, re-runnable command provisions the box, installs
+the control plane, and declares it the source of truth:
 
 ```bash
 sudo sail init --as-main
 ```
 
-It is idempotent — re-run it any time. Under the hood it runs the granular steps, which stay usable on their own: `host init` (Incus, storage, network, base image), `host service install` (the `sail-api` control plane), `host ssh-identity` (the locked `sail` gateway user), and `host sync --as-main`.
-
-Authorize an engineer (they send you the public key their `sail init --main` printed on their box):
+Authorize each engineer with the public key their `sail init --main` printed:
 
 ```bash
 sail fde add mady --role member --key "ssh-ed25519 AAAA… sail-sync@madybox"
 ```
 
-`--role` is `admin`, `member`, or `viewer` (read-only). Registering the key also refreshes the gateway's `authorized_keys`.
-
-### Join as a node
+**Join a node:**
 
 ```bash
-sudo sail init --main <main-ip>   # provision, install sail-api, generate this box's sync key,
-                                  # point it at main, and print the `sail fde add …` line
-# …operator runs that line on main…
+sudo sail init --main <main-ip>   # provision + install sail-api + generate this box's key,
+                                  # and print the `sail fde add …` line for the operator
 sail sync                         # pull specs + projects + shared files from main
 ```
 
-`sail init --main` orchestrates `host init`, `host service install`, and `join` — run any on its own if you prefer. It never assumes `root`: it prompts for the handle main should authorize (defaulting to your own user, never `root`). Only a *public* key ever leaves your box.
-
-> Working from a Mac or other thin client instead of on the box itself? `sail client <host>` points your local CLI at a remote sail host and forwards commands over SSH.
+> On a Mac or other thin client? `sail client <host>` points your local CLI at a box and
+> forwards commands over SSH — no control plane runs locally.
 
 ## Projects
 
-A project is declared by a `sail.yaml` (runtimes, services, repos, agent config). The **database is the source of truth** for that definition; the on-disk `~/.sail/projects/<name>/sail.yaml` is a materialized view.
+A project is one `sail.yaml` — runtimes, services, repos, agent config. The **database is
+the source of truth**; the on-disk descriptor is a materialized view. `sail project create`
+turns it into an isolated Incus container: runtimes installed, Podman services running
+with `--restart=always`, repos cloned, agent context generated.
 
 ```bash
-sail project init                 # interactively author a new sail.yaml
-sail project create acme-health   # provision the Incus container from the definition
-sail project config acme-health   # show the definition + live container status
-sail project edit acme-health     # change the definition (saves to the catalog; syncs out)
-sail project connect acme-health  # print SSH config for your editor
+sail project init        # author a sail.yaml
+sail project create web  # provision the container
+sail project edit web    # change the definition (saves to the catalog; syncs to other boxes)
+sail project connect web # SSH config for your editor
 ```
 
-`project create` provisions an Incus container with everything declared in `sail.yaml` — installs runtimes, starts Podman services with `--restart=always`, clones repos, configures git identity, generates agent context files, and pushes the project's `files/` bundle into `~/workspace/`.
-
-**Getting a teammate's project:** `sail sync` brings its definition *and* its shared `files/` bundle onto your box; then `sudo sail project create <name>` spins it up locally (pass `--git-token` for private repos). Editing is database-first: `sail project edit` changes the catalog and replicates to every box on the next sync — hand-editing the materialized file is not the path.
-
-**The synced definition is identity-free.** Each engineer's git identity and authorized SSH key live in the descriptor as placeholders — `${GIT_NAME}`, `${GIT_EMAIL}`, `${SSH_PUBLIC_KEY}` — that resolve from *your* box at provision time (local `git config` and this box's sail key). A teammate's project commits as you and trusts only your key; no one's identity or keys ride the sync onto someone else's box. Tunable resources (`cpu`/`memory`/`disk`) sync both ways — bump them on any box and a later `sail sync` resizes everyone's container in place, no recreate.
-
-```bash
-# zero-config demo (Outline wiki — Postgres + Redis), bundled in the binary
-sudo sail project demo
-```
-
-## Specs: the unit of work
-
-Specs live in the control-plane database, not in git. Engineers manage them with `sail spec`; agents inside a container use the in-container `spec` CLI over a bind-mounted socket — one source of truth, no sync glue.
-
-```bash
-sail spec create acme-health --title "Stripe payment webhook"
-sail spec board acme-health        # the team board: who's on what, what's ready
-sail spec list acme-health
-sail spec show acme-health auth
-sail spec edit acme-health auth --assignee mady --depends-on oauth
-sail spec history acme-health auth # full revision history; restore any version
-```
-
-A spec carries `title`, `status`, `assignee`, `depends_on`, `repos`, `agent`, `model`, `reasoning_effort`, `branch`. `repos` routes work to the right repository in a multi-repo project; `agent` routes to a specific installed agent (`claude-code` or `codex`), defaulting to `agent.type` in `sail.yaml`.
-
-**Lifecycle:** `pending → in_progress → review → done` (plus `draft` and `archived`). Dispatch moves a spec to `in_progress`; the lifecycle reactor moves it to `review` when the agent session ends. Dependencies prevent premature work — a spec won't start until everything in `depends_on` is `done`.
-
-**Team coordination:** Mady specs out payments depending on Uday's OAuth work; she `sail sync`s and her board shows both. `sail spec dispatch` respects `assignee`, so each engineer's agent picks up only their specs (or unassigned ones). Disjoint edits auto-merge on sync; a true same-field clash parks as a conflict for `sail conflicts` — the local copy is never overwritten.
-
-## Day 2: the two modes
-
-### Interactive (daytime)
-
-Connect your editor over SSH remote dev, drive the agent from its panel. You're in the loop — brainstorming, writing specs, reviewing. `sail` is invisible; the generated context files (`CLAUDE.md`, `SECURITY.md`, `.context/`) guide the agent. Developer processes (`java -jar`, `npm run dev`) run in editor terminal tabs; infra services run under Podman `--restart=always` and survive reboots.
-
-### Autonomous (overnight)
-
-```bash
-sail spec dispatch acme-health   # pick the next ready spec, launch the agent in the background
-```
-
-`dispatch` reads the next pending spec from the database (respecting dependencies and assignee), launches the agent with full context, starts the guardrail watcher, and auto-snapshots for rollback safety.
-
-```bash
-sail agent status                 # all projects at a glance
-sail agent status acme-health     # single-project detail
-sail agent log acme-health -f     # stream output live
-sail agent report acme-health     # morning-after summary: commits, spec progress, reviews
-sail agent stop acme-health       # SIGTERM → SIGKILL after a grace period
-sail agent audit acme-health      # cross-agent security audit
-sail agent review acme-health     # cross-agent code review
-```
-
-## Context generation
-
-`sail agent run` (or `sail agent context regen`) generates an agent-agnostic environment from `sail.yaml` — Claude Code gets `CLAUDE.md`, Codex gets `AGENTS.md`. Files the engineer owns (a hand-written `CLAUDE.md`) are never overwritten.
-
-| Generated | Purpose |
-|-----------|---------|
-| `CLAUDE.md` / `AGENTS.md` | Tech stack, conventions, runtimes, services, autonomous work protocol |
-| `SECURITY.md` | Zero-trust principles, OWASP Top 10, input validation, secrets management |
-| `.context/` | Persistent knowledge across sessions (system overview, patterns, failure log) |
-| Methodology skills | `/spec` (write spec first), `/verify` (run tests, block on failures) |
-| Post-task hooks | Security audit + code review at spec completion |
-
-## Methodology & guardrails
+**The synced definition is identity-free.** Per-engineer fields are placeholders —
+`${GIT_NAME}`, `${GIT_EMAIL}`, `${SSH_PUBLIC_KEY}` — resolved from *your* box at provision
+time. A teammate's project commits as you and trusts only your key; no one's identity or
+keys ride the sync onto another box. Tunable `resources` sync both ways and resize the
+live container in place.
 
 ```yaml
-agent:
-  type: claude-code
-  auto_branch: true
-  auto_snapshot: true
-  methodology:
-    approach: spec-driven        # spec-driven | tdd | free-form
-    verify: "mvn clean test"
-    lint: "mvn spotless:check"
-  guardrails:
-    max_duration: 4h
-    action: snapshot-and-stop    # snapshot-and-stop | stop | notify
-```
-
-`verify`/`lint` are injected as skills the agent runs after implementing. When a guardrail trips, the watcher (auto-started by `dispatch` / `agent run --background`) stops the agent and, for `snapshot-and-stop`, rolls back to the pre-launch snapshot.
-
-## Multi-agent
-
-`sail` is agent-agnostic. Install more than one and use a different agent for review than for implementation:
-
-```yaml
-agent:
-  type: claude-code
-  install: [claude-code, codex]
-  security_audit: { enabled: true }
-  code_review:    { enabled: true }
-```
-
-Set `agent: codex` on a spec to override the project default for that unit of work. Hooks fire at spec completion — so reviews always see complete, coherent work.
-
-## Example `sail.yaml`
-
-```yaml
-name: acme-health
-description: "Acme Health Platform"
-
-resources:
-  cpu: 4
-  memory: 12GB
-  disk: 150GB
-
+# sail.yaml — the shape (every field optional but name/resources/image)
+name: web
+resources: { cpu: 4, memory: 12GB, disk: 150GB }
 image: ubuntu/24.04
-
-runtimes:
-  jdk: 25
-  node: 22
-  maven: "3.9.9"
-
-git:
-  name: ${GIT_NAME}       # per-developer; resolved from each box's local git config, never synced
-  email: ${GIT_EMAIL}
-  auth: token
-
+runtimes: { jdk: 25, node: 22 }
+git: { name: ${GIT_NAME}, email: ${GIT_EMAIL} }     # per-developer; never synced
 repos:
-  - url: "https://github.com/acme/backend.git"
-    path: "backend"
-    branch: "main"
-  - url: "https://github.com/acme/webapp.git"
-    path: "webapp"
-
+  - { url: "https://github.com/acme/web.git", path: web }
 services:
-  postgres:
-    image: postgres:16
-    ports: [5432]
-    environment:
-      POSTGRES_DB: acme
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: dev
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
+  postgres: { image: postgres:16, ports: [5432] }
 agent:
   type: claude-code
-  auto_branch: true
-  auto_snapshot: true
-  methodology:
-    approach: spec-driven
-    verify: "mvn clean test"
-  guardrails:
-    max_duration: 4h
-    action: snapshot-and-stop
-
+  methodology: { approach: spec-driven, verify: "mvn clean test" }
+  guardrails:  { max_duration: 4h, action: snapshot-and-stop }
 ssh:
-  user: dev
-  authorized_keys:
-    - ${SSH_PUBLIC_KEY}   # per-developer; resolved from each box's own sail key, never synced
+  authorized_keys: [ ${SSH_PUBLIC_KEY} ]            # per-developer; never synced
 ```
 
-## Project lifecycle
+`sudo sail project demo` spins up a bundled zero-config demo (Outline wiki) to try it end
+to end.
+
+## Specs and agents
+
+Specs are the unit of work — agent-native (like Linear, not JIRA), held in the database,
+with status, assignee, and dependencies. You manage them with `sail spec`; agents inside a
+container use an in-container `spec` CLI over a bound socket, so there's one source of
+truth and no sync glue.
 
 ```bash
-sail project create acme-health                    # provision from the definition
-sail project start acme-health                     # start a stopped container
-sail project stop acme-health                      # stop (preserves state)
-sail project restart acme-health                   # start + show connection info
-sail project containers                            # list all projects with status
-sail project snapshot create acme-health
-sail project snapshot restore acme-health snap-01  # rollback to a snapshot
-
-# modify a project (database-first; replicates on sync)
-sail project edit acme-health                      # edit the whole definition
-sail project service add acme-health               # add a service
-sail project repo add acme-health                  # add a repo
-sail project files ls --project acme-health        # shared, synced workspace files
-sudo sail project resources set acme-health --memory 16GB
-sail project destroy acme-health                   # delete container and state
+sail spec create web --title "Stripe webhook" --assignee mady --depends-on oauth
+sail spec board web         # who's on what, what's ready
+sail spec dispatch web      # pick the next ready spec, launch the agent, watch guardrails
 ```
 
-## Upgrading
+`dispatch` respects dependencies and assignee, auto-snapshots for rollback, and launches
+the agent with full generated context. Sail is **agent-agnostic** (claude-code, codex) — so
+one agent can implement and another review: enable `security_audit` / `code_review` and the
+audit runs as a *different* agent at spec completion. Guardrails (`max_duration` + an
+action) stop a runaway and roll back to the pre-launch snapshot.
 
-```bash
-sail upgrade
-```
+Specs and projects edited on two boxes auto-merge when the changes are disjoint; a true
+same-field clash parks for `sail conflicts` rather than overwriting anyone.
 
-Downloads the signed binary, verifies its checksum, installs it, runs `sail migrate` (which converges the database — seeding the demo, importing legacy descriptors, scrubbing per-developer identity from synced definitions, reconciling the gateway's `authorized_keys`), and restarts `sail-api` if it was running. Single-box installs need no new commands; sync is opt-in.
+## Going deeper
 
-> Upgrade your **main** box first, then the nodes: the identity scrub becomes authoritative on main and the placeholdered definitions flow down on the next sync.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — the full design: the sync engine, security
+  model, control plane, and provisioning pipeline.
+- Every command has `--help`. State-mutating commands support `--dry-run`; all support
+  `--json`.
 
-## Building from source
+## Build from source
 
 Requires JDK 25+ and Maven 3.9+.
 
 ```bash
-mvn clean verify                  # build + run the full test suite with coverage gates
-
-# native image (requires GraalVM JDK 25)
-JAVA_HOME=/usr/lib/jvm/graalvm-jdk-25 mvn clean package -Pnative -DskipTests
+mvn clean verify                  # build + full test suite with coverage gates
+JAVA_HOME=/path/to/graalvm-jdk-25 mvn clean package -Pnative -DskipTests   # native binary
 ```
-
-Every command supports `--help`. State-modifying commands support `--dry-run`. All commands support `--json` for machine-parseable output.
 
 ## License
 
