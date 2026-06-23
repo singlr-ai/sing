@@ -81,7 +81,11 @@ public final class ContainerSailSetup {
                         + " && test -f "
                         + ClaudeCodeHookConfig.SETTINGS_PATH
                         + " && test -f "
-                        + CodexHookConfig.SETTINGS_PATH)));
+                        + CodexHookConfig.SETTINGS_PATH
+                        + " && grep -qsF "
+                        + SpecCliHelper.PATH_MARKER
+                        + " "
+                        + SpecCliHelper.PROFILE_PATH)));
     return probe.ok();
   }
 }

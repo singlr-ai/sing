@@ -30,6 +30,14 @@ public final class SpecCliHelper {
   /** Container-side parent directory of {@link #SCRIPT_PATH}. */
   public static final String SCRIPT_DIR = "/home/dev/.sail/bin";
 
+  /** Dev-user login profile that {@link #install} puts {@link #SCRIPT_DIR} on the PATH through. */
+  public static final String PROFILE_PATH = "/home/dev/.profile";
+
+  /** Fixed-string marker proving the PATH line is already in {@link #PROFILE_PATH}. */
+  public static final String PATH_MARKER = ".sail/bin";
+
+  private static final String PATH_EXPORT = "export PATH=\"$HOME/.sail/bin:$PATH\"";
+
   private static final String SCRIPT =
       """
       #!/usr/bin/env bash
@@ -136,7 +144,8 @@ public final class SpecCliHelper {
 
   /**
    * Idempotently installs the helper script at {@link #SCRIPT_PATH} inside the given container,
-   * chmod 0755, owned by the dev user.
+   * chmod 0755, owned by the dev user, and ensures {@link #SCRIPT_DIR} is on the login PATH (so an
+   * agent can run {@code spec} by name) by adding an export to {@link #PROFILE_PATH} when absent.
    */
   public void install(String container) throws IOException, InterruptedException, TimeoutException {
     NameValidator.requireValidProjectName(container);
@@ -161,6 +170,23 @@ public final class SpecCliHelper {
     if (!write.ok()) {
       throw new IOException(
           "Failed to install " + SCRIPT_PATH + " in " + container + ": " + write.stderr());
+    }
+
+    var onPath =
+        shell.exec(
+            ContainerExec.asDevUser(
+                container,
+                List.of(
+                    "bash",
+                    "-c",
+                    "grep -qsF \"$1\" \"$2\" || printf '\\n%s\\n' \"$3\" >> \"$2\"",
+                    "bash",
+                    PATH_MARKER,
+                    PROFILE_PATH,
+                    PATH_EXPORT)));
+    if (!onPath.ok()) {
+      throw new IOException(
+          "Failed to add " + SCRIPT_DIR + " to PATH in " + container + ": " + onPath.stderr());
     }
   }
 }

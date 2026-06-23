@@ -326,6 +326,7 @@ class SpecStoreTest {
     store.create(spec("d", "D", "in_progress"));
     store.create(spec("e", "E", "review"));
     store.create(spec("f", "F", "done"));
+    store.create(spec("g", "G", "archived"));
 
     var board = store.board();
     assertEquals(1, board.draft());
@@ -333,7 +334,33 @@ class SpecStoreTest {
     assertEquals(1, board.inProgress());
     assertEquals(1, board.review());
     assertEquals(1, board.done());
+    assertEquals(1, board.archived());
     assertEquals("b", board.nextReadyId());
+  }
+
+  @Test
+  void boardScopesCountsAndNextReadyToTheProject() {
+    store.create(spec("sing-ready", "sing", "Sing ready", "pending"));
+    store.create(spec("sing-archived", "sing", "Sing archived", "archived"));
+    store.create(spec("other-ready", "light-grid", "Other ready", "pending"));
+
+    var board = store.board("sing");
+
+    assertEquals(1, board.pending(), "counts only this project's specs");
+    assertEquals(1, board.archived(), "archived specs are counted, not dropped");
+    assertEquals(
+        "sing-ready", board.nextReadyId(), "next-ready never leaks another project's spec");
+  }
+
+  @Test
+  void readySpecsScopesToTheProject() {
+    store.create(spec("sing-ready", "sing", "Sing", "pending"));
+    store.create(spec("other-ready", "light-grid", "Other", "pending"));
+
+    var ready = store.readySpecs("sing");
+
+    assertEquals(1, ready.size());
+    assertEquals("sing-ready", ready.getFirst().id());
   }
 
   @Test

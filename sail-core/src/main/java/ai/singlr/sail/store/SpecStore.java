@@ -697,6 +697,10 @@ public final class SpecStore implements ConflictResolver {
   }
 
   public List<SpecRow> readySpecs() {
+    return readySpecs(null);
+  }
+
+  public List<SpecRow> readySpecs(String projectFilter) {
     return db
         .query(
             """
@@ -705,13 +709,16 @@ public final class SpecStore implements ConflictResolver {
                 s.updated_by
             FROM specs s
             WHERE s.status = 'pending'
+            AND (? IS NULL OR s.project = ?)
             AND NOT EXISTS (
                 SELECT 1 FROM spec_dependencies d
                 JOIN specs dep ON dep.id = d.depends_on
                 WHERE d.spec_id = s.id AND dep.status != 'done'
             )
             ORDER BY s.priority DESC, s.created_at ASC""",
-            this::mapSpec)
+            this::mapSpec,
+            projectFilter,
+            projectFilter)
         .stream()
         .map(this::hydrate)
         .toList();
@@ -722,12 +729,13 @@ public final class SpecStore implements ConflictResolver {
   }
 
   public BoardSummary board(String projectFilter) {
-    var sql = "SELECT status, COUNT(*) FROM specs WHERE status != 'archived'";
     var counts =
         projectFilter == null
-            ? db.query(sql + " GROUP BY status", row -> new Object[] {row.text(0), row.integer(1)})
+            ? db.query(
+                "SELECT status, COUNT(*) FROM specs GROUP BY status",
+                row -> new Object[] {row.text(0), row.integer(1)})
             : db.query(
-                sql + " AND project = ? GROUP BY status",
+                "SELECT status, COUNT(*) FROM specs WHERE project = ? GROUP BY status",
                 row -> new Object[] {row.text(0), row.integer(1)},
                 projectFilter);
     var draft = 0;
@@ -748,7 +756,7 @@ public final class SpecStore implements ConflictResolver {
         default -> {}
       }
     }
-    var ready = readySpecs();
+    var ready = readySpecs(projectFilter);
     var nextReadyId = ready.isEmpty() ? null : ready.getFirst().id();
     return new BoardSummary(draft, pending, inProgress, review, done, archived, nextReadyId);
   }
