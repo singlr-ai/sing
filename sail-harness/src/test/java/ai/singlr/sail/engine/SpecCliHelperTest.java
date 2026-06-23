@@ -60,10 +60,12 @@ class SpecCliHelperTest {
     new SpecCliHelper(shell).install("light-grid");
 
     var cmds = shell.invocations();
-    assertEquals(2, cmds.size());
+    assertEquals(3, cmds.size());
     assertTrue(cmds.get(0).contains("mkdir -p /home/dev/.sail/bin"));
     assertTrue(cmds.get(1).contains("chmod 0755"));
     assertTrue(cmds.get(1).contains("/home/dev/.sail/bin/spec"));
+    assertTrue(cmds.get(2).contains("/home/dev/.profile"), "puts ~/.sail/bin on the login PATH");
+    assertTrue(cmds.get(2).contains("grep -qsF"), "adds the PATH export only when absent");
   }
 
   @Test
@@ -80,6 +82,15 @@ class SpecCliHelperTest {
     var ex2 =
         assertThrows(IOException.class, () -> new SpecCliHelper(writeFail).install("light-grid"));
     assertTrue(ex2.getMessage().contains("disk full"));
+
+    var pathFail =
+        new ScriptedShellExecutor()
+            .onOk("mkdir -p /home/dev/.sail/bin")
+            .onOk("printf '%s'")
+            .onFail("/home/dev/.profile", "read-only file system");
+    var ex3 =
+        assertThrows(IOException.class, () -> new SpecCliHelper(pathFail).install("light-grid"));
+    assertTrue(ex3.getMessage().contains("read-only file system"));
   }
 
   @Test

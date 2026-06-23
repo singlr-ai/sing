@@ -89,6 +89,9 @@ class ContainerSailSetupTest {
     assertTrue(probe.contains(SpecCliHelper.SCRIPT_PATH));
     assertTrue(probe.contains(ClaudeCodeHookConfig.SETTINGS_PATH));
     assertTrue(probe.contains(CodexHookConfig.SETTINGS_PATH));
+    assertTrue(
+        probe.contains(SpecCliHelper.PROFILE_PATH),
+        "the probe must detect a container missing the spec-CLI PATH entry so reconfigure retrofits it");
   }
 
   @Test
