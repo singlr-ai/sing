@@ -101,7 +101,7 @@ jobs:
             ```sh
             cosign verify-blob \
               --bundle sail-linux-amd64.cosign.bundle \
-              --certificate-identity-regexp '^https://github.com/singlr-ai/sing/.github/workflows/release.yml@.*' \
+              --certificate-identity-regexp '^https://github.com/standardapplied/sail/.github/workflows/release.yml@.*' \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               sail-linux-amd64
             ```

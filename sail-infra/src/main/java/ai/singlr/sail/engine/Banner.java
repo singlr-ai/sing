@@ -74,7 +74,7 @@ public final class Banner {
     out.println();
     out.println(
         "  " + d + "Isolated dev environments for AI agents  ·  v" + SailVersion.version() + r);
-    out.println("  " + d + "https://github.com/singlr-ai/sing" + r);
+    out.println("  " + d + "https://github.com/standardapplied/sail" + r);
   }
 
   static boolean shouldAnimateBranding(

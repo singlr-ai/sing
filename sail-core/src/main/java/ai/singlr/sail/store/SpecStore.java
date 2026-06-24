@@ -192,6 +192,15 @@ public final class SpecStore implements ConflictResolver {
         .toList();
   }
 
+  /**
+   * Re-keys every spec from project {@code old} to {@code renamed} when a project is renamed
+   * locally. A spec's change-log identity is its own id, not the project, so only the {@code
+   * project} column moves. Idempotent.
+   */
+  public void reproject(String old, String renamed) {
+    db.execute("UPDATE specs SET project = ? WHERE project = ?", renamed, old);
+  }
+
   public void update(SpecRow spec) {
     var now = DateTimeUtils.now().toString();
     db.transaction(

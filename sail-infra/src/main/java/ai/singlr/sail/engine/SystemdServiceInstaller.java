@@ -149,7 +149,7 @@ public final class SystemdServiceInstaller {
     return """
         [Unit]
         Description=Sail API server
-        Documentation=https://github.com/singlr-ai/sing
+        Documentation=https://github.com/standardapplied/sail
         After=network.target
 
         [Service]

@@ -88,6 +88,19 @@ public final class ContainerManager {
     }
   }
 
+  /**
+   * Renames the container from {@code old} to {@code renamed} (snapshots travel with it). Incus
+   * requires the instance to be stopped first. Throws on failure.
+   */
+  public void rename(String old, String renamed)
+      throws IOException, InterruptedException, TimeoutException {
+    var result = shell.exec(List.of("incus", "rename", old, renamed));
+    if (!result.ok()) {
+      throw new IOException(
+          "Failed to rename container '" + old + "' to '" + renamed + "': " + result.stderr());
+    }
+  }
+
   /** Applies CPU and memory limits to a container. Throws on failure. */
   public void setResourceLimits(String name, ResourceLimits limits)
       throws IOException, InterruptedException, TimeoutException {

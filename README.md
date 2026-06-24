@@ -13,7 +13,7 @@ dependencies, <1ms startup.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/standardapplied/sail/main/install.sh | bash
 ```
 
 `sail upgrade` updates the binary in place and converges the database. Linux (amd64) runs

@@ -364,6 +364,19 @@ class SpecStoreTest {
   }
 
   @Test
+  void reprojectMovesEverySpecToTheNewProjectAndLeavesOthers() {
+    store.create(spec("a", "old", "A", "pending"));
+    store.create(spec("b", "old", "B", "done"));
+    store.create(spec("c", "other", "C", "pending"));
+
+    store.reproject("old", "renamed");
+
+    assertEquals(2, store.projectSpecs("renamed").size());
+    assertTrue(store.projectSpecs("old").isEmpty());
+    assertEquals(1, store.projectSpecs("other").size(), "other projects are untouched");
+  }
+
+  @Test
   void deleteCascadesDependenciesAndContent() {
     store.create(spec("base", "Base", "done"));
     var child =
