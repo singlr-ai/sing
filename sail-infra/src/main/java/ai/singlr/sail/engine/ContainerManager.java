@@ -122,6 +122,35 @@ public final class ContainerManager {
     }
   }
 
+  /**
+   * Reconciles the guest hostname to {@code name} — its live value, {@code /etc/hostname}, and the
+   * {@code 127.0.1.1} line in {@code /etc/hosts} — so the in-container {@code spec} CLI, which
+   * derives its project from {@code $(hostname)}, resolves the right project. Idempotent: returns
+   * {@code false} without touching the container when the hostname already matches, {@code true}
+   * when it had drifted and was corrected. The container must be running. Throws on failure.
+   */
+  public boolean setHostname(String name)
+      throws IOException, InterruptedException, TimeoutException {
+    var current = shell.exec(List.of("incus", "exec", name, "--", "hostname"));
+    if (current.ok() && current.stdout().strip().equals(name)) {
+      return false;
+    }
+    var script =
+        """
+        set -e
+        printf '%s\\n' "$1" > /etc/hostname
+        hostname "$1"
+        sed -i "s/^\\(127\\.0\\.1\\.1[[:space:]]*\\).*/\\1$1/" /etc/hosts 2>/dev/null || true
+        """;
+    var result =
+        shell.exec(List.of("incus", "exec", name, "--", "bash", "-c", script, "bash", name));
+    if (!result.ok()) {
+      throw new IOException(
+          "Failed to set hostname for container '" + name + "': " + result.stderr());
+    }
+    return true;
+  }
+
   /** Applies CPU and memory limits to a container. Throws on failure. */
   public void setResourceLimits(String name, ResourceLimits limits)
       throws IOException, InterruptedException, TimeoutException {

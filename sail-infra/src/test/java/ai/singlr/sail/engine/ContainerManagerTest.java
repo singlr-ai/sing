@@ -6,6 +6,7 @@
 package ai.singlr.sail.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -475,5 +476,42 @@ class ContainerManagerTest {
 
     assertTrue(ex.getMessage().contains("Failed to rename"));
     assertTrue(ex.getMessage().contains("instance is running"));
+  }
+
+  @Test
+  void setHostnameIsANoOpWhenAlreadyCorrect() throws Exception {
+    var shell = new ScriptedShellExecutor().onOk("incus exec acme -- hostname", "acme");
+    var mgr = new ContainerManager(shell);
+
+    var changed = mgr.setHostname("acme");
+
+    assertFalse(changed, "an already-correct hostname is left untouched");
+    assertEquals(1, shell.invocations().size(), "only the read, no write");
+  }
+
+  @Test
+  void setHostnameRealignsWhenItHasDrifted() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "stale", ""));
+    var mgr = new ContainerManager(shell);
+
+    var changed = mgr.setHostname("acme");
+
+    assertTrue(changed, "a drifted hostname is corrected");
+    var cmds = shell.invocations();
+    assertTrue(cmds.stream().anyMatch(c -> c.contains("/etc/hostname")), "writes the new hostname");
+    assertTrue(cmds.stream().anyMatch(c -> c.contains("/etc/hosts")), "realigns the hosts entry");
+  }
+
+  @Test
+  void setHostnameThrowsWhenTheWriteFails() {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "stale", ""))
+            .onFail("/etc/hostname", "read-only file system");
+    var mgr = new ContainerManager(shell);
+
+    var ex = assertThrows(IOException.class, () -> mgr.setHostname("acme"));
+
+    assertTrue(ex.getMessage().contains("Failed to set hostname"));
+    assertTrue(ex.getMessage().contains("read-only"));
   }
 }

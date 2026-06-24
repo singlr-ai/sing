@@ -108,6 +108,7 @@ public final class ProjectSyncCommand implements Runnable {
 
     for (var project : targets) {
       try {
+        var hostnameRealigned = containers.setHostname(project);
         var setup = ContainerSailSetup.ensureInstalled(shell, project);
         var context = regenerateContext(shell, project);
         if (setup == ContainerSailSetup.Result.BACKFILLED) {
@@ -116,9 +117,9 @@ public final class ProjectSyncCommand implements Runnable {
           alreadyCurrent++;
         }
         if (json) {
-          rows.add(jsonRow(project, setup, context));
+          rows.add(jsonRow(project, setup, context, hostnameRealigned));
         } else {
-          System.out.println(humanLine(project, setup, context));
+          System.out.println(humanLine(project, setup, context, hostnameRealigned));
         }
       } catch (Exception e) {
         failed++;
@@ -172,11 +173,21 @@ public final class ProjectSyncCommand implements Runnable {
   }
 
   static String humanLine(
-      String project, ContainerSailSetup.Result setup, AgentContextInstaller.Result context) {
+      String project,
+      ContainerSailSetup.Result setup,
+      AgentContextInstaller.Result context,
+      boolean hostnameRealigned) {
     var setupLabel =
         setup == ContainerSailSetup.Result.BACKFILLED ? "backfilled" : "already current";
+    var hostnameClause = hostnameRealigned ? ", hostname: realigned" : "";
     return Ansi.AUTO.string(
-        "  @|green ✓|@ " + project + " — setup: " + setupLabel + ", " + contextLabel(context));
+        "  @|green ✓|@ "
+            + project
+            + " — setup: "
+            + setupLabel
+            + ", "
+            + contextLabel(context)
+            + hostnameClause);
   }
 
   static String contextLabel(AgentContextInstaller.Result context) {
@@ -191,10 +202,14 @@ public final class ProjectSyncCommand implements Runnable {
   }
 
   static LinkedHashMap<String, Object> jsonRow(
-      String project, ContainerSailSetup.Result setup, AgentContextInstaller.Result context) {
+      String project,
+      ContainerSailSetup.Result setup,
+      AgentContextInstaller.Result context,
+      boolean hostnameRealigned) {
     var row = new LinkedHashMap<String, Object>();
     row.put("project", project);
     row.put("setup", setup.name().toLowerCase(Locale.ROOT));
+    row.put("hostname_realigned", hostnameRealigned);
     if (context == null) {
       row.put("context", "no_descriptor");
     } else {

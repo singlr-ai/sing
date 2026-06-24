@@ -130,7 +130,7 @@ public final class ProjectRenamer {
           },
           warnings,
           "restart the container");
-      finish(renamed, newDefinition, warnings);
+      finish(containers, renamed, newDefinition, warnings);
       if (!wasRunning) {
         attempt(() -> containers.stop(renamed), warnings, "stop the container");
       }
@@ -138,27 +138,14 @@ public final class ProjectRenamer {
     return new Result(old, renamed, hasContainer, warnings);
   }
 
-  private void finish(String container, String definition, List<String> warnings) {
-    attempt(() -> setHostname(container), warnings, "set the container hostname");
+  private void finish(
+      ContainerManager containers, String container, String definition, List<String> warnings) {
+    attempt(() -> containers.setHostname(container), warnings, "set the container hostname");
     attempt(() -> ContainerSailSetup.ensureInstalled(shell, container), warnings, "re-wire sail");
     attempt(
         () -> AgentContextInstaller.install(shell, container, parse(definition)),
         warnings,
         "regenerate agent context");
-  }
-
-  private void setHostname(String container)
-      throws IOException, InterruptedException, java.util.concurrent.TimeoutException {
-    var script =
-        "set -e; printf '%s\\n' \"$1\" > /etc/hostname; hostname \"$1\";"
-            + " sed -i \"s/^\\(127\\.0\\.1\\.1[[:space:]]*\\).*/\\1$1/\" /etc/hosts 2>/dev/null"
-            + " || true";
-    var result =
-        shell.exec(
-            List.of("incus", "exec", container, "--", "bash", "-c", script, "bash", container));
-    if (!result.ok()) {
-      throw new IOException(result.stderr());
-    }
   }
 
   private void moveProjectDir(String from, String to) throws IOException {
