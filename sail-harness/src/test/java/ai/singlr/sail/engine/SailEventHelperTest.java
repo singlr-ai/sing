@@ -29,7 +29,11 @@ class SailEventHelperTest {
   @Test
   void scriptUsesUnixSocket() {
     assertTrue(SailEventHelper.scriptContent().contains("--unix-socket"));
-    assertTrue(SailEventHelper.scriptContent().contains("/run/sail/api.sock"));
+    assertTrue(
+        SailEventHelper.scriptContent().contains(SailPaths.apiSocketContainerPath().toString()));
+    assertFalse(
+        SailEventHelper.scriptContent().contains("__SAIL_API_SOCKET__"),
+        "the socket placeholder is resolved");
   }
 
   @Test

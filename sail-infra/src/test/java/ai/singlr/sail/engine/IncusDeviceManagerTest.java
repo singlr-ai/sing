@@ -18,8 +18,8 @@ import org.junit.jupiter.api.Test;
 class IncusDeviceManagerTest {
 
   private static final String CONTAINER = "light-grid";
-  private static final Path HOST = Path.of("/run/user/1000/sail/api.sock");
-  private static final Path GUEST = Path.of("/run/sail/api.sock");
+  private static final Path HOST = Path.of("/var/lib/sail/run/api.sock");
+  private static final Path GUEST = Path.of("/var/lib/sail/run/api.sock");
 
   @Test
   void constructorRejectsNullShell() {

@@ -202,31 +202,15 @@ public final class SailPaths {
   }
 
   /**
-   * Path of the event-ingress Unix domain socket. Resolution order:
-   *
-   * <ol>
-   *   <li>Running as {@code root} → {@code /run/sail/api.sock} (system-level systemd creates the
-   *       parent via {@code RuntimeDirectory=sail} on the {@code sail-api.service} unit).
-   *   <li>{@code $XDG_RUNTIME_DIR} is set → {@code $XDG_RUNTIME_DIR/sail/api.sock} (user-level
-   *       systemd creates the parent via the same directive on the user unit).
-   *   <li>Fallback for dev environments without {@code XDG_RUNTIME_DIR} → {@code
-   *       ~/.sail/run/api.sock} (dedicated subdirectory so the parent can be bind-mounted without
-   *       exposing the rest of {@code ~/.sail}).
-   * </ol>
+   * Path of the event-ingress Unix domain socket: {@code <dataDir>/run/api.sock}, under the
+   * control-plane {@link #dataDir()}. A persistent location ({@code /var/lib/sail/run} on a
+   * provisioned host, {@code ~/.sail/run} otherwise) chosen deliberately <em>not</em> under {@code
+   * /run}: that tmpfs is wiped on reboot, which would change the directory's inode and strand the
+   * bind-mount every project container holds. A persistent directory's inode is stable, so the
+   * mount never strands.
    */
   public static Path apiSocketPath() {
-    return apiSocketPath(isRoot(), System.getenv("XDG_RUNTIME_DIR"));
-  }
-
-  /** Pure resolver; visible for tests so the lookup can be exercised without running as root. */
-  static Path apiSocketPath(boolean root, String xdgRuntimeDir) {
-    if (root) {
-      return Path.of("/run/sail/api.sock");
-    }
-    if (Strings.isNotBlank(xdgRuntimeDir)) {
-      return Path.of(xdgRuntimeDir, "sail", "api.sock");
-    }
-    return SAIL_DIR.resolve("run/api.sock");
+    return dataDir().resolve("run").resolve("api.sock");
   }
 
   /** Returns true when the current process runs as root — the single privilege check. */
@@ -234,9 +218,13 @@ public final class SailPaths {
     return "root".equals(ProcessHandle.current().info().user().orElse(""));
   }
 
-  /** Container-side mount point for {@link #apiSocketPath()}. Same on every project. */
+  /**
+   * Container-side mount point for {@link #apiSocketPath()}. Same on every project, and off {@code
+   * /run} so the guest's own {@code /run} tmpfs can neither shadow nor race the incus bind-mount at
+   * container boot.
+   */
   public static Path apiSocketContainerPath() {
-    return Path.of("/run/sail/api.sock");
+    return SYSTEM_DATA_DIR.resolve("run").resolve("api.sock");
   }
 
   /**

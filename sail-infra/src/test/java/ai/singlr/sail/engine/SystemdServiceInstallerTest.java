@@ -143,14 +143,9 @@ class SystemdServiceInstallerTest {
     assertTrue(unit.contains("Restart=on-failure"));
     assertTrue(unit.contains("WantedBy=default.target"));
     assertTrue(unit.contains("LimitNOFILE=4096"));
-    assertTrue(unit.contains("RuntimeDirectory=sail"));
-    assertTrue(
-        unit.contains("RuntimeDirectoryMode=0755"),
-        "0755 is required so UID-mapped container processes can traverse /run/sail/");
-    assertTrue(
-        unit.contains("RuntimeDirectoryPreserve=yes"),
-        "preserve=yes keeps the dir inode stable across restarts so directory bind mounts in"
-            + " unprivileged Incus containers do not get stranded on the old (unlinked) inode");
+    assertFalse(
+        unit.contains("RuntimeDirectory"),
+        "the socket moved to a persistent dir off /run; no systemd RuntimeDirectory is used");
     assertFalse(unit.contains("User=root"), "USER mode unit must not pin User=root");
   }
 
@@ -459,9 +454,9 @@ class SystemdServiceInstallerTest {
     assertTrue(
         unit.contains(
             "ExecStart=" + SAIL_BINARY + " server start --host " + HOST + " --port " + PORT));
-    assertTrue(unit.contains("RuntimeDirectory=sail"));
-    assertTrue(unit.contains("RuntimeDirectoryMode=0755"));
-    assertTrue(unit.contains("RuntimeDirectoryPreserve=yes"));
+    assertFalse(
+        unit.contains("RuntimeDirectory"),
+        "the socket is persistent off /run; no systemd RuntimeDirectory is used");
   }
 
   @Test

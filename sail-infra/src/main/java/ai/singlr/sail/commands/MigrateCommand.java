@@ -7,10 +7,14 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.engine.AuthorizedKeysSync;
+import ai.singlr.sail.engine.ContainerManager;
+import ai.singlr.sail.engine.ContainerSailSetup;
 import ai.singlr.sail.engine.DemoSeeder;
 import ai.singlr.sail.engine.FileImporter;
+import ai.singlr.sail.engine.IncusDeviceManager;
 import ai.singlr.sail.engine.ProjectImporter;
 import ai.singlr.sail.engine.SailPaths;
+import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.Spinner;
 import ai.singlr.sail.engine.SshIdentityProvisioner;
 import ai.singlr.sail.store.DataMigration;
@@ -30,6 +34,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -90,6 +95,7 @@ public final class MigrateCommand implements Runnable {
       applyDataBackfills(db, jsonOutput);
       relocateHostConfig(jsonOutput);
       syncAuthorizedKeys(db, jsonOutput);
+      relocateContainerSockets(jsonOutput);
       return runs;
     }
   }
@@ -225,6 +231,76 @@ public final class MigrateCommand implements Runnable {
           "  host.yaml relocation failed: "
               + e.getMessage()
               + ". Converge manually with 'sudo sail host ssh-identity'.");
+    }
+  }
+
+  /**
+   * Re-points every project container's event-socket bind mount from the legacy {@code /run/sail}
+   * location to the current {@link SailPaths#apiSocketHostDir()} after the socket moved off the
+   * volatile {@code /run} tmpfs. Idempotent and quiet: a container already on the new source is
+   * skipped, one without the device is left untouched (provisioning owns that). Needs root for the
+   * {@code incus} calls; {@link ContainerSailSetup#ensureInstalled} re-adds the device live and
+   * rewrites the in-container scripts to the new path.
+   */
+  private static void relocateContainerSockets(boolean jsonOutput) {
+    if (!SailPaths.isRoot()) {
+      return;
+    }
+    var shell = new ShellExecutor(false);
+    var devices = new IncusDeviceManager(shell);
+    var desired = SailPaths.apiSocketHostDir().toString();
+    List<String> names;
+    try {
+      names =
+          new ContainerManager(shell)
+              .listAll().stream().map(ContainerManager.ContainerInfo::name).toList();
+    } catch (Exception e) {
+      return;
+    }
+    var moved = 0;
+    for (var name : containersToRelocate(names, n -> currentSocketSource(devices, n), desired)) {
+      try {
+        ContainerSailSetup.ensureInstalled(shell, name);
+        moved++;
+      } catch (Exception e) {
+        System.err.println(
+            "  socket relocation for "
+                + name
+                + " failed: "
+                + e.getMessage()
+                + ". Converge with 'sudo sail project reconfigure "
+                + name
+                + "'.");
+      }
+    }
+    if (!jsonOutput && moved > 0) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|green ✓|@ re-pointed " + moved + " container socket(s) to " + desired));
+    }
+  }
+
+  /**
+   * The containers whose event-socket device exists but still points at a source other than {@code
+   * desired}. A {@code null} source (no device) is skipped — provisioning, not migration, owns
+   * that. Pure for testing.
+   */
+  static List<String> containersToRelocate(
+      List<String> names, UnaryOperator<String> sourceOf, String desired) {
+    return names.stream()
+        .filter(
+            name -> {
+              var source = sourceOf.apply(name);
+              return source != null && !desired.equals(source);
+            })
+        .toList();
+  }
+
+  private static String currentSocketSource(IncusDeviceManager devices, String container) {
+    try {
+      return devices.currentEventSocketSource(container);
+    } catch (Exception e) {
+      return null;
     }
   }
 

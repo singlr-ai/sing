@@ -13,9 +13,9 @@ import java.util.concurrent.TimeoutException;
 /**
  * Installs {@code ~/.sail/bin/spec}, the per-container shell helper an agent uses to manage this
  * project's specs in the shared Sail database. It talks to the host {@code sail-api} over the same
- * bind-mounted Unix socket the event helper uses ({@code /run/sail/api.sock}) — so an agent never
- * needs the {@code sail} binary, a token, or files on disk; the database is the single source of
- * truth and {@code sail sync} replicates it to every other box.
+ * bind-mounted Unix socket the event helper uses ({@link SailPaths#apiSocketContainerPath()}) — so
+ * an agent never needs the {@code sail} binary, a token, or files on disk; the database is the
+ * single source of truth and {@code sail sync} replicates it to every other box.
  *
  * <p>The script is intentionally tiny and dependency-free: pure bash + curl, no jq, no python. It
  * derives the project from the container hostname (the convention the event helper already relies
@@ -45,7 +45,7 @@ public final class SpecCliHelper {
       # over the bind-mounted API socket. Dependency-free: bash + curl, no jq.
       set -euo pipefail
 
-      SOCKET="/run/sail/api.sock"
+      SOCKET="__SAIL_API_SOCKET__"
       BASE="http://sail/v1/specs"
       PROJECT="$(hostname)"
       ACTOR="${SAIL_ACTOR:-agent}"
@@ -139,7 +139,7 @@ public final class SpecCliHelper {
 
   /** Returns the script content that {@link #install(String)} writes. Pure function. */
   public static String scriptContent() {
-    return SCRIPT;
+    return SCRIPT.replace("__SAIL_API_SOCKET__", SailPaths.apiSocketContainerPath().toString());
   }
 
   /**
@@ -165,7 +165,7 @@ public final class SpecCliHelper {
                     "-c",
                     "printf '%s' \"$1\" > \"$2\" && chmod 0755 \"$2\"",
                     "bash",
-                    SCRIPT,
+                    scriptContent(),
                     SCRIPT_PATH)));
     if (!write.ok()) {
       throw new IOException(

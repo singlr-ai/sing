@@ -13,7 +13,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * Installs and locates {@code ~/.sail/bin/sail-event.sh}, the per-container shell helper that agent
  * hooks invoke to publish events to the host {@code sail-api} over the bind-mounted Unix socket at
- * {@code /run/sail/api.sock}.
+ * {@link SailPaths#apiSocketContainerPath()}.
  *
  * <p>The script is intentionally tiny and dependency-free: pure bash + curl, no jq, no python. It
  * builds a minimal {@link ai.singlr.sail.api.Event}-shaped JSON body and POSTs it best-effort —
@@ -48,7 +48,7 @@ public final class SailEventHelper {
       PROJECT="$(hostname)"
       HOST="$(hostname)"
       TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      SOCKET="/run/sail/api.sock"
+      SOCKET="__SAIL_API_SOCKET__"
 
       if [ ! -S "$SOCKET" ]; then
         exit 0
@@ -71,7 +71,7 @@ public final class SailEventHelper {
 
   /** Returns the script content that {@link #install(String)} writes. Pure function. */
   public static String scriptContent() {
-    return SCRIPT;
+    return SCRIPT.replace("__SAIL_API_SOCKET__", SailPaths.apiSocketContainerPath().toString());
   }
 
   /**
@@ -96,7 +96,7 @@ public final class SailEventHelper {
                     "-c",
                     "printf '%s' \"$1\" > \"$2\" && chmod 0755 \"$2\"",
                     "bash",
-                    SCRIPT,
+                    scriptContent(),
                     SCRIPT_PATH)));
     if (!write.ok()) {
       throw new IOException(

@@ -74,6 +74,7 @@ public final class LocalApiSocket implements AutoCloseable {
     }
     if (socketPath.getParent() != null) {
       Files.createDirectories(socketPath.getParent());
+      makeDirTraversable(socketPath.getParent());
     }
     Files.deleteIfExists(socketPath);
     var channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
@@ -81,6 +82,35 @@ public final class LocalApiSocket implements AutoCloseable {
     makeWorldWritable();
     this.server = channel;
     this.acceptLoop = Thread.ofVirtual().name("sail-uds-accept").start(this::runAcceptLoop);
+  }
+
+  /**
+   * Makes the socket's parent directory world-traversable (0755). The socket dir is bind-mounted
+   * into unprivileged project containers, whose host-shifted UID needs {@code o+x} to reach the
+   * socket inside it. Previously the systemd unit's {@code RuntimeDirectoryMode=0755} set this;
+   * with the socket moved to a persistent directory the server owns that guarantee itself,
+   * independent of the process umask.
+   */
+  private static void makeDirTraversable(Path dir) {
+    try {
+      Files.setPosixFilePermissions(
+          dir,
+          EnumSet.of(
+              PosixFilePermission.OWNER_READ,
+              PosixFilePermission.OWNER_WRITE,
+              PosixFilePermission.OWNER_EXECUTE,
+              PosixFilePermission.GROUP_READ,
+              PosixFilePermission.GROUP_EXECUTE,
+              PosixFilePermission.OTHERS_READ,
+              PosixFilePermission.OTHERS_EXECUTE));
+    } catch (UnsupportedOperationException | IOException permError) {
+      System.err.println(
+          "  [sail-uds] Warning: could not chmod 0755 "
+              + dir
+              + " ("
+              + permError.getMessage()
+              + "). Unprivileged containers may fail to reach the socket.");
+    }
   }
 
   private void makeWorldWritable() {

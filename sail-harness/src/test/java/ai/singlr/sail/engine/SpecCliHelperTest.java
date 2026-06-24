@@ -6,6 +6,7 @@
 package ai.singlr.sail.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,7 +25,8 @@ class SpecCliHelperTest {
     var content = SpecCliHelper.scriptContent();
     assertTrue(content.startsWith("#!/usr/bin/env bash"), content.substring(0, 60));
     assertTrue(content.contains("--unix-socket"));
-    assertTrue(content.contains("/run/sail/api.sock"));
+    assertTrue(content.contains(SailPaths.apiSocketContainerPath().toString()));
+    assertFalse(content.contains("__SAIL_API_SOCKET__"), "the socket placeholder is resolved");
     assertTrue(content.contains("--data-urlencode"), "must url-encode via curl, never build JSON");
   }
 

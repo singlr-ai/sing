@@ -6,6 +6,7 @@
 package ai.singlr.sail.commands;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.store.DataMigration;
@@ -13,6 +14,8 @@ import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,5 +53,23 @@ class MigrateCommandTest {
         db, "test.db", DataMigration.Prompter.NON_INTERACTIVE, false, true);
 
     assertDoesNotThrow(() -> new SpecStore(db).findById("none"));
+  }
+
+  @Test
+  void containersToRelocateSelectsOnlyDevicesStillOnTheOldSource() {
+    UnaryOperator<String> sourceOf =
+        name ->
+            switch (name) {
+              case "old-box" -> "/run/sail";
+              case "new-box" -> "/var/lib/sail/run";
+              default -> null;
+            };
+
+    var targets =
+        MigrateCommand.containersToRelocate(
+            List.of("old-box", "new-box", "no-device"), sourceOf, "/var/lib/sail/run");
+
+    assertEquals(
+        List.of("old-box"), targets, "only a device still on the old source is re-pointed");
   }
 }
