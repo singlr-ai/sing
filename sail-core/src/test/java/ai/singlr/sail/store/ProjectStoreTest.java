@@ -37,6 +37,30 @@ class ProjectStoreTest {
   }
 
   @Test
+  void renameRekeysTheRowAndMovesChangeLogHistory() {
+    store.upsert("old", "name: old\nimage: ubuntu/24.04\n", "uday");
+    var rev = store.latestRev("old");
+
+    store.rename("old", "renamed", "name: renamed\nimage: ubuntu/24.04\n");
+
+    assertTrue(store.findByName("old").isEmpty(), "the old name is gone");
+    var row = store.findByName("renamed").orElseThrow();
+    assertTrue(row.definition().contains("name: renamed"));
+    assertEquals(rev, store.latestRev("renamed"), "history moved to the new id");
+    assertNull(store.latestRev("old"), "no history left under the old id");
+  }
+
+  @Test
+  void renameIsIdempotentOnceTheOldNameIsGone() {
+    store.upsert("old", "name: old\n", "uday");
+    store.rename("old", "renamed", "name: renamed\n");
+
+    store.rename("old", "renamed", "name: renamed\n");
+
+    assertTrue(store.findByName("renamed").isPresent());
+  }
+
+  @Test
   void upsertInsertsAndRoundTripsTheDefinitionBlob() {
     store.upsert("acme", "name: acme\nresources:\n  cpu: 2\n", "uday");
 

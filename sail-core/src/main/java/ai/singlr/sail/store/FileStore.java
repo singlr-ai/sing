@@ -69,6 +69,29 @@ public final class FileStore implements ConflictResolver {
         });
   }
 
+  /**
+   * Re-keys every shared file and its change-log history from project {@code old} to {@code
+   * renamed} when a project is renamed locally, keeping each file's relative path. Idempotent.
+   */
+  public void reproject(String old, String renamed) {
+    db.transaction(
+        () -> {
+          db.execute(
+              "UPDATE project_files SET id = ? || substr(id, ?), project = ? WHERE project = ?",
+              renamed,
+              old.length() + 1,
+              renamed,
+              old);
+          db.execute(
+              "UPDATE change_log SET entity_id = ? || substr(entity_id, ?)"
+                  + " WHERE entity_type = ? AND entity_id LIKE ?",
+              renamed,
+              old.length() + 1,
+              ENTITY,
+              old + "/%");
+        });
+  }
+
   public Optional<FileRow> find(String project, String path) {
     return findRow(idOf(project, path));
   }

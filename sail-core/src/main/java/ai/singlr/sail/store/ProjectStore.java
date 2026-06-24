@@ -83,6 +83,30 @@ public final class ProjectStore implements ConflictResolver {
         });
   }
 
+  /**
+   * Re-keys a project from {@code old} to {@code renamed} within this box's catalog: the row (its
+   * name and the redacted {@code newDefinition}, whose {@code name:} field the caller has already
+   * updated) and the project's change-log history. Idempotent — a no-op once {@code old} is gone. A
+   * local re-key only: it emits no sync rename event, so other boxes do not learn of it through
+   * {@code sail sync}.
+   */
+  public void rename(String old, String renamed, String newDefinition) {
+    var canonical = PersonalFields.redact(newDefinition);
+    db.transaction(
+        () -> {
+          db.execute(
+              "UPDATE projects SET name = ?, definition = ? WHERE name = ?",
+              renamed,
+              canonical,
+              old);
+          db.execute(
+              "UPDATE change_log SET entity_id = ? WHERE entity_type = ? AND entity_id = ?",
+              renamed,
+              ENTITY,
+              old);
+        });
+  }
+
   public Optional<ProjectRow> findByName(String name) {
     return db.queryOne(SELECT + " WHERE name = ?", ProjectStore::map, name);
   }

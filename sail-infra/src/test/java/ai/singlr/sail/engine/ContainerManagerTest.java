@@ -455,4 +455,25 @@ class ContainerManagerTest {
     assertTrue(ex.getMessage().contains("Failed to restart"));
     assertTrue(ex.getMessage().contains("permission denied"));
   }
+
+  @Test
+  void renameInvokesIncusRename() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
+    var mgr = new ContainerManager(shell);
+
+    mgr.rename("old", "renamed");
+
+    assertEquals("incus rename old renamed", shell.invocations().getFirst());
+  }
+
+  @Test
+  void renameThrowsOnFailure() {
+    var shell = new ScriptedShellExecutor().onFail("incus rename", "instance is running");
+    var mgr = new ContainerManager(shell);
+
+    var ex = assertThrows(IOException.class, () -> mgr.rename("old", "renamed"));
+
+    assertTrue(ex.getMessage().contains("Failed to rename"));
+    assertTrue(ex.getMessage().contains("instance is running"));
+  }
 }

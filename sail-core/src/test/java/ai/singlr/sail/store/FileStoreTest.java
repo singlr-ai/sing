@@ -43,6 +43,23 @@ class FileStoreTest {
   }
 
   @Test
+  void reprojectRekeysFilesAndHistoryKeepingPaths() {
+    files.put("old", "a.txt", "AAA");
+    files.put("old", "dir/b.txt", "BBB");
+
+    files.reproject("old", "renamed");
+
+    assertTrue(files.find("old", "a.txt").isEmpty(), "nothing left under the old project");
+    assertEquals("AAA", files.find("renamed", "a.txt").orElseThrow().content());
+    assertEquals("BBB", files.find("renamed", "dir/b.txt").orElseThrow().content());
+    assertEquals(
+        List.of("renamed/a.txt", "renamed/dir/b.txt"),
+        files.idsForProject("renamed").stream().sorted().toList(),
+        "change-log ids re-keyed to the new project, paths intact");
+    assertTrue(files.idsForProject("old").isEmpty());
+  }
+
+  @Test
   void putAndFindAndList() {
     files.put("acme", "a.txt", "AAA");
     files.put("acme", "dir/b.txt", "BBB");
