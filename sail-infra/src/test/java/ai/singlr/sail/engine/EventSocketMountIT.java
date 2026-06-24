@@ -69,25 +69,30 @@ class EventSocketMountIT {
   /**
    * Skips when no incus daemon is reachable — except in the dedicated CI lane, which sets {@code
    * -Dsail.it.requireIncus=true}: there an unreachable daemon is a misconfiguration that must fail
-   * loudly, never a silent skip that lets the lane pass having validated nothing.
+   * loudly, never a silent skip that lets the lane pass having validated nothing. The failure
+   * carries the exact reason {@code incus version} could not run, so the lane is self-diagnosing.
    */
   private void ensureIncusOrSkip() {
-    if (incusAvailable()) {
+    var unreachable = incusUnreachableReason();
+    if (unreachable == null) {
       return;
     }
     if (Boolean.getBoolean("sail.it.requireIncus")) {
       throw new AssertionError(
           "incus is required in this lane (-Dsail.it.requireIncus=true) but is not reachable from"
-              + " the test process — the integration test cannot validate anything");
+              + " the test process — the integration test cannot validate anything. Reason: "
+              + unreachable);
     }
-    assumeTrue(false, "incus daemon not available; integration test skipped");
+    assumeTrue(false, "incus daemon not available; integration test skipped (" + unreachable + ")");
   }
 
-  private boolean incusAvailable() {
+  /** {@code null} when {@code incus version} succeeds; otherwise why it did not. */
+  private String incusUnreachableReason() {
     try {
-      return shell.exec(List.of("incus", "version")).ok();
+      var result = shell.exec(List.of("incus", "version"));
+      return result.ok() ? null : "`incus version` exit non-zero: " + result.stderr().strip();
     } catch (Exception e) {
-      return false;
+      return e.getClass().getSimpleName() + ": " + e.getMessage();
     }
   }
 
