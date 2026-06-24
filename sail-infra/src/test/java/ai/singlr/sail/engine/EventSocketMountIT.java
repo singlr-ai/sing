@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 class EventSocketMountIT {
 
   private static final String CONTAINER = "sail-it-event-socket";
-  private static final String IMAGE = "images:alpine/3.20";
+  private static final String IMAGE = "images:ubuntu/24.04";
   private static final Path CONTAINER_DIR = Path.of("/var/lib/sail/run");
 
   private final ShellExec shell = new ShellExecutor(false);
