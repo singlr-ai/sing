@@ -276,6 +276,32 @@ class ProjectProvisionerTest {
   }
 
   @Test
+  void installsSailMachineryOnlyAfterTheUserHomeExists() throws Exception {
+    var shell = allSuccessShell();
+    var provisioner = new ProjectProvisioner(shell, tracker(), ProvisionListener.NOOP);
+
+    provisioner.provision(fullConfig(), hostYaml(), null, null);
+
+    var cmds = shell.invocations();
+    var userCreated = firstIndexMatching(cmds, c -> c.contains("useradd"));
+    var machinery =
+        firstIndexMatching(cmds, c -> c.contains(IncusDeviceManager.EVENT_SOCKET_DEVICE));
+    assertTrue(userCreated >= 0, "the dev user is created");
+    assertTrue(machinery >= 0, "the sail machinery is installed");
+    assertTrue(
+        userCreated < machinery,
+        "machinery installs into /home/dev only after the user (and its home) exists");
+  }
+
+  private static int firstIndexMatching(
+      List<String> commands, java.util.function.Predicate<String> match) {
+    return java.util.stream.IntStream.range(0, commands.size())
+        .filter(i -> match.test(commands.get(i)))
+        .findFirst()
+        .orElse(-1);
+  }
+
+  @Test
   void existingContainerIsIdempotent() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))

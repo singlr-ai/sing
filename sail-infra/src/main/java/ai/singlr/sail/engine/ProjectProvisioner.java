@@ -68,6 +68,7 @@ public final class ProjectProvisioner {
       waitForNetwork(config);
       installPackages(config);
       configureSsh(config);
+      installSailMachinery(config);
       installPodman(config);
       configureTestcontainers(config);
       installJdk(config);
@@ -116,69 +117,30 @@ public final class ProjectProvisioner {
     if (!result.ok()) {
       throw new IOException("Failed to launch container: " + result.stderr());
     }
-    attachEventSocket(config.name());
     tracker.advance(currentPhase);
     stepDone(1, "Container " + config.name());
   }
 
   /**
-   * Idempotently bind-mounts the host's sail-api event socket into the container at {@code
-   * /run/sail/api.sock}, installs the {@code sail-event.sh} hook helper at {@code
-   * ~/.sail/bin/sail-event.sh}, and writes the sail-owned Claude Code settings file at {@code
-   * ~/.sail/claude-settings.json}. Failure of any step is logged but non-fatal — without these,
-   * agent hooks fall back to file-only audit and lose the live event-bus fan-out from inside the
-   * container.
+   * Installs the in-container sail machinery — the event-socket bind mount, the {@code
+   * sail-event.sh} hook helper, the {@code spec} CLI, and the Claude Code / Codex hook settings —
+   * once the {@code dev} user and its home exist (step 6 creates {@code /home/dev}, which these
+   * files live under). Reuses {@link ContainerSailSetup}, the same seam {@code reconfigure} uses,
+   * so provisioning and recovery install identically. Failure is non-fatal: it is logged with the
+   * one command that fixes it, and the agent hooks fall back to file-only audit until then.
    */
-  private void attachEventSocket(String container) {
+  private void installSailMachinery(SailYaml config) {
     try {
-      var manager = new IncusDeviceManager(shell);
-      manager.ensureEventSocket(
-          container, SailPaths.apiSocketHostDir(), SailPaths.apiSocketContainerDir());
+      ContainerSailSetup.ensureInstalled(shell, config.name());
     } catch (Exception e) {
       System.err.println(
-          "  [provision] Warning: failed to attach event socket to "
-              + container
+          "  [provision] Warning: failed to install the sail machinery in "
+              + config.name()
               + ": "
               + e.getMessage()
-              + ". Run 'sail project sync "
-              + container
+              + ". Run 'sail project reconfigure "
+              + config.name()
               + "' to retry.");
-    }
-    try {
-      new SailEventHelper(shell).install(container);
-    } catch (Exception e) {
-      System.err.println(
-          "  [provision] Warning: failed to install sail-event.sh in "
-              + container
-              + ": "
-              + e.getMessage());
-    }
-    try {
-      new SpecCliHelper(shell).install(container);
-    } catch (Exception e) {
-      System.err.println(
-          "  [provision] Warning: failed to install the spec CLI in "
-              + container
-              + ": "
-              + e.getMessage());
-    }
-    try {
-      new ClaudeCodeHookConfig(shell).install(container);
-    } catch (Exception e) {
-      System.err.println(
-          "  [provision] Warning: failed to install claude-settings.json in "
-              + container
-              + ": "
-              + e.getMessage());
-    }
-    try {
-      new CodexHookConfig(shell).install(container);
-    } catch (Exception e) {
-      System.err.println(
-          "  [provision] Warning: failed to install codex hooks.json in "
-              + container
-              + ": "
-              + e.getMessage());
     }
   }
 
