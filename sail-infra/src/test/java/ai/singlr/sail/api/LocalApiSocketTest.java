@@ -19,6 +19,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -91,6 +92,21 @@ class LocalApiSocketTest {
           send(
               listener.socketPath(), "POST /v1/specs HTTP/1.1\r\nContent-Length: 99999999\r\n\r\n");
       assertTrue(response.startsWith("HTTP/1.1 413"));
+    }
+  }
+
+  @Test
+  void startCreatesTheSocketDirTraversableForUnprivilegedContainers(@TempDir Path dir)
+      throws Exception {
+    var runDir = dir.resolve("run");
+    try (var listener =
+        new LocalApiSocket(new EventBus(), new TestOperations(), runDir.resolve("api.sock"))) {
+      listener.start();
+      assertTrue(Files.isDirectory(runDir), "the socket dir is created");
+      assertEquals(
+          PosixFilePermissions.fromString("rwxr-xr-x"),
+          Files.getPosixFilePermissions(runDir),
+          "containers' host-shifted UID needs o+rx to traverse to the socket");
     }
   }
 
