@@ -5,12 +5,16 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.engine.SailPaths;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.function.Supplier;
+import picocli.CommandLine.Help.Ansi;
 
 /**
  * Shared utilities for interactive CLI commands — stdin reading, confirmation prompts, and
@@ -90,5 +94,41 @@ final class ConsoleHelper {
   /** Returns {@code true} if the current process is running as root. */
   static boolean isRoot() {
     return SailPaths.isRoot();
+  }
+
+  /** Returns {@code true} when a real console is attached (a TTY able to prompt interactively). */
+  static boolean hasConsole() {
+    return consoleSupplier.get() != null;
+  }
+
+  /**
+   * Prompts with {@code label}, showing {@code def} as a faint default. Returns the stripped input,
+   * or {@code def} (never null) when the input is blank.
+   */
+  static String promptWithDefault(PrintStream out, Ansi ansi, String label, String def) {
+    if (!Strings.isEmpty(def)) {
+      out.print(ansi.string("  @|bold " + label + "|@ @|faint [" + def + "]|@: "));
+    } else {
+      out.print(ansi.string("  @|bold " + label + "|@: "));
+    }
+    out.flush();
+    var line = readLine();
+    if (Strings.isBlank(line)) {
+      return Objects.requireNonNullElse(def, "");
+    }
+    return line.strip();
+  }
+
+  /** Prompts with {@code label} and re-asks until a non-blank value is entered. */
+  static String promptRequired(PrintStream out, Ansi ansi, String label) {
+    while (true) {
+      out.print(ansi.string("  @|bold " + label + "|@: "));
+      out.flush();
+      var line = readLine();
+      if (Strings.isNotBlank(line)) {
+        return line.strip();
+      }
+      out.println(ansi.string("    @|yellow Required field. Please enter a value.|@"));
+    }
   }
 }

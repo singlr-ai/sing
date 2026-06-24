@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Resolves a project's definition with the control-plane database as the source of truth. The
@@ -102,7 +103,17 @@ public final class ProjectDefinitions {
   }
 
   static SailYaml resolveForProvisioning(String definitionText, LocalIdentity identity) {
-    var resolved = PlaceholderResolver.resolve(definitionText, identity::valueFor);
+    return resolveForProvisioning(definitionText, identity::valueFor);
+  }
+
+  /**
+   * Resolves placeholders with a caller-supplied value source — e.g. an interactive prompt on the
+   * {@code project create} path — instead of this box's silent identity. Keeps resolution honest:
+   * the source decides where each value comes from, the definition stays identity-free until here.
+   */
+  public static SailYaml resolveForProvisioning(
+      String definitionText, UnaryOperator<String> values) {
+    var resolved = PlaceholderResolver.resolve(definitionText, values);
     return SailYaml.fromMap(YamlUtil.parseMap(resolved));
   }
 

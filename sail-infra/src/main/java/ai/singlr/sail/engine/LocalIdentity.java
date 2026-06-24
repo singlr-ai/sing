@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -34,6 +35,25 @@ public final class LocalIdentity {
   /** This box's identity: real git config and the sail sync public key. */
   public static LocalIdentity detect() {
     return new LocalIdentity(new ShellExecutor(false), SailPaths.syncPublicKeyPath());
+  }
+
+  /**
+   * This box's git value for a {@code ${GIT_NAME}}/{@code ${GIT_EMAIL}} placeholder, or empty when
+   * unset. Never throws — used to offer a default the engineer can accept or override at a prompt,
+   * where {@link #valueFor} would hard-fail instead.
+   */
+  public Optional<String> gitValue(String placeholder) {
+    var key =
+        switch (placeholder) {
+          case PlaceholderResolver.GIT_NAME -> "user.name";
+          case PlaceholderResolver.GIT_EMAIL -> "user.email";
+          default -> null;
+        };
+    if (key == null) {
+      return Optional.empty();
+    }
+    var value = run(List.of("git", "config", "--global", "--get", key));
+    return Strings.isBlank(value) ? Optional.empty() : Optional.of(value);
   }
 
   /** Resolves one known placeholder name to this box's value, failing loud if it is not set. */

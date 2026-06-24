@@ -14,6 +14,7 @@ import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerState;
 import ai.singlr.sail.engine.GitCredentials;
+import ai.singlr.sail.engine.LocalIdentity;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.ProjectCatalog;
 import ai.singlr.sail.engine.ProjectDefinitions;
@@ -102,7 +103,12 @@ public final class ProjectCreateCommand implements Runnable {
       throw new IllegalStateException(hint.toString());
     }
 
-    SailYaml config = ProjectDefinitions.resolveForProvisioning(Files.readString(singYamlPath));
+    var identity =
+        new InteractiveIdentity(
+            LocalIdentity.detect(),
+            InteractiveIdentity.canPrompt(yes, json, dryRun, ConsoleHelper.hasConsole()));
+    SailYaml config =
+        ProjectDefinitions.resolveForProvisioning(Files.readString(singYamlPath), identity);
 
     if (config.name() == null || config.name().isBlank()) {
       throw new IllegalStateException("sail.yaml must have a 'name' field.");

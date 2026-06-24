@@ -161,4 +161,15 @@ class PlaceholderResolverTest {
     assertTrue(result.contains("carol@co.com"));
     assertTrue(result.contains("ssh-ed25519 AAAA..."));
   }
+
+  @Test
+  void promptForReturnsTheHumanPromptOfAKnownPlaceholder() {
+    assertTrue(PlaceholderResolver.promptFor(PlaceholderResolver.GIT_NAME).contains("name"));
+    assertTrue(PlaceholderResolver.promptFor(PlaceholderResolver.GIT_EMAIL).contains("email"));
+  }
+
+  @Test
+  void promptForRejectsAnUnknownPlaceholder() {
+    assertThrows(IllegalArgumentException.class, () -> PlaceholderResolver.promptFor("MYSTERY"));
+  }
 }

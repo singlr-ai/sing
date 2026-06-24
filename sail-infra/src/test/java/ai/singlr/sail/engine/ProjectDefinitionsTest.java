@@ -108,6 +108,20 @@ class ProjectDefinitionsTest {
     assertEquals("acme", config.name());
   }
 
+  @Test
+  void resolveForProvisioningTakesValuesFromACallerSuppliedSource() {
+    var config =
+        ProjectDefinitions.resolveForProvisioning(
+            "name: acme\n"
+                + "resources:\n  cpu: 2\n  memory: 8GB\n  disk: 50GB\n"
+                + "git:\n  name: ${GIT_NAME}\n  email: ${GIT_EMAIL}\n",
+            placeholder ->
+                "GIT_NAME".equals(placeholder) ? "Prompted Person" : "typed@example.com");
+
+    assertEquals("Prompted Person", config.git().name());
+    assertEquals("typed@example.com", config.git().email());
+  }
+
   private static ShellExec gitConfig(String name, String email) {
     var values = java.util.Map.of("user.name", name, "user.email", email);
     return new ShellExec() {

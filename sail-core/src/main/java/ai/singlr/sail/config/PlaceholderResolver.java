@@ -43,6 +43,19 @@ public final class PlaceholderResolver {
     return "${" + name + "}";
   }
 
+  /** The human prompt for a known placeholder, so callers needn't restate it. */
+  public static String promptFor(String name) {
+    var prompt = KNOWN_PLACEHOLDERS.get(name);
+    if (prompt == null) {
+      throw new IllegalArgumentException(
+          "Unknown placeholder: ${"
+              + name
+              + "}. Known placeholders: "
+              + KNOWN_PLACEHOLDERS.keySet());
+    }
+    return prompt;
+  }
+
   /**
    * Resolves placeholders non-interactively: each unique {@code ${NAME}} is replaced with {@code
    * values.apply(NAME)}. The resolver is consulted only for placeholders actually present, so

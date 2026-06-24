@@ -71,6 +71,19 @@ class LocalIdentityTest {
     assertThrows(IllegalArgumentException.class, () -> identity(Map.of()).valueFor("MYSTERY"));
   }
 
+  @Test
+  void gitValueReadsTheConfiguredIdentityWithoutThrowing() {
+    var identity = identity(Map.of("user.name", "Mady M", "user.email", "mady@example.com"));
+    assertEquals("Mady M", identity.gitValue("GIT_NAME").orElseThrow());
+    assertEquals("mady@example.com", identity.gitValue("GIT_EMAIL").orElseThrow());
+  }
+
+  @Test
+  void gitValueIsEmptyWhenUnsetOrNotAGitPlaceholder() {
+    assertTrue(identity(Map.of()).gitValue("GIT_NAME").isEmpty(), "unset identity, no throw");
+    assertTrue(identity(Map.of()).gitValue("SSH_PUBLIC_KEY").isEmpty(), "not a git field");
+  }
+
   private static ShellExec stubGit(Map<String, String> config) {
     return new ShellExec() {
       @Override

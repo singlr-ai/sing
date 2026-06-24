@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,5 +36,11 @@ class ConsoleHelperTest {
 
     assertThrows(
         EchoDisabledUnavailableException.class, () -> ConsoleHelper.readPassword("Secret: "));
+  }
+
+  @Test
+  void hasConsoleReflectsWhetherATerminalIsAttached() {
+    ConsoleHelper.consoleSupplier = () -> null;
+    assertFalse(ConsoleHelper.hasConsole(), "no console attached");
   }
 }

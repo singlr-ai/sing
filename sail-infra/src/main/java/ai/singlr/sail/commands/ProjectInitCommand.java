@@ -5,7 +5,6 @@
 
 package ai.singlr.sail.commands;
 
-import ai.singlr.sail.common.Strings;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.Banner;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
@@ -107,30 +105,32 @@ public final class ProjectInitCommand implements Runnable {
 
   private SailYaml collectInputs(PrintStream out, Ansi ansi) {
     var dirName = sanitizeProjectName(Path.of("").toAbsolutePath().getFileName().toString());
-    var name = promptWithDefault(out, ansi, "Project name", dirName);
+    var name = ConsoleHelper.promptWithDefault(out, ansi, "Project name", dirName);
     NameValidator.requireValidProjectName(name);
 
-    var description = promptWithDefault(out, ansi, "Description", "");
+    var description = ConsoleHelper.promptWithDefault(out, ansi, "Description", "");
     if (description.isEmpty()) description = null;
 
     out.println();
     out.println(ansi.string("  @|bold Resources|@"));
     var cpu = promptInt(out, ansi, "CPU cores", 2);
-    var memory = normalizeSize(promptWithDefault(out, ansi, "Memory", "8GB"));
-    var disk = normalizeSize(promptWithDefault(out, ansi, "Disk", "50GB"));
+    var memory = normalizeSize(ConsoleHelper.promptWithDefault(out, ansi, "Memory", "8GB"));
+    var disk = normalizeSize(ConsoleHelper.promptWithDefault(out, ansi, "Disk", "50GB"));
     var resources = new SailYaml.Resources(cpu, memory, disk);
 
     out.println();
     out.println(ansi.string("  @|bold Runtimes|@"));
-    var jdkStr = promptWithDefault(out, ansi, "JDK major version (blank to skip)", "25");
+    var jdkStr =
+        ConsoleHelper.promptWithDefault(out, ansi, "JDK major version (blank to skip)", "25");
     int jdk;
     try {
       jdk = jdkStr.isEmpty() ? 0 : Integer.parseInt(jdkStr);
     } catch (NumberFormatException e) {
       jdk = 25;
     }
-    var nodeStr = promptWithDefault(out, ansi, "Node.js version (blank to skip)", "");
-    var maven = promptWithDefault(out, ansi, "Maven version (blank to skip)", "3.9.14");
+    var nodeStr = ConsoleHelper.promptWithDefault(out, ansi, "Node.js version (blank to skip)", "");
+    var maven =
+        ConsoleHelper.promptWithDefault(out, ansi, "Maven version (blank to skip)", "3.9.14");
     SailYaml.Runtimes runtimes = null;
     var nodeVersion = nodeStr.isEmpty() ? null : nodeStr;
     if (jdk > 0 || nodeVersion != null || !maven.isEmpty()) {
@@ -140,15 +140,16 @@ public final class ProjectInitCommand implements Runnable {
     out.println();
     SailYaml.Git git = null;
     if (ConsoleHelper.confirm("Configure git identity?")) {
-      var gitName = promptRequired(out, ansi, "Git full name (for commits)");
-      var gitEmail = promptRequired(out, ansi, "Git email");
+      var gitName = ConsoleHelper.promptRequired(out, ansi, "Git full name (for commits)");
+      var gitEmail = ConsoleHelper.promptRequired(out, ansi, "Git email");
       var authInput =
-          promptWithDefault(out, ansi, "Auth method for cloning repos (token/ssh)", "token");
+          ConsoleHelper.promptWithDefault(
+              out, ansi, "Auth method for cloning repos (token/ssh)", "token");
       var auth = "ssh".equalsIgnoreCase(authInput) ? "ssh" : "token";
       String sshKey = null;
       if ("ssh".equals(auth)) {
         sshKey =
-            promptWithDefault(
+            ConsoleHelper.promptWithDefault(
                 out,
                 ansi,
                 "Path to SSH private key for git (copied into container)",
@@ -162,10 +163,10 @@ public final class ProjectInitCommand implements Runnable {
     if (ConsoleHelper.confirmNo("Add repositories to clone?")) {
       repos = new ArrayList<>();
       do {
-        var url = promptRequired(out, ansi, "Repo URL");
+        var url = ConsoleHelper.promptRequired(out, ansi, "Repo URL");
         var pathDefault = guessRepoPath(url);
-        var path = promptWithDefault(out, ansi, "Local path", pathDefault);
-        var branch = promptWithDefault(out, ansi, "Branch (blank for default)", "");
+        var path = ConsoleHelper.promptWithDefault(out, ansi, "Local path", pathDefault);
+        var branch = ConsoleHelper.promptWithDefault(out, ansi, "Branch (blank for default)", "");
         repos.add(new SailYaml.Repo(url, path, branch.isEmpty() ? null : branch));
       } while (ConsoleHelper.confirmNo("Add another repository?"));
     }
@@ -181,7 +182,8 @@ public final class ProjectInitCommand implements Runnable {
               .orElse("");
       var label = preset.displayName() + ansi.string(" @|faint (port " + ports + ")|@") + "?";
       if (ConsoleHelper.confirmNo(label)) {
-        var version = promptWithDefault(out, ansi, "  Version", preset.defaultVersion());
+        var version =
+            ConsoleHelper.promptWithDefault(out, ansi, "  Version", preset.defaultVersion());
         var service = customizePresetEnv(preset.withVersion(version), out, ansi);
         services.put(preset.key(), service);
       }
@@ -195,12 +197,12 @@ public final class ProjectInitCommand implements Runnable {
 
     out.println();
     out.println(ansi.string("  @|bold SSH access|@"));
-    var sshUser = promptWithDefault(out, ansi, "SSH user", "dev");
+    var sshUser = ConsoleHelper.promptWithDefault(out, ansi, "SSH user", "dev");
     List<String> authorizedKeys = null;
     if (ConsoleHelper.confirmNo("Add public key for remote login (SSH into container)?")) {
       authorizedKeys = new ArrayList<>();
       do {
-        var key = promptRequired(out, ansi, "Public key (e.g. ssh-ed25519 AAAA...)");
+        var key = ConsoleHelper.promptRequired(out, ansi, "Public key (e.g. ssh-ed25519 AAAA...)");
         authorizedKeys.add(key);
       } while (ConsoleHelper.confirmNo("Add another key?"));
     }
@@ -208,7 +210,8 @@ public final class ProjectInitCommand implements Runnable {
 
     out.println();
     var agentType =
-        promptWithDefault(out, ansi, "Agent type (claude-code/codex/helios/none)", "claude-code");
+        ConsoleHelper.promptWithDefault(
+            out, ansi, "Agent type (claude-code/codex/helios/none)", "claude-code");
     SailYaml.Agent agent = null;
     if (!"none".equalsIgnoreCase(agentType)) {
       List<String> install = null;
@@ -216,7 +219,7 @@ public final class ProjectInitCommand implements Runnable {
         install = new ArrayList<>();
         install.add(agentType);
         do {
-          var cli = promptRequired(out, ansi, "Agent CLI name (claude-code/codex)");
+          var cli = ConsoleHelper.promptRequired(out, ansi, "Agent CLI name (claude-code/codex)");
           if (!cli.equals(agentType)) {
             install.add(cli);
           }
@@ -249,7 +252,8 @@ public final class ProjectInitCommand implements Runnable {
     var env = new LinkedHashMap<String, String>();
     if (defaultEnv != null && !defaultEnv.isEmpty()) {
       for (var entry : defaultEnv.entrySet()) {
-        var value = promptWithDefault(out, ansi, "  " + entry.getKey(), entry.getValue());
+        var value =
+            ConsoleHelper.promptWithDefault(out, ansi, "  " + entry.getKey(), entry.getValue());
         if (!value.isEmpty()) {
           env.put(entry.getKey(), value);
         }
@@ -257,7 +261,7 @@ public final class ProjectInitCommand implements Runnable {
     }
     if (ConsoleHelper.confirmNo("Add environment variables?")) {
       do {
-        var kv = promptRequired(out, ansi, "Environment variable as KEY=VALUE");
+        var kv = ConsoleHelper.promptRequired(out, ansi, "Environment variable as KEY=VALUE");
         var eqIdx = kv.indexOf('=');
         if (eqIdx > 0) {
           env.put(kv.substring(0, eqIdx), kv.substring(eqIdx + 1));
@@ -272,34 +276,8 @@ public final class ProjectInitCommand implements Runnable {
         service.volumes());
   }
 
-  private static String promptWithDefault(PrintStream out, Ansi ansi, String label, String def) {
-    if (!Strings.isEmpty(def)) {
-      out.print(ansi.string("  @|bold " + label + "|@ @|faint [" + def + "]|@: "));
-    } else {
-      out.print(ansi.string("  @|bold " + label + "|@: "));
-    }
-    out.flush();
-    var line = ConsoleHelper.readLine();
-    if (Strings.isBlank(line)) {
-      return Objects.requireNonNullElse(def, "");
-    }
-    return line.strip();
-  }
-
-  private static String promptRequired(PrintStream out, Ansi ansi, String label) {
-    while (true) {
-      out.print(ansi.string("  @|bold " + label + "|@: "));
-      out.flush();
-      var line = ConsoleHelper.readLine();
-      if (Strings.isNotBlank(line)) {
-        return line.strip();
-      }
-      out.println(ansi.string("    @|yellow Required field. Please enter a value.|@"));
-    }
-  }
-
   private static int promptInt(PrintStream out, Ansi ansi, String label, int def) {
-    var raw = promptWithDefault(out, ansi, label, String.valueOf(def));
+    var raw = ConsoleHelper.promptWithDefault(out, ansi, label, String.valueOf(def));
     try {
       return Integer.parseInt(raw);
     } catch (NumberFormatException e) {
@@ -347,11 +325,13 @@ public final class ProjectInitCommand implements Runnable {
       out.println();
       out.println(ansi.string("  @|bold Custom Podman service|@"));
       var svcName =
-          promptRequired(
+          ConsoleHelper.promptRequired(
               out, ansi, "Service name \u2014 a label for this service (e.g. mysql, redis)");
-      var image = promptRequired(out, ansi, "Podman image (e.g. mysql:8.0, mongo:7, redis:latest)");
+      var image =
+          ConsoleHelper.promptRequired(
+              out, ansi, "Podman image (e.g. mysql:8.0, mongo:7, redis:latest)");
       var portsStr =
-          promptWithDefault(
+          ConsoleHelper.promptWithDefault(
               out, ansi, "Host ports to expose (comma-separated, blank for none)", "");
       List<Integer> ports = null;
       if (!portsStr.isEmpty()) {
@@ -368,7 +348,7 @@ public final class ProjectInitCommand implements Runnable {
       if (ConsoleHelper.confirmNo("Add environment variables?")) {
         env = new LinkedHashMap<>();
         do {
-          var kv = promptRequired(out, ansi, "Environment variable as KEY=VALUE");
+          var kv = ConsoleHelper.promptRequired(out, ansi, "Environment variable as KEY=VALUE");
           var eqIdx = kv.indexOf('=');
           if (eqIdx > 0) {
             env.put(kv.substring(0, eqIdx), kv.substring(eqIdx + 1));
@@ -379,7 +359,9 @@ public final class ProjectInitCommand implements Runnable {
       if (ConsoleHelper.confirmNo("Add volumes?")) {
         volumes = new ArrayList<>();
         do {
-          var vol = promptRequired(out, ansi, "Volume as name:path (e.g. mydata:/var/lib/data)");
+          var vol =
+              ConsoleHelper.promptRequired(
+                  out, ansi, "Volume as name:path (e.g. mydata:/var/lib/data)");
           volumes.add(vol);
         } while (ConsoleHelper.confirmNo("Add another volume?"));
       }
