@@ -241,14 +241,27 @@ public final class MigrateCommand implements Runnable {
    * skipped, one without the device is left untouched (provisioning owns that). Needs root for the
    * {@code incus} calls; {@link ContainerSailSetup#ensureInstalled} re-adds the device live and
    * rewrites the in-container scripts to the new path.
+   *
+   * <p>The new host directory is created (and made traversable) first, because {@code sail upgrade}
+   * runs migrate <em>before</em> it restarts {@code sail-api} onto the new path — so the bind-mount
+   * source must exist here, or the re-pointed mounts would strand on a missing directory until the
+   * server start materializes it. The directory bind mount then surfaces the socket the moment the
+   * restart binds it.
    */
   private static void relocateContainerSockets(boolean jsonOutput) {
     if (!SailPaths.isRoot()) {
       return;
     }
+    var hostDir = SailPaths.apiSocketHostDir();
+    try {
+      Files.createDirectories(hostDir);
+      Files.setPosixFilePermissions(hostDir, PosixFilePermissions.fromString("rwxr-xr-x"));
+    } catch (Exception e) {
+      return;
+    }
     var shell = new ShellExecutor(false);
     var devices = new IncusDeviceManager(shell);
-    var desired = SailPaths.apiSocketHostDir().toString();
+    var desired = hostDir.toString();
     List<String> names;
     try {
       names =
