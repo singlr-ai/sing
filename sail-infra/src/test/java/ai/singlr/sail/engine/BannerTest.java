@@ -174,7 +174,7 @@ class BannerTest {
 
     assertTrue(output.contains("/##\\"));
     assertTrue(output.contains("███████"));
-    assertTrue(output.contains("singlr-ai/sing"));
+    assertTrue(output.contains("standardapplied/sail"));
   }
 
   @Test

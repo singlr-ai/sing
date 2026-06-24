@@ -6,7 +6,7 @@ apply, but the document needed to reflect the current `sail.yaml`-only posture a
 names: `sail-core`, `sail-harness`, and `sail-infra`.
 
 No intentional backwards compatibility remains for `sing.yaml` or the `sing` CLI alias. Remaining
-`singlr-ai/sing` references are GitHub repository slugs, not runtime branding or config aliases.
+`standardapplied/sail` references are GitHub repository slugs, not runtime branding or config aliases.
 
 ## Scope
 This audit covers the current `sail` CLI and runtime trust boundaries:

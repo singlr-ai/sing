@@ -4,11 +4,11 @@ set -euo pipefail
 # SAIL CLI installer — downloads from GitHub Releases (no authentication required).
 # Supports Linux (amd64) and macOS (arm64).
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/singlr-ai/sing/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/standardapplied/sail/main/install.sh | bash
 #   bash install.sh 0.11.2          # install specific version
 #   bash install.sh v0.11.2         # also works with v prefix
 
-GITHUB_REPO="singlr-ai/sing"
+GITHUB_REPO="standardapplied/sail"
 INSTALL_DIR="/usr/local/bin"
 BINARY="sail"
 

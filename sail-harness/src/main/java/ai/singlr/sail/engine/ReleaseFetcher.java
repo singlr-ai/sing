@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public final class ReleaseFetcher {
 
-  static final String GITHUB_REPO = "singlr-ai/sing";
+  static final String GITHUB_REPO = "standardapplied/sail";
   static final String API_BASE = "https://api.github.com/repos/" + GITHUB_REPO;
   static final String DOWNLOAD_BASE = "https://github.com/" + GITHUB_REPO + "/releases/download";
   private static final Duration META_TIMEOUT = Duration.ofSeconds(30);

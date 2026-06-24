@@ -15,21 +15,21 @@ class ReleaseFetcherTest {
   @Test
   void buildDownloadUrlForBinary() {
     assertEquals(
-        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sail",
+        "https://github.com/standardapplied/sail/releases/download/v0.9.2/sail",
         ReleaseFetcher.buildDownloadUrl("v0.9.2", "sail"));
   }
 
   @Test
   void buildDownloadUrlForChecksum() {
     assertEquals(
-        "https://github.com/singlr-ai/sing/releases/download/v0.9.2/sail.sha256",
+        "https://github.com/standardapplied/sail/releases/download/v0.9.2/sail.sha256",
         ReleaseFetcher.buildDownloadUrl("v0.9.2", "sail.sha256"));
   }
 
   @Test
   void apiBasePointsToGitHub() {
     assertTrue(ReleaseFetcher.API_BASE.contains("api.github.com"));
-    assertTrue(ReleaseFetcher.API_BASE.contains("singlr-ai/sing"));
+    assertTrue(ReleaseFetcher.API_BASE.contains("standardapplied/sail"));
   }
 
   @Test
@@ -50,6 +50,6 @@ class ReleaseFetcherTest {
 
   @Test
   void githubRepoIsCorrect() {
-    assertEquals("singlr-ai/sing", ReleaseFetcher.GITHUB_REPO);
+    assertEquals("standardapplied/sail", ReleaseFetcher.GITHUB_REPO);
   }
 }
