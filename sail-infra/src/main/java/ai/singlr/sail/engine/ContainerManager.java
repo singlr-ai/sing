@@ -20,6 +20,9 @@ import java.util.concurrent.TimeoutException;
  */
 public final class ContainerManager {
 
+  private static final int READINESS_ATTEMPTS = 30;
+  private static final long READINESS_POLL_MILLIS = 500;
+
   private final ShellExec shell;
 
   public ContainerManager(ShellExec shell) {
@@ -78,6 +81,24 @@ public final class ContainerManager {
     if (!result.ok()) {
       throw new IOException("Failed to restart container '" + name + "': " + result.stderr());
     }
+  }
+
+  /**
+   * Blocks until the dev user's session bus is up inside the container — the readiness signal that
+   * {@code incus exec} as the dev user (sail plumbing, agent context) will succeed. {@code incus
+   * start} returns once init begins, well before this. Best-effort: returns {@code false} if the
+   * container is not ready within the timeout, so callers proceed and report rather than hang.
+   */
+  public boolean waitUntilReady(String name)
+      throws IOException, InterruptedException, TimeoutException {
+    var busPath = ContainerExec.DEV_XDG_RUNTIME_DIR + "/bus";
+    for (var attempt = 0; attempt < READINESS_ATTEMPTS; attempt++) {
+      if (shell.exec(List.of("incus", "exec", name, "--", "test", "-S", busPath)).ok()) {
+        return true;
+      }
+      Thread.sleep(READINESS_POLL_MILLIS);
+    }
+    return false;
   }
 
   /** Stops a container. Throws on failure. */

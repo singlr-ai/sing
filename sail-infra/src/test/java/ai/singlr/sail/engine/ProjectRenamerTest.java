@@ -27,6 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ProjectRenamerTest {
 
   private static final String RUNNING = "[{\"name\": \"old\", \"status\": \"Running\"}]";
+  private static final String STOPPED = "[{\"name\": \"old\", \"status\": \"Stopped\"}]";
   private static final String DEFINITION =
       "name: old\nimage: ubuntu/24.04\n"
           + "resources:\n  cpu: 2\n  memory: 4GB\n  disk: 20GB\n"
@@ -78,6 +79,19 @@ class ProjectRenamerTest {
         .onOk("incus list ^old$", RUNNING);
   }
 
+  private static ScriptedShellExecutor stoppedShell() {
+    return new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+        .onOk("incus list ^old$", STOPPED);
+  }
+
+  private static int firstIndexOf(
+      List<String> commands, java.util.function.Predicate<String> match) {
+    return java.util.stream.IntStream.range(0, commands.size())
+        .filter(i -> match.test(commands.get(i)))
+        .findFirst()
+        .orElse(-1);
+  }
+
   private ProjectRenamer renamer(ScriptedShellExecutor shell) {
     return new ProjectRenamer(db, shell, projectsDir);
   }
@@ -101,6 +115,39 @@ class ProjectRenamerTest {
     assertTrue(
         cmds.stream().anyMatch(c -> c.contains("/etc/hostname")),
         "the guest hostname is updated so the spec CLI files under the new name");
+  }
+
+  @Test
+  void bringsTheContainerUpBeforeTheFinishingTouches() throws Exception {
+    var shell = runningShell();
+
+    renamer(shell).rename("old", "renamed");
+
+    var cmds = shell.invocations();
+    var started = firstIndexOf(cmds, c -> c.equals("incus start renamed"));
+    var ready = firstIndexOf(cmds, c -> c.contains("test -S /run/user/1000/bus"));
+    var hostname = firstIndexOf(cmds, c -> c.contains("/etc/hostname"));
+    assertTrue(started >= 0, "the renamed container is started");
+    assertTrue(hostname >= 0, "the guest hostname is set");
+    assertTrue(
+        started < ready && ready < hostname,
+        "readiness is awaited after start and before in-guest finishing steps that need it");
+  }
+
+  @Test
+  void leavesAStoppedContainerStoppedAfterFinishing() throws Exception {
+    var shell = stoppedShell();
+
+    renamer(shell).rename("old", "renamed");
+
+    var cmds = shell.invocations();
+    var started = firstIndexOf(cmds, c -> c.equals("incus start renamed"));
+    var hostname = firstIndexOf(cmds, c -> c.contains("/etc/hostname"));
+    var stopped = firstIndexOf(cmds, c -> c.equals("incus stop renamed"));
+    assertTrue(
+        started >= 0 && started < hostname,
+        "a stopped container is still brought up so finishing steps can run");
+    assertTrue(hostname < stopped, "then it is stopped again to restore its original state");
   }
 
   @Test

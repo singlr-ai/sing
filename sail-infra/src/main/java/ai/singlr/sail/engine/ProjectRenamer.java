@@ -29,9 +29,12 @@ import java.util.Objects;
  *
  * <p>The mutating steps run in an order whose every prior step has a compensation, recorded on a
  * stack as it succeeds; any failure unwinds them in reverse so a half-done rename never corrupts
- * state. The finishing touches (guest hostname, re-wiring the sail plumbing, regenerating agent
- * context, restart) run after the rename has committed and are best-effort — a failure there is
- * reported and recovered with {@code sail project reconfigure}, not rolled back.
+ * state. Once the rename has committed, the container is brought up and given time to become ready
+ * (its dev-user session bus, which {@code incus start} does not wait for) before the finishing
+ * touches (guest hostname, re-wiring the sail plumbing, regenerating agent context) run against the
+ * running instance, which is then stopped again only if it started out stopped. These are
+ * best-effort — a failure there is reported and recovered with {@code sail project reconfigure},
+ * not rolled back.
  */
 public final class ProjectRenamer {
 
@@ -120,9 +123,16 @@ public final class ProjectRenamer {
 
     var warnings = new ArrayList<String>();
     if (hasContainer) {
+      attempt(
+          () -> {
+            containers.start(renamed);
+            containers.waitUntilReady(renamed);
+          },
+          warnings,
+          "restart the container");
       finish(renamed, newDefinition, warnings);
-      if (wasRunning) {
-        attempt(() -> containers.start(renamed), warnings, "restart the container");
+      if (!wasRunning) {
+        attempt(() -> containers.stop(renamed), warnings, "stop the container");
       }
     }
     return new Result(old, renamed, hasContainer, warnings);
