@@ -226,6 +226,33 @@
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
+                                        <include>ai.singlr.sail.api.SailApiOperations</include>
+                                    </includes>
+                                    <!--
+                                        The central request handler: every method is exercised
+                                        (METHOD 1.0) and line coverage sits at ~0.99. The handful of
+                                        uncovered lines are a bus-attributed dispatch-event branch
+                                        and a best-effort container-setup catch that only fires on an
+                                        injected setup failure. Floored just under the actual so the
+                                        bar is locked in; raise toward 1.0 as those paths gain
+                                        fault-injection coverage.
+                                    -->
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.98</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>METHOD</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>1.0</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                                <rule>
+                                    <element>CLASS</element>
+                                    <includes>
                                         <include>ai.singlr.sail.api.EventStreamClient</include>
                                     </includes>
                                     <!--

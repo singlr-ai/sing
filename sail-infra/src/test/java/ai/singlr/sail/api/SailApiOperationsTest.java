@@ -12,7 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.config.SpecStatus;
 import ai.singlr.sail.engine.ShellExec;
+import ai.singlr.sail.store.Finding;
+import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SchemaManager;
+import ai.singlr.sail.store.SessionStore;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.io.IOException;
@@ -20,10 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -906,6 +912,258 @@ class SailApiOperationsTest {
   }
 
   @Test
+  void eventBusStatsListsSubscribers() throws Exception {
+    try (var bus = new EventBus()) {
+      bus.subscribe(
+          new EventSubscriber() {
+            @Override
+            public String name() {
+              return "test-subscriber";
+            }
+
+            @Override
+            public Predicate<Event> filter() {
+              return EventSubscriber.all();
+            }
+
+            @Override
+            public void onEvent(Event event) {}
+          });
+      var operations = new SailApiOperations(shell(), baseYamlPath(tempDir).toString(), bus, null);
+
+      var result = operations.eventBusStats();
+
+      assertTrue(result.isSuccess());
+      @SuppressWarnings("unchecked")
+      var subs = (List<Map<String, Object>>) get(result, "subscribers");
+      assertEquals(1, subs.size());
+    }
+  }
+
+  @Test
+  void globalSpecHistoryReturnsRevisions() throws Exception {
+    var operations = operations(baseYaml(), shell());
+
+    var result = operations.globalSpecHistory("auth");
+
+    assertTrue(result.isSuccess());
+    assertEquals("auth", get(result, "spec_id"));
+    assertFalse(result.orThrow().revisions().isEmpty());
+  }
+
+  @Test
+  void restoreGlobalSpecBringsBackARevision() throws Exception {
+    var operations = operations(baseYaml(), shell());
+    var rev = operations.globalSpecHistory("auth").orThrow().revisions().getLast().rev();
+
+    var result = operations.restoreGlobalSpec("auth", new SpecRestoreRequest(rev));
+
+    assertTrue(result.isSuccess());
+    assertEquals(rev, get(result, "from_rev"));
+  }
+
+  @Test
+  void reviewsForSpecIsEmptyWithoutReviews() throws Exception {
+    var operations =
+        operationsWithStores(
+            baseYaml(), shell(), null, SailApiOperationsTest::seedAuthBillingSetup, s -> {});
+
+    var result = operations.reviewsForSpec("auth");
+
+    assertTrue(result.isSuccess());
+    @SuppressWarnings("unchecked")
+    var reviews = (List<Map<String, Object>>) get(result, "reviews");
+    assertTrue(reviews.isEmpty());
+  }
+
+  @Test
+  void reviewOperationsRejectUnknownIds() throws Exception {
+    var operations = operationsWithStores(baseYaml(), shell(), null, s -> {}, s -> {});
+
+    assertError(ErrorCode.NOT_FOUND, operations.reviewDetail("nope"));
+    assertError(ErrorCode.NOT_FOUND, operations.approveReview("nope", "me"));
+    assertError(ErrorCode.NOT_FOUND, operations.dismissFinding("nope", "f1"));
+  }
+
+  @Test
+  void reviewDetailDismissAndApproveSucceedForSeededReview() throws Exception {
+    var yaml = tempDir.resolve("sail-" + System.nanoTime() + ".yaml");
+    Files.writeString(yaml, baseYaml());
+    var db = Sqlite.open(tempDir.resolve("specs-" + System.nanoTime() + ".db"));
+    new SchemaManager(db).migrate();
+    var specStore = new SpecStore(db);
+    var reviewStore = new ReviewStore(db);
+    seedAuthBillingSetup(specStore);
+    var reviewId = reviewStore.createReview("auth", 1);
+    var stageId = reviewStore.createStage(reviewId, "human", "human");
+    reviewStore.startStage(stageId, "uday");
+    reviewStore.addFinding(
+        stageId,
+        Finding.create(
+            Finding.Severity.HIGH,
+            Finding.Category.SECURITY,
+            "Auth.java",
+            10,
+            12,
+            "Issue",
+            "Description",
+            "Evidence",
+            new Finding.Suggestion("bad", "good", "why"),
+            0.8));
+    var findingId = reviewStore.findingsForReview(reviewId).getFirst().id();
+    var operations =
+        new SailApiOperations(
+            shell(), yaml.toString(), null, null, null, specStore, reviewStore, null);
+
+    assertTrue(operations.reviewDetail(reviewId).isSuccess());
+    assertTrue(operations.dismissFinding(reviewId, findingId).isSuccess());
+    assertTrue(operations.approveReview(reviewId, "uday").isSuccess());
+  }
+
+  @Test
+  void dispatchWithoutBusStillCompletesWhenAgentRuns() throws Exception {
+    var shell =
+        shell()
+            .on("incus list ^acme$", RUNNING_JSON)
+            .onSequence(
+                "cat /home/dev/.sail/agent.pid",
+                new ShellExec.Result(1, "", "missing"),
+                new ShellExec.Result(0, "123", ""))
+            .on("kill -0 123", "")
+            .on("cat /home/dev/.sail/agent-session.json", "{\"task\": \"work\"}")
+            .on("mkdir -p /home/dev/workspace/specs", "")
+            .on("printf '%s'", "")
+            .on("mkdir -p /home/dev/.sail", "")
+            .on("bash -l -c", "");
+    var operations =
+        operationsWithStores(
+            baseYaml(), shell, null, SailApiOperationsTest::seedAuthBillingSetup, s -> {});
+
+    var result = operations.dispatch("acme", request("auth", "foreground", false));
+
+    assertTrue(result.isSuccess());
+  }
+
+  @Test
+  void dispatchPublishesSnapshotCreatedWithBus() throws Exception {
+    try (var bus = new EventBus()) {
+      var shell =
+          shell()
+              .on("incus list ^acme$", RUNNING_JSON)
+              .on("cat /home/dev/.sail/agent.pid", new ShellExec.Result(1, "", "missing"))
+              .on("mkdir -p /home/dev/workspace/specs", "")
+              .on("printf '%s'", "")
+              .on("incus snapshot list acme --format json", "[]")
+              .on("incus snapshot create acme", "");
+      var operations =
+          operationsWithStores(
+              snapshotYaml(), shell, bus, SailApiOperationsTest::seedAuthBillingSetup, s -> {});
+
+      var result = operations.dispatch("acme", request("auth", "background", true));
+
+      assertTrue(result.isSuccess());
+      assertFalse(get(result, "snapshot").toString().isBlank());
+    }
+  }
+
+  @Test
+  void dispatchRejectsStoppedProject() throws Exception {
+    var operations =
+        operationsWithStores(
+            baseYaml(),
+            shell().on("incus list ^acme$", STOPPED_JSON),
+            null,
+            SailApiOperationsTest::seedAuthBillingSetup,
+            s -> {});
+
+    assertError(
+        ErrorCode.PROJECT_STOPPED,
+        operations.dispatch("acme", request("auth", "background", false)));
+  }
+
+  @Test
+  void dispatchRejectsNotCreatedProject() throws Exception {
+    var operations =
+        operationsWithStores(
+            baseYaml(),
+            shell().on("incus list ^acme$", "[]"),
+            null,
+            SailApiOperationsTest::seedAuthBillingSetup,
+            s -> {});
+
+    assertError(
+        ErrorCode.PROJECT_NOT_CREATED,
+        operations.dispatch("acme", request("auth", "background", false)));
+  }
+
+  @Test
+  void dispatchRejectsErroredProject() throws Exception {
+    var operations =
+        operationsWithStores(
+            baseYaml(),
+            shell().on("incus list ^acme$", new ShellExec.Result(1, "", "boom")),
+            null,
+            SailApiOperationsTest::seedAuthBillingSetup,
+            s -> {});
+
+    assertError(
+        ErrorCode.CONTAINER_ERROR,
+        operations.dispatch("acme", request("auth", "background", false)));
+  }
+
+  @Test
+  void agentSessionsFailWithoutSessionStore() throws Exception {
+    var operations = operations(baseYaml(), shell());
+
+    assertError(ErrorCode.INTERNAL, operations.agentSessions("acme"));
+  }
+
+  @Test
+  void agentSessionsListsSessionsFromStore() throws Exception {
+    var operations =
+        operationsWithStores(
+            baseYaml(),
+            shell(),
+            null,
+            s -> {},
+            sessions -> sessions.create("acme", "auth", "claude-code", "feat/auth", "do it", 123));
+
+    var result = operations.agentSessions("acme");
+
+    assertTrue(result.isSuccess());
+    @SuppressWarnings("unchecked")
+    var sessions = (List<Map<String, Object>>) get(result, "sessions");
+    assertEquals(1, sessions.size());
+  }
+
+  @Test
+  void dispatchPublishesAgentSessionStartedWhenRunning() throws Exception {
+    try (var bus = new EventBus()) {
+      var shell =
+          shell()
+              .on("incus list ^acme$", RUNNING_JSON)
+              .onSequence(
+                  "cat /home/dev/.sail/agent.pid",
+                  new ShellExec.Result(1, "", "missing"),
+                  new ShellExec.Result(0, "123", ""))
+              .on("kill -0 123", "")
+              .on("cat /home/dev/.sail/agent-session.json", "{\"task\": \"work\"}")
+              .on("mkdir -p /home/dev/workspace/specs", "")
+              .on("printf '%s'", "")
+              .on("mkdir -p /home/dev/.sail", "")
+              .on("bash -l -c", "");
+      var operations =
+          operationsWithStores(
+              baseYaml(), shell, bus, SailApiOperationsTest::seedAuthBillingSetup, s -> {});
+
+      var result = operations.dispatch("acme", request("auth", "foreground", false));
+
+      assertTrue(result.isSuccess());
+      assertEquals(2L, bus.stats().published());
+    }
+  }
+
+  @Test
   void eventBusStatsReflectsBusState(@TempDir Path tmp) throws Exception {
     try (var bus = new EventBus()) {
       var persister = new AuditPersister(tmp.resolve("events.jsonl"), 16);
@@ -957,6 +1215,27 @@ class SailApiOperationsTest {
       String yamlContent, FakeShell shell, java.util.function.Consumer<SpecStore> seed)
       throws Exception {
     return operationsWithStore(yamlContent, shell, seed, null);
+  }
+
+  /** Builds operations backed by a full set of migrated stores (spec, review, session). */
+  private SailApiOperations operationsWithStores(
+      String yamlContent,
+      FakeShell shell,
+      EventBus bus,
+      java.util.function.Consumer<SpecStore> seedSpecs,
+      java.util.function.Consumer<SessionStore> seedSessions)
+      throws Exception {
+    var yaml = tempDir.resolve("sail-" + System.nanoTime() + ".yaml");
+    Files.writeString(yaml, yamlContent);
+    var db = Sqlite.open(tempDir.resolve("specs-" + System.nanoTime() + ".db"));
+    new SchemaManager(db).migrate();
+    var specStore = new SpecStore(db);
+    var reviewStore = new ReviewStore(db);
+    var sessionStore = new SessionStore(db);
+    seedSpecs.accept(specStore);
+    seedSessions.accept(sessionStore);
+    return new SailApiOperations(
+        shell, yaml.toString(), null, bus, null, specStore, reviewStore, sessionStore);
   }
 
   private SailApiOperations operationsWithStore(
@@ -1104,6 +1383,7 @@ class SailApiOperationsTest {
 
   private static final class FakeShell implements ShellExec {
     private final Map<String, Result> scripts = new LinkedHashMap<>();
+    private final Map<String, Deque<Result>> sequences = new LinkedHashMap<>();
     private final Map<String, Exception> failures = new LinkedHashMap<>();
     private final List<String> invocations = new ArrayList<>();
 
@@ -1113,6 +1393,12 @@ class SailApiOperationsTest {
 
     FakeShell on(String pattern, Result result) {
       scripts.put(pattern, result);
+      return this;
+    }
+
+    /** Returns each result in turn for successive matches, then repeats the last one. */
+    FakeShell onSequence(String pattern, Result... results) {
+      sequences.put(pattern, new ArrayDeque<>(List.of(results)));
       return this;
     }
 
@@ -1128,6 +1414,12 @@ class SailApiOperationsTest {
       for (var entry : failures.entrySet()) {
         if (joined.contains(entry.getKey())) {
           throw (IOException) entry.getValue();
+        }
+      }
+      for (var entry : sequences.entrySet()) {
+        if (joined.contains(entry.getKey())) {
+          var queue = entry.getValue();
+          return queue.size() > 1 ? queue.poll() : queue.peek();
         }
       }
       for (var entry : scripts.entrySet()) {
