@@ -158,6 +158,15 @@ class ReviewPipelineControllerTest {
   }
 
   @Test
+  void skipsAnUnknownSpec() {
+    var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
+
+    ctrl.onEvent(agentStoppedEvent("ghost"));
+
+    assertTrue(reviewStore.latestReviewForSpec("ghost").isEmpty());
+  }
+
+  @Test
   void stageWithoutAnAgentUsesTheRosterReviewer() throws Exception {
     createSpec("auth", "in_progress");
     var capturedAgent = new AtomicReference<String>();
