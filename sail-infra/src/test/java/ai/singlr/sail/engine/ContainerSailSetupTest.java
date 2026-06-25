@@ -39,6 +39,25 @@ class ContainerSailSetupTest {
   }
 
   @Test
+  void aStaleSocketPathInTheScriptForcesAReinstall() throws Exception {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("config device get " + CONTAINER, "/run/sail\n")
+            .onFail("grep -qsF /var/lib/sail/run/api.sock", "");
+
+    var result = ContainerSailSetup.ensureInstalled(shell, CONTAINER);
+
+    assertEquals(
+        ContainerSailSetup.Result.BACKFILLED,
+        result,
+        "a script still pointing at the old socket path is stale and must be rewritten");
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("grep -qsF /var/lib/sail/run/api.sock")),
+        "the probe verifies the spec script references the current socket path, not just exists");
+  }
+
+  @Test
   void refreshHappensEvenWhenSourcePathUnchanged() throws Exception {
     // Same source path on host and container — the bug class 0.12.5/0.12.6 missed.
     // refreshEventSocket must still tear down + re-add so the kernel re-resolves the inode.

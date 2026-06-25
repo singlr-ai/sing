@@ -21,7 +21,8 @@ import java.util.concurrent.TimeoutException;
  *       the next dispatch.
  *   <li><b>Helper files in the container.</b> {@code sail-event.sh}, {@code claude-settings.json},
  *       and {@code codex hooks.json} are probed with a single {@code test -f} chain; if any is
- *       missing the three installers re-run.
+ *       missing — or the {@code spec} script still references a stale socket path after the socket
+ *       moved off {@code /run} — the installers re-run and rewrite them to the current path.
  * </ol>
  *
  * Designed for the dispatch hot path: ensureEventSocket is one idempotent shell call, the
@@ -85,7 +86,11 @@ public final class ContainerSailSetup {
                         + " && grep -qsF "
                         + SpecCliHelper.PATH_MARKER
                         + " "
-                        + SpecCliHelper.PROFILE_PATH)));
+                        + SpecCliHelper.PROFILE_PATH
+                        + " && grep -qsF "
+                        + SailPaths.apiSocketContainerPath()
+                        + " "
+                        + SpecCliHelper.SCRIPT_PATH)));
     return probe.ok();
   }
 }
