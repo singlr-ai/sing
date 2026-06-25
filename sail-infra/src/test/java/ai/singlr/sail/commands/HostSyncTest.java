@@ -15,8 +15,9 @@ import org.junit.jupiter.api.Test;
 class HostSyncTest {
 
   private static final SyncConfig STANDALONE = SyncConfig.unset();
-  private static final SyncConfig MAIN = new SyncConfig(SyncConfig.ROLE_MAIN, null);
-  private static final SyncConfig NODE = new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox");
+  private static final SyncConfig MAIN = new SyncConfig(SyncConfig.ROLE_MAIN, null, null);
+  private static final SyncConfig NODE =
+      new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox", null);
 
   @Test
   void standaloneHasNoPeerAndNoPropagationHint() {

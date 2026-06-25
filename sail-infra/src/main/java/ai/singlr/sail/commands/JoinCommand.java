@@ -118,7 +118,9 @@ public final class JoinCommand implements Runnable {
     HostConfigSetCommand.validate("sync-main", target);
     var publicKey = identity.ensure("sail-sync:" + handle);
     var host = HostYaml.fromMap(YamlUtil.parseFile(hostConfig));
-    var updated = HostSyncCommand.configure(host, false, target);
+    var updated =
+        HostConfigSetCommand.applyChange(
+            HostSyncCommand.configure(host, false, target), "sync-handle", handle);
     requireWritable(hostConfig, target);
     YamlUtil.dumpToFile(updated.toMap(), hostConfig);
     return new Plan(target, handle, name, email, publicKey);

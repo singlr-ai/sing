@@ -71,6 +71,7 @@ class JoinCommandTest {
     var written = HostYaml.fromMap(YamlUtil.parseFile(hostConfig));
     assertEquals(SyncConfig.ROLE_NODE, written.sync().role());
     assertEquals("sail@maindevbox", written.sync().main());
+    assertEquals("mady", written.sync().handle(), "join persists this box's FDE handle");
     assertEquals("10.0.0.1", written.serverIp(), "unrelated host config is preserved");
   }
 

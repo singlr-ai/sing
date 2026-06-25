@@ -27,20 +27,22 @@ class SyncCommandTest {
   @Test
   void resolveMainPrefersTheExplicitFlag() {
     var resolved =
-        SyncCommand.resolveMain("sail@override", new SyncConfig(SyncConfig.ROLE_NODE, "sail@cfg"));
+        SyncCommand.resolveMain(
+            "sail@override", new SyncConfig(SyncConfig.ROLE_NODE, "sail@cfg", null));
     assertEquals("sail@override", resolved.target());
   }
 
   @Test
   void resolveMainFallsBackToTheConfiguredMain() {
     var resolved =
-        SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox"));
+        SyncCommand.resolveMain(
+            null, new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox", null));
     assertEquals("sail@maindevbox", resolved.target());
   }
 
   @Test
   void resolveMainHasNoTargetWhenThisBoxIsMain() {
-    var resolved = SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_MAIN, null));
+    var resolved = SyncCommand.resolveMain(null, new SyncConfig(SyncConfig.ROLE_MAIN, null, null));
     assertNull(resolved.target());
     assertTrue(resolved.message().contains("main devbox"));
   }

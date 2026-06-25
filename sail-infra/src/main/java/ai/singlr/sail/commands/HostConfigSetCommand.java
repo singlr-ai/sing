@@ -36,7 +36,8 @@ public final class HostConfigSetCommand implements Runnable {
           "webauthn-rp-name",
           "webauthn-origin",
           "sync-role",
-          "sync-main");
+          "sync-main",
+          "sync-handle");
   private static final Set<String> WEBAUTHN_KEYS =
       Set.of("webauthn-rp-id", "webauthn-rp-name", "webauthn-origin");
   private static final Pattern RP_ID = Pattern.compile("[a-z0-9]([a-z0-9.-]*[a-z0-9])?");
@@ -161,8 +162,9 @@ public final class HostConfigSetCommand implements Runnable {
       case "webauthn-origin" ->
           withWebauthn(
               current, new WebauthnConfig(webauthn.rpId(), webauthn.rpName(), List.of(value)));
-      case "sync-role" -> withSync(current, new SyncConfig(value, sync.main()));
-      case "sync-main" -> withSync(current, new SyncConfig(sync.role(), value));
+      case "sync-role" -> withSync(current, new SyncConfig(value, sync.main(), sync.handle()));
+      case "sync-main" -> withSync(current, new SyncConfig(sync.role(), value, sync.handle()));
+      case "sync-handle" -> withSync(current, new SyncConfig(sync.role(), sync.main(), value));
       default -> throw new IllegalArgumentException("Unhandled key: " + key);
     };
   }

@@ -37,6 +37,13 @@ final class HostSync {
     }
   }
 
+  /**
+   * This box's FDE handle — the assignee FDE-aware dispatch matches against — or null when unset.
+   */
+  static String handle() {
+    return config().handle();
+  }
+
   /** A box with a sync peer: it is the main hub, or it points at one. */
   static boolean hasPeers(SyncConfig sync) {
     return sync.isMain() || Strings.isNotBlank(sync.main());

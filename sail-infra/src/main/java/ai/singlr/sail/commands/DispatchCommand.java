@@ -29,6 +29,7 @@ import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.engine.SnapshotManager;
+import ai.singlr.sail.store.FdeStore;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.io.IOException;
@@ -347,13 +348,27 @@ public final class DispatchCommand implements Runnable {
    * file-drifted project is irrelevant because the spec lives in the DB, replicated by sync.
    */
   private Prepared prepareDispatch(String project, String specId, boolean restart) {
+    var fde = HostSync.handle();
+    if (fde == null) {
+      throw new IllegalStateException(
+          "This box has no FDE handle, so it cannot pick its assigned specs.\n"
+              + "  Set it once: sudo sail host config set sync-handle <your-handle>"
+              + "  (a node gets it from 'sail join').");
+    }
     try (var db = Sqlite.open(SailPaths.controlPlaneDb())) {
+      if (new FdeStore(db).byHandle(fde).isEmpty()) {
+        throw new IllegalStateException(
+            "FDE '"
+                + fde
+                + "' is not in this box's roster, so its assigned specs cannot be trusted.\n"
+                + "  Run 'sail sync' to pull the roster from main, or get authorized there first.");
+      }
       var store = new SpecStore(db);
       var specs = store.projectSpecs(project);
       if (specs.isEmpty()) {
         return null;
       }
-      var resolution = resolveSpec(specId, restart, specs, store);
+      var resolution = resolveSpec(specId, restart, specs, store, fde);
       if (resolution.spec() == null) {
         return null;
       }
@@ -372,14 +387,27 @@ public final class DispatchCommand implements Runnable {
    * trail).
    */
   static SpecResolution resolveSpec(
-      String specId, boolean restart, List<Spec> specs, SpecStore store) {
+      String specId, boolean restart, List<Spec> specs, SpecStore store, String fde) {
     if (specId == null) {
-      var next = SpecDirectory.nextReady(specs);
+      var next = SpecDirectory.nextReadyAssignedTo(specs, fde);
       return next == null ? SpecResolution.none() : SpecResolution.of(next);
     }
     var found = SpecDirectory.findById(specs, specId);
     if (found == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
+    }
+    if (found.assignee() != null && !found.assignee().equals(fde)) {
+      throw new IllegalStateException(
+          "Spec '"
+              + specId
+              + "' is assigned to '"
+              + found.assignee()
+              + "', not this box's FDE '"
+              + fde
+              + "'. Reassign it first: sail spec update "
+              + specId
+              + " --assignee "
+              + fde);
     }
     if (found.status() == SpecStatus.PENDING) {
       return SpecResolution.of(found);

@@ -81,6 +81,32 @@ public final class SpecDirectory {
     return nextReady(specs, null);
   }
 
+  /**
+   * Strict FDE-aware selection: the first ready spec (dependencies all done) whose {@code assignee}
+   * equals {@code assignee} exactly. Unassigned specs and specs owned by another FDE are skipped,
+   * so dispatch runs only this box's own work — never unscoped or someone else's. Returns {@code
+   * null} when {@code assignee} is null (no FDE bound) or nothing matches.
+   */
+  public static Spec nextReadyAssignedTo(List<Spec> specs, String assignee) {
+    if (assignee == null) {
+      return null;
+    }
+    var doneIds = doneIds(specs);
+    for (var spec : specs) {
+      if (spec.status() != SpecStatus.PENDING) {
+        continue;
+      }
+      if (!dependenciesMet(spec, doneIds)) {
+        continue;
+      }
+      if (!assignee.equals(spec.assignee())) {
+        continue;
+      }
+      return spec;
+    }
+    return null;
+  }
+
   /** Returns the spec with the given id, or null if not found. */
   public static Spec findById(List<Spec> specs, String specId) {
     return specs.stream().filter(spec -> spec.id().equals(specId)).findFirst().orElse(null);

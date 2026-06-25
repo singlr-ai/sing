@@ -114,6 +114,44 @@ class SpecDirectoryTest {
   }
 
   @Test
+  void nextReadyAssignedToPicksOnlyThisFdesSpecStrictly() {
+    var specs =
+        List.of(
+            new Spec("unassigned", "U", SpecStatus.PENDING, null, List.of(), null),
+            new Spec("other", "Other", SpecStatus.PENDING, "mady", List.of(), null),
+            new Spec("mine", "Mine", SpecStatus.PENDING, "uday", List.of(), null));
+
+    assertEquals("mine", SpecDirectory.nextReadyAssignedTo(specs, "uday").id());
+  }
+
+  @Test
+  void nextReadyAssignedToSkipsUnassignedAndOtherFdeSpecs() {
+    var specs =
+        List.of(
+            new Spec("unassigned", "U", SpecStatus.PENDING, null, List.of(), null),
+            new Spec("other", "Other", SpecStatus.PENDING, "mady", List.of(), null));
+
+    assertNull(SpecDirectory.nextReadyAssignedTo(specs, "uday"));
+  }
+
+  @Test
+  void nextReadyAssignedToReturnsNullWhenNoFdeIsBound() {
+    var specs = List.of(new Spec("mine", "Mine", SpecStatus.PENDING, "uday", List.of(), null));
+
+    assertNull(SpecDirectory.nextReadyAssignedTo(specs, null));
+  }
+
+  @Test
+  void nextReadyAssignedToRespectsDependencies() {
+    var specs =
+        List.of(
+            new Spec("dep", "Dep", SpecStatus.PENDING, "uday", List.of(), null),
+            new Spec("mine", "Mine", SpecStatus.PENDING, "uday", List.of("dep"), null));
+
+    assertEquals("dep", SpecDirectory.nextReadyAssignedTo(specs, "uday").id());
+  }
+
+  @Test
   void nextReadyReturnsNullWhenEmpty() {
     assertNull(SpecDirectory.nextReady(List.of()));
   }

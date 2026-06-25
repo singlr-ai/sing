@@ -170,7 +170,7 @@ class HostYamlTest {
             null,
             "2026-02-18T01:00:00Z",
             WebauthnConfig.disabled(),
-            new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox"));
+            new SyncConfig(SyncConfig.ROLE_NODE, "sail@maindevbox", null));
 
     var reparsed = HostYaml.fromMap(YamlUtil.parseMap(YamlUtil.dumpToString(pointed.toMap())));
     assertEquals("node", reparsed.sync().role());
