@@ -92,6 +92,7 @@ public final class HostSyncCommand implements Runnable {
       var map = new LinkedHashMap<String, Object>();
       map.put("role", sync.role());
       map.put("main", sync.main());
+      map.put("handle", sync.handle());
       System.out.println(YamlUtil.dumpJson(map));
       return;
     }
@@ -109,5 +110,13 @@ public final class HostSyncCommand implements Runnable {
               "  @|faint No sync role set.|@ Run @|bold sail host sync --as-main|@ or"
                   + " @|bold sail host sync --main <target>|@."));
     }
+    System.out.println(Ansi.AUTO.string("  " + fdeLine(sync)));
+  }
+
+  private static String fdeLine(SyncConfig sync) {
+    return sync.handle() != null
+        ? "@|faint FDE:|@ @|bold " + sync.handle() + "|@"
+        : "@|faint No FDE set — dispatch can't pick this box's specs. Set it:|@ @|bold sail host"
+            + " config set sync-handle <handle>|@";
   }
 }
