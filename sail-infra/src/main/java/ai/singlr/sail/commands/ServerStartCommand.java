@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.commands;
 
+import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.EventBus;
 import ai.singlr.sail.api.ReviewWiring;
 import ai.singlr.sail.api.SailApiOperations;
@@ -21,6 +22,7 @@ import ai.singlr.sail.config.HostYaml;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.WebauthnConfig;
 import ai.singlr.sail.config.YamlUtil;
+import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
 import ai.singlr.sail.store.AuthSessionStore;
@@ -35,6 +37,7 @@ import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SessionStore;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
+import ai.singlr.sail.store.StuckSpecReconciler;
 import ai.singlr.sail.store.TokenStore;
 import ai.singlr.sail.store.WebauthnCredentialStore;
 import ai.singlr.sail.webauthn.RelyingParty;
@@ -181,9 +184,15 @@ public final class ServerStartCommand implements Runnable {
                 passkeyHandler,
                 specStore,
                 reviewController);
-        var sweeper = new ExpiredRowSweeper(dbPath)) {
+        var sweeper = new ExpiredRowSweeper(dbPath);
+        var reconciler =
+            new StuckSpecReconciler(
+                dbPath,
+                StuckSpecReconciler.DEFAULT_THRESHOLD,
+                stranded -> surface(bus, stranded))) {
       server.start();
       sweeper.start();
+      reconciler.start();
       System.out.println(
           Ansi.AUTO.string(
               "  @|green ✓|@ Sail server listening on http://" + host + ":" + server.port()));
@@ -228,6 +237,32 @@ public final class ServerStartCommand implements Runnable {
         new WebauthnCredentialStore(db),
         new AuthSessionStore(db),
         new PendingChallengeStore(db));
+  }
+
+  /**
+   * Surfaces stranded specs as triage signals: a server log line and a {@code spec_stranded} event.
+   */
+  private static void surface(EventBus bus, java.util.List<SpecStore.SpecRow> stranded) {
+    for (var s : stranded) {
+      System.err.println(
+          "  [reconciler] spec '"
+              + s.id()
+              + "' ("
+              + s.project()
+              + ") stranded in "
+              + s.status().wire()
+              + " since "
+              + s.updatedAt());
+      bus.publish(
+          Event.of(
+              s.project(),
+              s.id(),
+              Event.WellKnownTypes.SPEC_STRANDED,
+              Event.SAIL_AGENT,
+              HostInfo.hostname(),
+              java.util.Map.of(
+                  "status", s.status().wire(), "since", String.valueOf(s.updatedAt()))));
+    }
   }
 
   /** Loads a project's {@code sail.yaml}, or {@code null} when it is missing or unreadable. */

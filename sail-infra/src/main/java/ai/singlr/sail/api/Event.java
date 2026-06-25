@@ -71,6 +71,9 @@ public record Event(
     public static final String PROJECT_STOPPED = "project_stopped";
     public static final String BOARD_UPDATED = "board_updated";
 
+    /** A spec left in_progress/review past the reconciler threshold — surfaced for triage. */
+    public static final String SPEC_STRANDED = "spec_stranded";
+
     private WellKnownTypes() {}
   }
 
