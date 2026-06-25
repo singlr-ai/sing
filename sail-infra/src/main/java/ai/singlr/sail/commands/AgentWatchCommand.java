@@ -41,10 +41,13 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 /**
- * Long-running watcher that enforces wall-clock guardrails on a dispatched agent. Pure
- * event-driven: subscribes to the sail-api {@code /v1/events/stream} for agent lifecycle events and
- * schedules a single deadline at {@code startedAt + maxDuration}. {@code BlockingQueue.poll} merges
- * the two so the watcher wakes the moment either fires — no periodic polling at all.
+ * Long-running watcher that enforces a dispatched agent's guardrails: a wall-clock ceiling ({@code
+ * max_duration}) and an idle/stall window ({@code max_idle}). Event-driven: subscribes to the
+ * sail-api {@code /v1/events/stream} and, via {@code BlockingQueue.poll}, wakes the moment the next
+ * deadline fires — the wall-clock deadline or the stall deadline (last progress event + {@code
+ * max_idle}), whichever is sooner. Progress events (tool calls, log chunks) push the stall deadline
+ * out, so a long but active build is never mistaken for a hung agent. Supervision is on by default
+ * (see {@code Guardrails.defaults()}); sail.yaml overrides every threshold and the action.
  */
 @Command(
     name = "watch",
@@ -86,12 +89,9 @@ public final class AgentWatchCommand implements Runnable {
     requireRunning(shell);
 
     var config = loadConfig();
-    if (config.agent() == null || config.agent().guardrails() == null) {
-      throw new IllegalStateException(
-          "No guardrails configured. Add a guardrails block to the agent section in sail.yaml.");
-    }
-    var guardrails = config.agent().guardrails();
-    var notifier = buildNotifier(config.agent().notifications());
+    var configured = config.agent() != null ? config.agent().guardrails() : null;
+    var guardrails = configured != null ? configured : Guardrails.defaults();
+    var notifier = buildNotifier(config.agent() != null ? config.agent().notifications() : null);
 
     var agentSession = new AgentSession(shell);
     var sessionInfo = agentSession.queryStatus(name);
@@ -118,7 +118,7 @@ public final class AgentWatchCommand implements Runnable {
           checker,
           guardrails,
           notifier,
-          config.agent().notifications(),
+          config.agent() != null ? config.agent().notifications() : null,
           config.repoPaths(),
           startedAt);
     }

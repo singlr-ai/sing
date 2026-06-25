@@ -284,7 +284,7 @@ public final class DispatchCommand implements Runnable {
       }
       Banner.printAgentLaunched(name, task, branchName, System.out, Ansi.AUTO);
       if (!dryRun) {
-        GuardrailWatcher.launchIfConfigured(name, file, config);
+        GuardrailWatcher.launch(name, file, config);
       }
     } else {
       var sshCmd =

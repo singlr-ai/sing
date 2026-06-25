@@ -31,6 +31,15 @@ public record Guardrails(String maxDuration, String maxIdle, String action) {
   private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)([hms])$");
 
   /**
+   * The supervision every dispatched agent gets when {@code sail.yaml} configures no {@code
+   * guardrails} block: a 4h wall-clock ceiling and a 20m no-progress stall window, stopping the
+   * agent on either. All three are overridable per project; this is only the default-on baseline.
+   */
+  public static Guardrails defaults() {
+    return new Guardrails("4h", "20m", "stop");
+  }
+
+  /**
    * Parses a Guardrails record from a YAML map. Unknown keys (including legacy {@code idle_timeout}
    * and {@code commit_burst}) are silently ignored for backwards compatibility.
    */

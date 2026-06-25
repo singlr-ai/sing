@@ -11,17 +11,21 @@ import java.util.List;
 import picocli.CommandLine.Help.Ansi;
 
 /**
- * Starts the background guardrail watcher ({@code sail agent watch}) for a project when its config
- * declares guardrails. Shared by the CLI dispatch/run/launch commands, which all spawn the watcher
- * the same way; failures are reported but never fatal to the launch.
+ * Starts the background guardrail watcher ({@code sail agent watch}) for a project. Supervision is
+ * on by default: the watcher is spawned for every dispatched agent and applies {@link
+ * ai.singlr.sail.config.Guardrails#defaults()} when sail.yaml declares no guardrails of its own.
+ * Shared by the CLI dispatch/run/launch commands, which all spawn it the same way; failures are
+ * reported but never fatal to the launch.
  */
 public final class GuardrailWatcher {
 
   private GuardrailWatcher() {}
 
-  /** No-op when the project declares no guardrails; otherwise spawns a detached watcher process. */
-  public static void launchIfConfigured(String project, String file, SailYaml config) {
-    if (config == null || config.agent() == null || config.agent().guardrails() == null) {
+  /**
+   * Spawns a detached watcher for the project's agent (no-op only when there is no agent block).
+   */
+  public static void launch(String project, String file, SailYaml config) {
+    if (config == null || config.agent() == null) {
       return;
     }
     try {
