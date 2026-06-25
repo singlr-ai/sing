@@ -1029,6 +1029,7 @@ class AgentContextGeneratorTest {
     assertTrue(content.contains("No inline comments in code, ever"));
     assertTrue(content.contains("edge cases"));
     assertTrue(content.contains("world's best coder"));
+    assertTrue(content.contains("Test behavior, not lines"));
   }
 
   @Test

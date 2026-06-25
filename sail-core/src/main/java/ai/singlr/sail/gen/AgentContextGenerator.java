@@ -411,6 +411,10 @@ public final class AgentContextGenerator {
         break it down or rename it.
         - Fail fast and fail loud. Validate preconditions early, throw clear exceptions \
         with actionable error messages.
+        - Test behavior, not lines. When you add or change behavior, ship a test that \
+        asserts that behavior — not one that merely runs the code. Coverage gates show \
+        which lines executed, never whether anything was checked, so a green gate is \
+        necessary but not sufficient: name the observable behavior and assert it.
         """;
   }
 
