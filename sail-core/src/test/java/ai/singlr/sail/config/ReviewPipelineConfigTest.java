@@ -7,6 +7,7 @@ package ai.singlr.sail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -240,5 +241,18 @@ class ReviewPipelineConfigTest {
     var config = ReviewPipelineConfig.fromMap(Map.of());
     assertEquals(3, config.maxIterations());
     assertTrue(config.stages().isEmpty());
+  }
+
+  @Test
+  void mandatoryDefaultIsOneAgentStageWithNoNamedReviewer() {
+    var config = ReviewPipelineConfig.mandatoryDefault();
+
+    assertEquals(3, config.maxIterations());
+    assertEquals(1, config.stages().size());
+    var stage = config.stages().getFirst();
+    assertEquals("review", stage.name());
+    assertEquals(ReviewPipelineConfig.StageType.AGENT, stage.type());
+    assertNull(stage.agent());
+    assertEquals(ReviewPipelineConfig.Gate.NO_CRITICAL, stage.gate());
   }
 }

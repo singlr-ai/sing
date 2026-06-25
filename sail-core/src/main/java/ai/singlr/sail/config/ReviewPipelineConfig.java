@@ -71,6 +71,24 @@ public record ReviewPipelineConfig(int maxIterations, List<StageConfig> stages) 
     }
   }
 
+  /**
+   * The review every dispatched spec gets when {@code sail.yaml} configures no {@code
+   * review_pipeline}: one agent stage whose reviewer is resolved from the project's installed-agent
+   * roster (cross-agent when a second agent is installed, self-review otherwise), gated on no
+   * critical findings. Review is on by default.
+   */
+  public static ReviewPipelineConfig mandatoryDefault() {
+    return new ReviewPipelineConfig(
+        3,
+        List.of(
+            new StageConfig(
+                "review",
+                StageType.AGENT,
+                null,
+                List.of("security", "correctness"),
+                Gate.NO_CRITICAL)));
+  }
+
   @SuppressWarnings("unchecked")
   public static ReviewPipelineConfig fromMap(Map<String, Object> map) {
     var maxIterations =
