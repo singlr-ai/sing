@@ -31,6 +31,15 @@ public enum SpecStatus {
     return name().toLowerCase(Locale.ROOT);
   }
 
+  /**
+   * Whether a spec in this status may have its owner changed freely. Only pre-dispatch statuses
+   * ({@link #DRAFT}, {@link #PENDING}) qualify; once a spec is dispatched its claim is locked, and
+   * reassignment requires an explicit force override.
+   */
+  public boolean isReassignable() {
+    return this == DRAFT || this == PENDING;
+  }
+
   /** Parses a wire-form status, rejecting anything outside the vocabulary. */
   public static SpecStatus fromWire(String value) {
     var match = byWire(value);

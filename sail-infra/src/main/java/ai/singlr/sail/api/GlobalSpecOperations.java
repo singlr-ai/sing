@@ -92,6 +92,7 @@ final class GlobalSpecOperations {
   GlobalSpecUpdatedResponse update(String specId, SpecUpdateRequest request) {
     requireStore();
     var existing = findOrThrow(specId);
+    guardReassignment(specId, existing, request);
     var updated =
         new SpecStore.SpecRow(
             specId,
@@ -115,6 +116,26 @@ final class GlobalSpecOperations {
     specStore.update(updated);
     var result = specStore.findById(specId).orElseThrow();
     return new GlobalSpecUpdatedResponse(GlobalSpecView.from(result));
+  }
+
+  private static void guardReassignment(
+      String specId, SpecStore.SpecRow existing, SpecUpdateRequest request) {
+    var stealingClaim =
+        request.assignee() != null
+            && existing.assignee() != null
+            && !request.assignee().equals(existing.assignee());
+    if (stealingClaim && !existing.status().isReassignable() && !request.force()) {
+      throw new ApiException(
+          ErrorCode.CONFLICT,
+          "Spec '"
+              + specId
+              + "' is "
+              + existing.status().wire()
+              + " (dispatched) and assigned to '"
+              + existing.assignee()
+              + "'.",
+          "Its claim is locked. Pass --force to reassign it anyway.");
+    }
   }
 
   GlobalSpecDeletedResponse delete(String specId) {

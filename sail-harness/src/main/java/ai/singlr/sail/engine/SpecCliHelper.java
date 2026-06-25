@@ -76,6 +76,7 @@ public final class SpecCliHelper {
             --body-file)        FIELDS+=(--data-urlencode "body@$2"); shift 2;;
             --plan-file)        FIELDS+=(--data-urlencode "plan@$2"); shift 2;;
             --id)               FIELDS+=(--data-urlencode "id=$2"); shift 2;;
+            --force)            FIELDS+=(--data-urlencode "force=true"); shift 1;;
             --project)          PROJECT="$2"; shift 2;;
             --actor)            ACTOR="$2"; shift 2;;
             *) die "unknown option: $1";;
@@ -93,7 +94,7 @@ public final class SpecCliHelper {
         spec create --id <id> --title <title> [--body-file F] [--status pending]
                     [--depends-on a,b] [--repos a,b] [--agent A] [--model M]
                     [--reasoning-effort none|low|medium|high|xhigh] [--priority N] [--plan-file F]
-        spec update <id> [--status S] [--title T] [--depends-on a,b] [--repos a,b] [...]
+        spec update <id> [--status S] [--title T] [--assignee H] [--force] [--repos a,b] [...]
         spec content <id> --body-file F [--plan-file F]   revise the body
         spec archive <id>
       USAGE

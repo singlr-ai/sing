@@ -92,7 +92,7 @@ public final class ApiSpecListCommand implements Runnable {
   }
 
   @SuppressWarnings("unchecked")
-  private void printGroupedByProjectAndStatus(List<Map<String, Object>> specs) {
+  static void printGroupedByProjectAndStatus(List<Map<String, Object>> specs) {
     var statusOrder = List.of("draft", "pending", "in_progress", "review", "done");
     var byProject = new LinkedHashMap<String, List<Map<String, Object>>>();
     for (var spec : specs) {
@@ -119,12 +119,18 @@ public final class ApiSpecListCommand implements Runnable {
         for (var spec : matching) {
           var id = (String) spec.get("id");
           var title = (String) spec.get("title");
+          var assignee = (String) spec.get("assignee");
           var deps = (List<String>) spec.getOrDefault("depends_on", List.of());
           var repos = (List<String>) spec.getOrDefault("repos", List.of());
+          var assigneeStr =
+              assignee == null || assignee.isBlank()
+                  ? " @|faint (unassigned)|@"
+                  : " @|magenta @" + assignee + "|@";
           var depsStr = deps.isEmpty() ? "" : " @|faint ← " + String.join(", ", deps) + "|@";
           var reposStr = repos.isEmpty() ? "" : " @|faint [" + String.join(", ", repos) + "]|@";
           System.out.println(
-              Ansi.AUTO.string("    • @|bold " + id + "|@  " + title + reposStr + depsStr));
+              Ansi.AUTO.string(
+                  "    • @|bold " + id + "|@  " + title + assigneeStr + reposStr + depsStr));
         }
       }
       System.out.println();

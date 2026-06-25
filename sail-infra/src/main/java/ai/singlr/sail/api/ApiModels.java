@@ -445,7 +445,8 @@ record SpecUpdateRequest(
     Integer priority,
     List<String> dependsOn,
     List<String> repos,
-    String updatedBy) {
+    String updatedBy,
+    boolean force) {
 
   @SuppressWarnings("unchecked")
   static SpecUpdateRequest fromMap(Map<String, Object> map) {
@@ -461,7 +462,8 @@ record SpecUpdateRequest(
         map.containsKey("priority") ? ((Number) map.get("priority")).intValue() : null,
         map.containsKey("depends_on") ? (List<String>) map.get("depends_on") : null,
         map.containsKey("repos") ? (List<String>) map.get("repos") : null,
-        null);
+        null,
+        Boolean.TRUE.equals(map.get("force")));
   }
 
   /**
@@ -481,7 +483,8 @@ record SpecUpdateRequest(
         priority,
         dependsOn,
         repos,
-        actor);
+        actor,
+        force);
   }
 }
 

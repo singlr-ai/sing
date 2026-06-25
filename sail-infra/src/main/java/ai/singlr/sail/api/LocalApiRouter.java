@@ -167,7 +167,8 @@ final class LocalApiRouter implements LocalApiHandler {
             form.containsKey("priority") ? intOr(form.get("priority"), 0) : null,
             form.containsKey("depends_on") ? csv(form.get("depends_on")) : null,
             form.containsKey("repos") ? csv(form.get("repos")) : null,
-            null)
+            null,
+            Boolean.parseBoolean(form.get("force")))
         .withUpdatedBy(actorOf(form));
   }
 

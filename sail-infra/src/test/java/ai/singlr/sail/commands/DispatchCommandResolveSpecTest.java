@@ -108,13 +108,16 @@ class DispatchCommandResolveSpecTest {
   }
 
   @Test
-  void explicitUnassignedSpecIsAllowed() {
+  void explicitUnassignedSpecIsRejected() {
     var store = store();
     store.create(row("unscoped", "pending", null));
 
-    var resolution = DispatchCommand.resolveSpec("unscoped", false, specsOf(store), store, FDE);
-
-    assertEquals("unscoped", resolution.spec().id());
+    var ex =
+        assertThrows(
+            IllegalStateException.class,
+            () -> DispatchCommand.resolveSpec("unscoped", false, specsOf(store), store, FDE));
+    assertTrue(ex.getMessage().contains("unassigned"));
+    assertTrue(ex.getMessage().contains("--assignee " + FDE));
   }
 
   @Test

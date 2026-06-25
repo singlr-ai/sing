@@ -400,7 +400,16 @@ public final class DispatchCommand implements Runnable {
     if (found == null) {
       throw new IllegalArgumentException("Spec '" + specId + "' not found");
     }
-    if (found.assignee() != null && !found.assignee().equals(fde)) {
+    if (found.assignee() == null) {
+      throw new IllegalStateException(
+          "Spec '"
+              + specId
+              + "' is unassigned. Claim it first: sail spec update "
+              + specId
+              + " --assignee "
+              + fde);
+    }
+    if (!found.assignee().equals(fde)) {
       throw new IllegalStateException(
           "Spec '"
               + specId

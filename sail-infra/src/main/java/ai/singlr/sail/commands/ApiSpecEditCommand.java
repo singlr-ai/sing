@@ -51,6 +51,11 @@ public final class ApiSpecEditCommand implements Runnable {
   @Option(names = "--repos", description = "Comma-separated repo names.")
   private String repos;
 
+  @Option(
+      names = "--force",
+      description = "Reassign even a dispatched spec, overriding the claim lock.")
+  private boolean force;
+
   @Mixin private SyncOptions syncOptions;
 
   @Mixin private ConnectionOptions connection;
@@ -86,6 +91,7 @@ public final class ApiSpecEditCommand implements Runnable {
           Ansi.AUTO.string("  @|yellow ⚠|@ Nothing to update. Use --title, --status, etc."));
       return;
     }
+    if (force) body.put("force", true);
 
     try (var client = new SailApiClient(config.serverUrl(), config.token())) {
       var result = client.put("/v1/specs/" + specId, body);

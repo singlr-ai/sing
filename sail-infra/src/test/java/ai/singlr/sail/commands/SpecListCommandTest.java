@@ -11,9 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.Sail;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
@@ -139,5 +144,56 @@ class SpecListCommandTest {
   @Test
   void parseSnapshotTimeReturnsNullForGarbage() {
     assertNull(SnapsPruneCommand.parseSnapshotTime("not-a-date"));
+  }
+
+  @Test
+  void listRendersAssigneeForAssignedSpec() {
+    var output =
+        render(
+            List.of(
+                Map.of(
+                    "project",
+                    "sail",
+                    "status",
+                    "review",
+                    "id",
+                    "fde-aware-dispatch",
+                    "title",
+                    "FDE-aware dispatch",
+                    "assignee",
+                    "uday")));
+
+    assertTrue(output.contains("@uday"));
+    assertTrue(output.contains("fde-aware-dispatch"));
+  }
+
+  @Test
+  void listMarksUnassignedSpec() {
+    var output =
+        render(
+            List.of(
+                Map.of(
+                    "project",
+                    "sail",
+                    "status",
+                    "pending",
+                    "id",
+                    "mast-control-plane-integration",
+                    "title",
+                    "Mast control plane")));
+
+    assertTrue(output.contains("(unassigned)"));
+  }
+
+  private static String render(List<Map<String, Object>> specs) {
+    var captured = new ByteArrayOutputStream();
+    var original = System.out;
+    System.setOut(new PrintStream(captured, true, StandardCharsets.UTF_8));
+    try {
+      ApiSpecListCommand.printGroupedByProjectAndStatus(specs);
+    } finally {
+      System.setOut(original);
+    }
+    return captured.toString(StandardCharsets.UTF_8);
   }
 }

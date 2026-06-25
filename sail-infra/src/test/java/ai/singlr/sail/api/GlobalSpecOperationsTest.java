@@ -183,6 +183,47 @@ class GlobalSpecOperationsTest {
   }
 
   @Test
+  void reassigningDispatchedSpecIsRejected() {
+    ops.create(createReq(Map.of("status", "in_progress", "assignee", "uday")));
+    var ex =
+        assertThrows(
+            ApiException.class,
+            () -> ops.update("auth", SpecUpdateRequest.fromMap(Map.of("assignee", "mady"))));
+    assertEquals(ErrorCode.CONFLICT.httpCode(), ex.status());
+    assertTrue(ex.getMessage().contains("dispatched"));
+  }
+
+  @Test
+  void reassigningPendingSpecIsAllowed() {
+    ops.create(createReq(Map.of("status", "pending", "assignee", "uday")));
+    var updated = ops.update("auth", SpecUpdateRequest.fromMap(Map.of("assignee", "mady")));
+    assertEquals("mady", updated.spec().assignee());
+  }
+
+  @Test
+  void forceReassignsDispatchedSpec() {
+    ops.create(createReq(Map.of("status", "in_progress", "assignee", "uday")));
+    var updated =
+        ops.update(
+            "auth", SpecUpdateRequest.fromMap(Map.of("assignee", "mady", "force", Boolean.TRUE)));
+    assertEquals("mady", updated.spec().assignee());
+  }
+
+  @Test
+  void reassigningToSameOwnerOnDispatchedSpecIsAllowed() {
+    ops.create(createReq(Map.of("status", "in_progress", "assignee", "uday")));
+    var updated = ops.update("auth", SpecUpdateRequest.fromMap(Map.of("assignee", "uday")));
+    assertEquals("uday", updated.spec().assignee());
+  }
+
+  @Test
+  void claimingUnassignedDispatchedSpecIsAllowed() {
+    ops.create(createReq(Map.of("status", "in_progress")));
+    var updated = ops.update("auth", SpecUpdateRequest.fromMap(Map.of("assignee", "uday")));
+    assertEquals("uday", updated.spec().assignee());
+  }
+
+  @Test
   void deleteRemovesSpec() {
     ops.create(createReq(Map.of()));
     assertEquals("auth", ops.delete("auth").id());
