@@ -13,24 +13,20 @@ import ai.singlr.sail.common.Strings;
  * name on PATH, the installation method, and the shell command to install it.
  */
 public enum AgentCli {
-  CLAUDE_CODE(
-      "claude-code", "claude", "curl -fsSL https://claude.ai/install.sh | bash", "CLAUDE.md"),
+  CLAUDE_CODE("claude-code", "claude", "curl -fsSL https://claude.ai/install.sh | bash"),
   CODEX(
       "codex",
       "codex",
-      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
-      "AGENTS.md");
+      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh");
 
   private final String yamlName;
   private final String binaryName;
   private final String installCommand;
-  private final String contextFileName;
 
-  AgentCli(String yamlName, String binaryName, String installCommand, String contextFileName) {
+  AgentCli(String yamlName, String binaryName, String installCommand) {
     this.yamlName = yamlName;
     this.binaryName = binaryName;
     this.installCommand = installCommand;
-    this.contextFileName = contextFileName;
   }
 
   /** The name used in sail.yaml ({@code "claude-code"} or {@code "codex"}). */
@@ -48,9 +44,29 @@ public enum AgentCli {
     return installCommand;
   }
 
-  /** The context file name for this agent (e.g., "CLAUDE.md", "AGENTS.md"). */
-  public String contextFileName() {
-    return contextFileName;
+  /**
+   * The sail-owned context file this agent reads from the home directory, relative to {@code
+   * $HOME}: {@code .claude/CLAUDE.md} for Claude Code, {@code .codex/AGENTS.md} for Codex. Both
+   * agents load this home-level file alongside any project-level file the engineer keeps in the
+   * workspace, so sail owns this path and overwrites it every run without touching the engineer's.
+   */
+  public String homeContextPath() {
+    return switch (this) {
+      case CLAUDE_CODE -> ".claude/CLAUDE.md";
+      case CODEX -> ".codex/AGENTS.md";
+    };
+  }
+
+  /**
+   * The agent's home-level skills directory, relative to {@code $HOME}, with a trailing slash
+   * ({@code .claude/skills/} for Claude Code, {@code .agents/skills/} for Codex). A skill lives at
+   * {@code <skillsDir><name>/SKILL.md}.
+   */
+  public String skillsDir() {
+    return switch (this) {
+      case CLAUDE_CODE -> ".claude/skills/";
+      case CODEX -> ".agents/skills/";
+    };
   }
 
   /** Human-readable display name. */

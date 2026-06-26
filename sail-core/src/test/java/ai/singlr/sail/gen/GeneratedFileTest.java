@@ -7,7 +7,6 @@ package ai.singlr.sail.gen;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -15,27 +14,18 @@ import org.junit.jupiter.api.Test;
 class GeneratedFileTest {
 
   @Test
-  void threeArgConstructorDefaultsToOverwrite() {
-    var file = new GeneratedFile("/path/to/file", "content", false);
+  void carriesPathContentAndExecutableBit() {
+    var file = new GeneratedFile("/home/dev/.claude/CLAUDE.md", "# context", false);
 
-    assertNull(file.mergeMarker(), "a plain generated file is overwritten, not merged");
+    assertEquals("/home/dev/.claude/CLAUDE.md", file.remotePath());
+    assertEquals("# context", file.content());
+    assertFalse(file.executable());
   }
 
   @Test
-  void threeArgConstructorPreservesExecutable() {
-    var file = new GeneratedFile("/path/to/script.sh", "#!/bin/bash", true);
+  void anExecutableFileIsMarkedExecutable() {
+    var file = new GeneratedFile("/home/dev/.sail/security-audit.sh", "#!/usr/bin/env bash", true);
 
     assertTrue(file.executable());
-    assertNull(file.mergeMarker());
-  }
-
-  @Test
-  void mergedFactoryCarriesTheMarkerAndIsNotExecutable() {
-    var file = GeneratedFile.merged("/home/dev/workspace/CLAUDE.md", "# Context", "<!-- m -->");
-
-    assertEquals("/home/dev/workspace/CLAUDE.md", file.remotePath());
-    assertEquals("# Context", file.content());
-    assertFalse(file.executable());
-    assertEquals("<!-- m -->", file.mergeMarker());
   }
 }

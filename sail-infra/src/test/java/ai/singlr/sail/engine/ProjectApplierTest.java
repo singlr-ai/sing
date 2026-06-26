@@ -283,7 +283,7 @@ class ProjectApplierTest {
     assertTrue(result.added() > 0);
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("CLAUDE.md")));
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.claude/CLAUDE.md")));
   }
 
   @Test
@@ -297,7 +297,7 @@ class ProjectApplierTest {
     assertTrue(result.added() > 0);
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("AGENTS.md")));
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.codex/AGENTS.md")));
   }
 
   @Test
@@ -326,26 +326,22 @@ class ProjectApplierTest {
   }
 
   @Test
-  void applyAgentContextMergesTheContextFileAndSecurityMd() throws Exception {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("cat /home/dev/workspace/CLAUDE.md", "old\n\nmy note\n")
-            .onOk("cat /home/dev/workspace/SECURITY.md", "old\n\nmy security note\n");
+  void applyAgentContextWritesTheHomeContextNeverTheWorkspace() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var applier = applier(shell);
     var config = minimalConfig("claude-code");
 
     var result = applier.applyAgentContext(CONTAINER, config);
 
-    assertEquals(
-        0, result.skipped(), "a delta apply merges the editable files rather than skipping");
-    assertTrue(
-        shell.invocations().stream().anyMatch(c -> c.contains("cat /home/dev/workspace/CLAUDE.md")),
-        "the context file is merged on apply, preserving the engineer's personal region");
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("cat /home/dev/workspace/SECURITY.md")),
-        "SECURITY.md is merged the same way");
-    assertTrue(result.added() > 0, "machinery (the spec-board skill) still refreshes");
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.claude/CLAUDE.md")),
+        "sail writes its home-level CLAUDE.md");
+    assertFalse(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/workspace/")),
+        "sail never writes into the engineer's workspace on a delta apply");
+    assertTrue(result.added() > 0, "sail-owned context and skills refresh every run");
   }
 
   @Test
@@ -550,7 +546,11 @@ class ProjectApplierTest {
 
     var result = applier.applyAgentContext(CONTAINER, config);
 
-    assertEquals(4, result.added());
+    assertEquals(
+        3,
+        result.added(),
+        "the home AGENTS.md, the audit script, and the agent hook settings — all sail-owned and"
+            + " overwritten");
     assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("security-audit.sh")));
     assertTrue(
         shell.invocations().stream()

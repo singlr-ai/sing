@@ -18,8 +18,9 @@ import org.junit.jupiter.api.Test;
 class AgentContextInstallerTest {
 
   private static final String CONTAINER = "light-grid";
-  private static final String WORKSPACE = "/home/dev/workspace";
-  private static final String SKILL = WORKSPACE + "/.claude/skills/spec-board/SKILL.md";
+  private static final String HOME = "/home/dev";
+  private static final String CLAUDE = HOME + "/.claude/CLAUDE.md";
+  private static final String SKILL = HOME + "/.claude/skills/spec-board/SKILL.md";
 
   private static SailYaml config() {
     return SailYaml.fromMap(
@@ -63,7 +64,7 @@ class AgentContextInstallerTest {
     var commands = shell.invocations();
     assertTrue(
         commands.stream()
-            .anyMatch(c -> c.contains("mkdir -p " + WORKSPACE + "/.claude/skills/spec-board")),
+            .anyMatch(c -> c.contains("mkdir -p " + HOME + "/.claude/skills/spec-board")),
         "the nested skill directory must be created before the push");
     assertTrue(
         commands.stream().anyMatch(c -> c.contains("incus file push") && c.contains(SKILL)),
@@ -85,56 +86,39 @@ class AgentContextInstallerTest {
   }
 
   @Test
-  void mergesBothTheContextFileAndSecurityMdPreservingTheirPersonalRegions() throws Exception {
-    var shell =
-        okShell()
-            .onOk("cat " + WORKSPACE + "/CLAUDE.md", "old body\n\nmy personal note\n")
-            .onOk("cat " + WORKSPACE + "/SECURITY.md", "old\n\nmy security note\n");
+  void installsTheHomeContextFileForClaude() throws Exception {
+    var shell = okShell();
 
     var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
     assertTrue(
-        shell.invocations().stream().anyMatch(c -> c.contains("cat " + WORKSPACE + "/CLAUDE.md")),
-        "the context file is merged: its existing personal region is read");
-    assertTrue(
-        shell.invocations().stream().anyMatch(c -> c.contains("cat " + WORKSPACE + "/SECURITY.md")),
-        "SECURITY.md is merged the same way, not skipped");
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")));
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/SECURITY.md")));
-    assertTrue(result.pushed().contains(SKILL), "machinery still refreshes");
+        result.pushed().contains(CLAUDE),
+        "sail installs its home-level CLAUDE.md, ~/.claude/CLAUDE.md");
   }
 
   @Test
-  void forceResetsMergeFilesWithoutReadingThem() throws Exception {
+  void overwritesEveryGeneratedFileWithoutCheckingExistence() throws Exception {
     var shell = okShell();
 
-    var result = AgentContextInstaller.install(shell, CONTAINER, config(), true);
+    var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")));
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/SECURITY.md")));
+    assertTrue(result.pushed().contains(CLAUDE));
+    assertTrue(result.pushed().contains(SKILL));
     assertFalse(
-        shell.invocations().stream().anyMatch(c -> c.contains("cat " + WORKSPACE)),
-        "--force resets the personal region instead of reading and preserving it");
+        shell.invocations().stream().anyMatch(c -> c.contains("test -f")),
+        "sail owns its home namespace outright, so it never checks whether a file exists");
   }
 
   @Test
-  void pushesAFreshContextFileWhenTheContainerHasNone() throws Exception {
+  void neverWritesIntoTheEngineerWorkspace() throws Exception {
     var shell = okShell();
 
     var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")));
-  }
-
-  @Test
-  void treatsAnUnreadableContextFileAsFresh() throws Exception {
-    var shell = okShell().onFail("cat " + WORKSPACE + "/CLAUDE.md", "No such file or directory");
-
-    var result = AgentContextInstaller.install(shell, CONTAINER, config());
-
-    assertTrue(
-        result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")),
-        "an absent or unreadable context file is rendered fresh, not skipped");
+    assertFalse(result.isEmpty());
+    assertFalse(
+        result.pushed().stream().anyMatch(p -> p.contains("/workspace/")),
+        "sail never writes into the engineer's workspace");
   }
 
   @Test

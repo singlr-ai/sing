@@ -58,13 +58,6 @@ public final class ProjectSyncCommand implements Runnable {
   @Option(names = "--json", description = "Output in JSON format.")
   private boolean json;
 
-  @Option(
-      names = "--force",
-      description =
-          "When regenerating context, overwrite engineer-owned files (CLAUDE.md, AGENTS.md,"
-              + " SECURITY.md) instead of keeping them.")
-  private boolean force;
-
   @Spec private CommandSpec spec;
 
   @Override
@@ -169,7 +162,7 @@ public final class ProjectSyncCommand implements Runnable {
     } catch (IllegalStateException noDescriptor) {
       return null;
     }
-    return AgentContextInstaller.install(shell, project, config, force);
+    return AgentContextInstaller.install(shell, project, config);
   }
 
   static String humanLine(
