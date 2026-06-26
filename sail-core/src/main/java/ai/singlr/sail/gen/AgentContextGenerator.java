@@ -55,6 +55,7 @@ public final class AgentContextGenerator {
     for (var agent : targetAgents) {
       files.addAll(MethodologyGenerator.generateFiles(agent, methodology, basePath));
       files.addAll(SpecSkillGenerator.generateFiles(agent, specsDir, basePath));
+      files.addAll(LanguageSkillGenerator.generateFiles(agent, config.runtimes(), basePath));
     }
 
     return List.copyOf(files);
@@ -142,12 +143,6 @@ public final class AgentContextGenerator {
     sb.append("\n## Conventions\n");
     sb.append("\n### Engineering Principles\n");
     sb.append(universalPrinciples());
-
-    var runtimeConventions = languageConventions(config.runtimes());
-    if (!runtimeConventions.isEmpty()) {
-      sb.append("\n### Language-Specific Standards\n");
-      sb.append(runtimeConventions);
-    }
 
     if (config.agentContext() != null && config.agentContext().conventions() != null) {
       sb.append("\n### Project Conventions\n");
@@ -438,52 +433,6 @@ public final class AgentContextGenerator {
         asserts that behavior — not one that merely runs the code. Coverage gates show \
         which lines executed, never whether anything was checked, so a green gate is \
         necessary but not sufficient: name the observable behavior and assert it.
-        """;
-  }
-
-  /** Generates language-specific convention sections based on configured runtimes. */
-  static String languageConventions(SailYaml.Runtimes runtimes) {
-    if (runtimes == null) {
-      return "";
-    }
-    var sb = new StringBuilder();
-    if (runtimes.jdk() > 0) {
-      sb.append("\n#### Java (JDK ").append(runtimes.jdk()).append(")\n");
-      sb.append(javaConventions());
-    }
-    if (runtimes.node() != null) {
-      sb.append("\n#### Node.js / TypeScript\n");
-      sb.append(nodeConventions());
-    }
-    return sb.toString();
-  }
-
-  /** Returns Java-specific coding conventions for modern JDK projects. */
-  static String javaConventions() {
-    return """
-        - Records for all value types: DTOs, results, events, config objects.
-        - `var` for all method-scoped local variables with immediate initialization.
-        - Pattern matching: `instanceof` patterns, switch expressions with patterns.
-        - Virtual threads for all I/O operations, never platform threads.
-        - Sealed interfaces for domain types and algebraic data modeling.
-        - Text blocks (`\"\"\"`) for any multi-line string.
-        - Immutable collections: `List.of()`, `Set.of()`, `Map.of()` for constants and returns.
-        - Try-with-resources for anything AutoCloseable.
-        - No old APIs: no Date/Calendar (use java.time), no Vector/Hashtable, no StringBuffer.
-        - Streams for transforms and aggregations; imperative loops for side effects.
-        """;
-  }
-
-  /** Returns Node.js and TypeScript coding conventions. */
-  static String nodeConventions() {
-    return """
-        - Functional components with hooks (no class components).
-        - TypeScript preferred over plain JavaScript.
-        - async/await for all asynchronous operations (no raw Promise chains).
-        - ESM imports (`import`/`export`), not CommonJS `require()`.
-        - `const` by default, `let` when reassignment is needed, never `var`.
-        - Destructuring for function parameters and object access.
-        - Strict null checks enabled. Handle undefined/null explicitly.
         """;
   }
 

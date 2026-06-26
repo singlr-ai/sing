@@ -39,20 +39,10 @@ public final class SpecSkillGenerator {
     if (specsDir == null) {
       return List.of();
     }
-    var skillDir = basePath + skillRoot(agent) + "spec-board/";
+    var skillDir = basePath + agent.skillsDir() + "spec-board/";
     return List.of(
         new GeneratedFile(skillDir + "SKILL.md", skillMd(), false),
         new GeneratedFile(skillDir + "spec-template.md", specTemplateMd(), false));
-  }
-
-  /**
-   * Skill directory for the agent — both agents have a skill system with the same SKILL.md shape.
-   */
-  private static String skillRoot(AgentCli agent) {
-    return switch (agent) {
-      case CLAUDE_CODE -> ".claude/skills/";
-      case CODEX -> ".agents/skills/";
-    };
   }
 
   private static String skillMd() {

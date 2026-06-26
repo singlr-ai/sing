@@ -53,6 +53,18 @@ public enum AgentCli {
     return contextFileName;
   }
 
+  /**
+   * The agent's skills directory, relative to the workspace root, with a trailing slash ({@code
+   * .claude/skills/} for Claude Code, {@code .agents/skills/} for Codex). A skill lives at {@code
+   * <skillsDir><name>/SKILL.md}.
+   */
+  public String skillsDir() {
+    return switch (this) {
+      case CLAUDE_CODE -> ".claude/skills/";
+      case CODEX -> ".agents/skills/";
+    };
+  }
+
   /** Human-readable display name. */
   public String displayName() {
     return switch (this) {

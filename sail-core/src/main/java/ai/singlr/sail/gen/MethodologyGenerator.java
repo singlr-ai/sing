@@ -113,10 +113,7 @@ public final class MethodologyGenerator {
   }
 
   private static String skillPath(AgentCli agent, String basePath, String skillName) {
-    return switch (agent) {
-      case CLAUDE_CODE -> basePath + ".claude/skills/" + skillName + "/SKILL.md";
-      case CODEX -> basePath + ".agents/skills/" + skillName + "/SKILL.md";
-    };
+    return basePath + agent.skillsDir() + skillName + "/SKILL.md";
   }
 
   private static String generateSpecSkill() {

@@ -1058,149 +1058,86 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void javaConventionsIncludedWhenJdkPresent() {
-    var runtimes = new SailYaml.Runtimes(25, null, null);
-    var agent =
-        new SailYaml.Agent(
-            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
-    var config =
-        new SailYaml(
-            "test",
-            "Test",
-            new SailYaml.Resources(2, "4GB", "50GB"),
-            null,
-            null,
-            runtimes,
-            null,
-            null,
-            null,
-            null,
-            agent,
-            null,
-            null);
-    var files = AgentContextGenerator.generateFiles(config);
-    var content = files.getFirst().content();
+  void javaConventionsShipAsAJavaSkillNotInTheCore() {
+    var files =
+        AgentContextGenerator.generateFiles(
+            configWithRuntimes(new SailYaml.Runtimes(25, null, null)));
 
-    assertTrue(content.contains("Java (JDK 25)"));
-    assertTrue(content.contains("Records for all value types"));
-    assertTrue(content.contains("Virtual threads"));
-    assertTrue(content.contains("Sealed interfaces"));
+    var skill = fileEndingWith(files, ".claude/skills/java/SKILL.md").content();
+    assertTrue(skill.contains("name: java"));
+    assertTrue(skill.contains("Java (JDK 25) Standards"));
+    assertTrue(skill.contains("Records for all value types"));
+    assertTrue(skill.contains("Virtual threads"));
+    assertTrue(skill.contains("Sealed interfaces"));
+
+    var core = coreBody(files);
+    assertFalse(core.contains("Records for all value types"), "Java standards leave the core body");
+    assertFalse(core.contains("Language-Specific Standards"));
   }
 
   @Test
-  void nodeConventionsIncludedWhenNodePresent() {
-    var runtimes = new SailYaml.Runtimes(0, "22", null);
-    var agent =
-        new SailYaml.Agent(
-            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
-    var config =
-        new SailYaml(
-            "test",
-            "Test",
-            new SailYaml.Resources(2, "4GB", "50GB"),
-            null,
-            null,
-            runtimes,
-            null,
-            null,
-            null,
-            null,
-            agent,
-            null,
-            null);
-    var files = AgentContextGenerator.generateFiles(config);
-    var content = files.getFirst().content();
+  void typescriptConventionsShipAsATypescriptSkillNotInTheCore() {
+    var files =
+        AgentContextGenerator.generateFiles(
+            configWithRuntimes(new SailYaml.Runtimes(0, "22", null)));
 
-    assertTrue(content.contains("Node.js / TypeScript"));
-    assertTrue(content.contains("Functional components"));
-    assertTrue(content.contains("TypeScript preferred"));
-    assertTrue(content.contains("async/await"));
+    var skill = fileEndingWith(files, ".claude/skills/typescript/SKILL.md").content();
+    assertTrue(skill.contains("name: typescript"));
+    assertTrue(skill.contains("Node.js / TypeScript Standards"));
+    assertTrue(skill.contains("Functional components"));
+    assertTrue(skill.contains("TypeScript preferred"));
+    assertTrue(skill.contains("async/await"));
+
+    var core = coreBody(files);
+    assertFalse(core.contains("Functional components"), "TS standards leave the core body");
+    assertFalse(core.contains("Language-Specific Standards"));
   }
 
   @Test
-  void bothLanguageConventionsWhenBothPresent() {
-    var runtimes = new SailYaml.Runtimes(25, "22", null);
-    var agent =
-        new SailYaml.Agent(
-            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
-    var config =
-        new SailYaml(
-            "test",
-            "Test",
-            new SailYaml.Resources(2, "4GB", "50GB"),
-            null,
-            null,
-            runtimes,
-            null,
-            null,
-            null,
-            null,
-            agent,
-            null,
-            null);
-    var files = AgentContextGenerator.generateFiles(config);
-    var content = files.getFirst().content();
+  void bothLanguageSkillsWhenBothRuntimesPresent() {
+    var files =
+        AgentContextGenerator.generateFiles(
+            configWithRuntimes(new SailYaml.Runtimes(25, "22", null)));
 
-    assertTrue(content.contains("Java (JDK 25)"));
-    assertTrue(content.contains("Node.js / TypeScript"));
+    assertTrue(
+        files.stream().anyMatch(f -> f.remotePath().endsWith(".claude/skills/java/SKILL.md")));
+    assertTrue(
+        files.stream()
+            .anyMatch(f -> f.remotePath().endsWith(".claude/skills/typescript/SKILL.md")));
   }
 
   @Test
-  void noLanguageConventionsWhenNoRuntimes() {
-    var agent =
-        new SailYaml.Agent(
-            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
-    var config =
-        new SailYaml(
-            "test",
-            "Test",
-            new SailYaml.Resources(2, "4GB", "50GB"),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            agent,
-            null,
-            null);
-    var files = AgentContextGenerator.generateFiles(config);
-    var content = files.getFirst().content();
+  void noLanguageSkillsWhenNoRuntimes() {
+    var files = AgentContextGenerator.generateFiles(configWithRuntimes(null));
 
-    assertFalse(content.contains("Language-Specific Standards"));
+    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/java/")));
+    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/typescript/")));
+    assertFalse(coreBody(files).contains("Language-Specific Standards"));
   }
 
   @Test
-  void userConventionsAppendedAfterAutoGenerated() {
-    var runtimes = new SailYaml.Runtimes(25, null, null);
+  void aNonJavaProjectCarriesNoJavaStandardsAnywhere() {
+    var files =
+        AgentContextGenerator.generateFiles(
+            configWithRuntimes(new SailYaml.Runtimes(0, "22", null)));
+
+    assertTrue(
+        files.stream().noneMatch(f -> f.content().contains("Records for all value types")),
+        "no generated file — core, entry, or skill — carries Java standards for a Node project");
+    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/java/")));
+  }
+
+  @Test
+  void userConventionsAppendedAfterUniversalPrinciples() {
     var agentCtx = new SailYaml.AgentContext(null, "- Custom project rule", null, null);
-    var agent =
-        new SailYaml.Agent(
-            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
-    var config =
-        new SailYaml(
-            "test",
-            "Test",
-            new SailYaml.Resources(2, "4GB", "50GB"),
-            null,
-            null,
-            runtimes,
-            null,
-            null,
-            null,
-            null,
-            agent,
-            agentCtx,
-            null);
-    var files = AgentContextGenerator.generateFiles(config);
-    var content = files.getFirst().content();
+    var config = configWithRuntimesAndContext(new SailYaml.Runtimes(25, null, null), agentCtx);
+    var content = coreBody(AgentContextGenerator.generateFiles(config));
 
-    var autoIdx = content.indexOf("Records for all value types");
+    var autoIdx = content.indexOf("SOLID principles");
     var userIdx = content.indexOf("Custom project rule");
     assertTrue(autoIdx > 0);
     assertTrue(userIdx > 0);
-    assertTrue(autoIdx < userIdx, "Auto-generated should come before user conventions");
+    assertTrue(autoIdx < userIdx, "Universal principles should come before user conventions");
   }
 
   @Test
@@ -1304,5 +1241,38 @@ class AgentContextGeneratorTest {
         null,
         agentContext,
         null);
+  }
+
+  private static SailYaml configWithRuntimes(SailYaml.Runtimes runtimes) {
+    return configWithRuntimesAndContext(runtimes, null);
+  }
+
+  private static SailYaml configWithRuntimesAndContext(
+      SailYaml.Runtimes runtimes, SailYaml.AgentContext agentContext) {
+    var agent =
+        new SailYaml.Agent(
+            "claude-code", true, "sail/", true, null, null, null, null, null, null, null);
+    return new SailYaml(
+        "test",
+        "Test",
+        new SailYaml.Resources(2, "4GB", "50GB"),
+        null,
+        null,
+        runtimes,
+        null,
+        null,
+        null,
+        null,
+        agent,
+        agentContext,
+        null);
+  }
+
+  private static String coreBody(List<GeneratedFile> files) {
+    return fileEndingWith(files, ".sail/context.md").content();
+  }
+
+  private static GeneratedFile fileEndingWith(List<GeneratedFile> files, String suffix) {
+    return files.stream().filter(f -> f.remotePath().endsWith(suffix)).findFirst().orElseThrow();
   }
 }
