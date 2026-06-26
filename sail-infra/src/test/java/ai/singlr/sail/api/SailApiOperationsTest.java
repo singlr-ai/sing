@@ -891,13 +891,14 @@ class SailApiOperationsTest {
   void recentEventsReplaysFromPersister(@TempDir Path tmp) throws Exception {
     try (var bus = new EventBus()) {
       var persister = new AuditPersister(tmp.resolve("events.jsonl"), 16);
-      bus.subscribe(persister);
+      var latch = new java.util.concurrent.CountDownLatch(2);
+      bus.subscribe(BusTesting.latching(persister, latch));
       var operations = new SailApiOperations(shell(), baseYamlPath(tmp).toString(), bus, persister);
 
       operations.publishEvent(Event.of("acme", null, "spec_dispatched", "sail", "h"));
       operations.publishEvent(Event.of("acme", null, "snapshot_created", "sail", "h"));
 
-      Thread.sleep(100);
+      assertTrue(latch.await(5, java.util.concurrent.TimeUnit.SECONDS));
       var result = operations.recentEvents(5);
       assertTrue(result.isSuccess());
     }

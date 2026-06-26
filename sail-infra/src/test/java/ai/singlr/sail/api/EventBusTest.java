@@ -202,12 +202,15 @@ class EventBusTest {
     try (var bus = new EventBus()) {
       var seen = new AtomicInteger();
       var sub =
-          bus.subscribe(subscriber("once", EventSubscriber.all(), e -> seen.incrementAndGet()));
+          bus.subscribe(subscriber("closed", EventSubscriber.all(), e -> seen.incrementAndGet()));
       sub.close();
-      Thread.sleep(250);
+
+      var delivered = new CountDownLatch(1);
+      bus.subscribe(subscriber("open", EventSubscriber.all(), e -> delivered.countDown()));
       bus.publish(Event.of("p", null, "t", "a", "h"));
-      Thread.sleep(150);
-      assertEquals(0, seen.get());
+
+      assertTrue(delivered.await(5, TimeUnit.SECONDS), "an open subscriber must receive the event");
+      assertEquals(0, seen.get(), "a closed subscription must not deliver");
     }
   }
 

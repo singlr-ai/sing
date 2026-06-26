@@ -234,7 +234,8 @@ class SessionTrackerTest {
   @Test
   void integrationWithEventBus() throws Exception {
     try (var bus = new EventBus()) {
-      bus.subscribe(tracker);
+      var latch = new java.util.concurrent.CountDownLatch(1);
+      bus.subscribe(BusTesting.latching(tracker, latch));
       bus.publish(
           Event.of(
               "backend",
@@ -244,7 +245,7 @@ class SessionTrackerTest {
               "host",
               Map.of("pid", 42)));
 
-      Thread.sleep(100);
+      assertTrue(latch.await(5, java.util.concurrent.TimeUnit.SECONDS));
 
       var session = sessionStore.latestForProject("backend");
       assertTrue(session.isPresent());

@@ -93,12 +93,13 @@ class SpecStoreAuditPersisterTest {
   @Test
   void integrationWithEventBus() throws Exception {
     try (var bus = new EventBus()) {
-      bus.subscribe(persister);
+      var latch = new java.util.concurrent.CountDownLatch(1);
+      bus.subscribe(BusTesting.latching(persister, latch));
 
       var event = Event.of("proj", null, "server_started", "sail", "host");
       bus.publish(event);
 
-      Thread.sleep(100);
+      assertTrue(latch.await(5, java.util.concurrent.TimeUnit.SECONDS));
 
       var stored = eventStore.recent(1);
       assertEquals(1, stored.size());
