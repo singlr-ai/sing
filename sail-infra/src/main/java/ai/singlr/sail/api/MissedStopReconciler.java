@@ -36,23 +36,33 @@ public final class MissedStopReconciler {
     this.bus = bus;
   }
 
-  /** Replays a stop for each spec with a missed one. Returns how many were replayed. */
+  /**
+   * Replays a stop for each spec with a missed one. Best-effort: a store error is logged and
+   * swallowed so reconciliation can never block server startup — anything it misses is still caught
+   * by the stranded-spec sweep. Returns how many stops were replayed.
+   */
   public int reconcile() {
-    var replays =
-        MissedStops.find(
-            specStore.list(IN_PROGRESS),
-            specId -> sessionStore.listForSpec(specId).stream().findFirst());
-    for (var replay : replays) {
-      var spec = replay.spec();
-      System.err.println(
-          "  [startup] replaying missed stop for "
-              + spec.project()
-              + "/"
-              + spec.id()
-              + (replay.exitCode() != null ? " (exit " + replay.exitCode() + ")" : ""));
-      bus.publish(stopEvent(replay));
+    var replayed = 0;
+    try {
+      var replays =
+          MissedStops.find(
+              specStore.list(IN_PROGRESS),
+              specId -> sessionStore.listForSpec(specId).stream().findFirst());
+      for (var replay : replays) {
+        var spec = replay.spec();
+        System.err.println(
+            "  [startup] replaying missed stop for "
+                + spec.project()
+                + "/"
+                + spec.id()
+                + (replay.exitCode() != null ? " (exit " + replay.exitCode() + ")" : ""));
+        bus.publish(stopEvent(replay));
+        replayed++;
+      }
+    } catch (Exception e) {
+      System.err.println("  [startup] missed-stop reconciliation aborted: " + e.getMessage());
     }
-    return replays.size();
+    return replayed;
   }
 
   static Event stopEvent(MissedStops.Replay replay) {

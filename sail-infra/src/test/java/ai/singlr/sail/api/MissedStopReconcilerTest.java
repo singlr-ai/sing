@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.api;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -145,6 +146,17 @@ class MissedStopReconcilerTest {
     BusTesting.awaitDelivery(latch);
     assertEquals(SpecStatus.IN_PROGRESS, specStore.findById("auth").orElseThrow().status());
     assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
+  }
+
+  @Test
+  void aStoreErrorIsSwallowedSoStartupIsNeverBlocked() {
+    createInProgressSpec("auth");
+    finishedSession("auth", "stopped", 0);
+    var reconciler = new MissedStopReconciler(specStore, sessionStore, bus);
+    db.close();
+    db = null;
+
+    assertEquals(0, assertDoesNotThrow(reconciler::reconcile));
   }
 
   @Test
