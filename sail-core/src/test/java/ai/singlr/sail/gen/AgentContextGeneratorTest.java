@@ -384,16 +384,6 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void claudeEntryFileImportsTheSailCoreAndIsEngineerOwned() {
-    var md = AgentContextGenerator.generateClaudeMd(fullConfig());
-
-    assertTrue(md.startsWith("# CLAUDE.md"));
-    assertTrue(md.contains("@.sail/context.md"), "the Claude entry imports the sail-owned core");
-    assertTrue(md.contains("This file is yours"), "the entry tells the engineer they own it");
-    assertFalse(md.contains("sail:personal"), "the personal marker is retired");
-  }
-
-  @Test
   void usesNameAsFallbackWhenDescriptionNull() {
     var config =
         new SailYaml(
@@ -696,13 +686,6 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void generateFilesReturnsSecurityMd() {
-    var files = AgentContextGenerator.generateFiles(fullConfig());
-
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("SECURITY.md")));
-  }
-
-  @Test
   void generateFilesReturnsAgentsMdForCodexAgent() {
     var agent =
         new SailYaml.Agent("codex", true, "sail/", true, null, null, null, null, null, null, null);
@@ -730,10 +713,9 @@ class AgentContextGeneratorTest {
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(8, files.size());
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("CLAUDE.md")));
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("AGENTS.md")));
-    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("SECURITY.md")));
+    assertEquals(6, files.size());
+    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("/.claude/CLAUDE.md")));
+    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("/.codex/AGENTS.md")));
     assertTrue(files.stream().anyMatch(f -> f.remotePath().contains("spec-board/SKILL.md")));
   }
 
@@ -755,7 +737,7 @@ class AgentContextGeneratorTest {
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(8, files.size());
+    assertEquals(6, files.size());
   }
 
   @Test
@@ -799,81 +781,59 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void theSailCoreIsSailOwnedAndCarriesTheBody() {
+  void claudeHomeFileLandsUnderDotClaude() {
     var files = AgentContextGenerator.generateFiles(fullConfig());
 
-    var core =
-        files.stream()
-            .filter(f -> f.remotePath().endsWith(".sail/context.md"))
-            .findFirst()
-            .orElseThrow();
-
-    assertEquals(GeneratedFile.Ownership.SAIL, core.ownership());
-    assertTrue(core.content().contains("## Tech Stack"), "the core carries the generated body");
-    assertTrue(core.content().contains("do not edit"), "the core warns it is regenerated");
+    var claude = fileEndingWith(files, "/.claude/CLAUDE.md");
+    assertTrue(claude.content().contains("## Tech Stack"), "the home file carries the body");
+    assertFalse(claude.executable());
   }
 
   @Test
-  void perAgentEntryFilesAreEngineerOwned() {
-    var files = AgentContextGenerator.generateFiles(fullConfig());
+  void codexHomeFileLandsUnderDotCodex() {
+    var agent =
+        new SailYaml.Agent("codex", true, "sail/", true, null, null, null, null, null, null, null);
+    var files = AgentContextGenerator.generateFiles(configWithAgent(agent));
 
-    var contextFiles =
-        files.stream()
-            .filter(
-                f -> f.remotePath().endsWith("CLAUDE.md") || f.remotePath().endsWith("AGENTS.md"))
-            .toList();
-
-    assertFalse(contextFiles.isEmpty());
     assertTrue(
-        contextFiles.stream().allMatch(f -> f.ownership() == GeneratedFile.Ownership.ENGINEER),
-        "the per-agent entry file is the engineer's — sail writes it once, never clobbers it");
+        files.stream().anyMatch(f -> f.remotePath().endsWith("/.codex/AGENTS.md")),
+        "Codex's sail-owned context is ~/.codex/AGENTS.md");
   }
 
   @Test
-  void securityMdIsEngineerOwned() {
+  void sailNeverGeneratesFilesInTheEngineerWorkspace() {
     var files = AgentContextGenerator.generateFiles(fullConfig());
 
-    var security =
-        files.stream()
-            .filter(f -> f.remotePath().endsWith("SECURITY.md"))
-            .findFirst()
-            .orElseThrow();
-
-    assertEquals(GeneratedFile.Ownership.ENGINEER, security.ownership());
+    assertTrue(
+        files.stream().noneMatch(f -> f.remotePath().contains("/workspace/")),
+        "every generated file is in sail's home namespace, never the engineer's workspace");
   }
 
   @Test
-  void projectSecurityFromConfigRendersIntoSecurityMd() {
-    var agentCtx =
-        new SailYaml.AgentContext(null, null, null, null, "All PII must be encrypted with KMS.");
-    var md = AgentContextGenerator.generateSecurityMd(configWithAgentContext(agentCtx));
+  void noSecurityMdIsGenerated() {
+    var files = AgentContextGenerator.generateFiles(fullConfig());
 
-    assertTrue(md.contains("## Project-Specific Security Requirements"));
-    assertTrue(md.contains("All PII must be encrypted with KMS."));
+    assertTrue(
+        files.stream().noneMatch(f -> f.remotePath().endsWith("SECURITY.md")),
+        "the security baseline now lives in the review/audit prompt, not a generated file");
   }
 
   @Test
-  void securityMdOmitsTheProjectSectionWhenUnset() {
-    assertFalse(
-        AgentContextGenerator.generateSecurityMd(fullConfig())
-            .contains("Project-Specific Security Requirements"));
-  }
-
-  @Test
-  void machineryFilesAreOverwrittenOutright() {
+  void skillsLandUnderTheHomeSkillsNamespace() {
     var agent =
         new SailYaml.Agent(
             "claude-code", true, null, true, null, null, null, "specs", null, null, null);
     var files = AgentContextGenerator.generateFiles(configWithAgent(agent));
 
-    var machinery = files.stream().filter(f -> f.remotePath().contains("/skills/")).toList();
-
-    assertFalse(machinery.isEmpty(), "the spec-board skill is machinery");
-    assertTrue(machinery.stream().allMatch(f -> f.ownership() == GeneratedFile.Ownership.SAIL));
+    var skills = files.stream().filter(f -> f.remotePath().contains("/skills/")).toList();
+    assertFalse(skills.isEmpty(), "the spec-board skill is generated");
+    assertTrue(
+        skills.stream().allMatch(f -> f.remotePath().contains("/.claude/skills/")),
+        "sail's skills live under ~/.claude/skills, not the workspace");
   }
 
   @Test
-  void multiAgentInstallAllAreMergeManaged() {
+  void multiAgentGeneratesAHomeFilePerAgent() {
     var agent =
         new SailYaml.Agent(
             "claude-code",
@@ -892,19 +852,12 @@ class AgentContextGeneratorTest {
             "multi", null, null, null, null, null, null, null, null, null, agent, null, null);
     var files = AgentContextGenerator.generateFiles(config);
 
-    var agentFiles =
-        files.stream()
-            .filter(
-                f -> f.remotePath().endsWith("CLAUDE.md") || f.remotePath().endsWith("AGENTS.md"))
-            .toList();
-
-    assertEquals(2, agentFiles.size());
-    assertTrue(
-        agentFiles.stream().allMatch(f -> f.ownership() == GeneratedFile.Ownership.ENGINEER));
+    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("/.claude/CLAUDE.md")));
+    assertTrue(files.stream().anyMatch(f -> f.remotePath().endsWith("/.codex/AGENTS.md")));
   }
 
   @Test
-  void bothAgentsReferenceTheOneSailCore() {
+  void bothAgentsGetTheIdenticalBody() {
     var agent =
         new SailYaml.Agent(
             "claude-code",
@@ -918,120 +871,35 @@ class AgentContextGeneratorTest {
             null,
             null,
             null);
-    var config = configWithAgent(agent);
-    var files = AgentContextGenerator.generateFiles(config);
+    var files = AgentContextGenerator.generateFiles(configWithAgent(agent));
 
-    var cores = files.stream().filter(f -> f.remotePath().endsWith(".sail/context.md")).toList();
-    assertEquals(1, cores.size(), "the core body is generated once and shared");
-
-    var claude =
-        files.stream().filter(f -> f.remotePath().endsWith("CLAUDE.md")).findFirst().orElseThrow();
-    var codex =
-        files.stream().filter(f -> f.remotePath().endsWith("AGENTS.md")).findFirst().orElseThrow();
-    assertTrue(claude.content().contains("@.sail/context.md"), "Claude imports the core");
-    assertTrue(codex.content().contains("## Conventions"), "Codex inlines a snapshot of the core");
+    var claude = fileEndingWith(files, "/.claude/CLAUDE.md").content();
+    var codex = fileEndingWith(files, "/.codex/AGENTS.md").content();
+    assertEquals(claude, codex, "the sail-owned body is identical for both agents");
+    assertTrue(claude.contains("## Conventions"));
   }
 
   @Test
-  void claudeMdHasCorrectHeader() {
-    var files = AgentContextGenerator.generateFiles(fullConfig());
-    var claude =
-        files.stream().filter(f -> f.remotePath().endsWith("CLAUDE.md")).findFirst().orElseThrow();
+  void projectSecurityFromConfigRendersIntoTheContext() {
+    var agentCtx =
+        new SailYaml.AgentContext(null, null, null, null, "All PII must be encrypted with KMS.");
+    var content =
+        coreBody(AgentContextGenerator.generateFiles(configWithRuntimesAndContext(null, agentCtx)));
 
-    assertTrue(claude.content().startsWith("# CLAUDE.md"));
+    assertTrue(content.contains("## Project-Specific Security Requirements"));
+    assertTrue(content.contains("All PII must be encrypted with KMS."));
   }
 
   @Test
-  void agentsMdHasCorrectHeader() {
-    var agent =
-        new SailYaml.Agent("codex", true, "sail/", true, null, null, null, null, null, null, null);
-    var config = configWithAgent(agent);
-    var files = AgentContextGenerator.generateFiles(config);
-    var agents =
-        files.stream().filter(f -> f.remotePath().endsWith("AGENTS.md")).findFirst().orElseThrow();
-
-    assertTrue(agents.content().startsWith("# AGENTS.md"));
-  }
-
-  @Test
-  void securityMdContainsOwaspTop10() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("OWASP Top 10"));
-    assertTrue(md.contains("Injection"));
-    assertTrue(md.contains("Broken Authentication"));
-  }
-
-  @Test
-  void securityMdContainsZeroTrust() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Zero Trust"));
-  }
-
-  @Test
-  void securityMdContainsLeastPrivilege() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Least Privilege"));
-  }
-
-  @Test
-  void securityMdContainsAuditChecklist() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Security Audit Checklist"));
-    assertTrue(md.contains("No hardcoded secrets"));
-    assertTrue(md.contains("path traversal"));
-    assertTrue(md.contains("command injection"));
-  }
-
-  @Test
-  void securityMdContainsApiSecurity() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("API Security"));
-    assertTrue(md.contains("Rate-limit"));
-    assertTrue(md.contains("CORS"));
-  }
-
-  @Test
-  void securityMdContainsErrorHandling() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Error Handling"));
-    assertTrue(md.contains("Never expose internal error details"));
-    assertTrue(md.contains("structured logging"));
-  }
-
-  @Test
-  void securityMdContainsDependencySecurity() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Dependency Security"));
-    assertTrue(md.contains("Pin all dependency versions"));
-    assertTrue(md.contains("Remove unused dependencies"));
-  }
-
-  @Test
-  void securityMdChecklistIsComprehensive() {
-    var md = AgentContextGenerator.generateSecurityMd(fullConfig());
-
-    assertTrue(md.contains("Error responses do not leak internal details"));
-    assertTrue(md.contains("Rate limiting"));
-    assertTrue(md.contains("File uploads validated"));
-    assertTrue(md.contains("TLS"));
+  void contextOmitsTheProjectSecuritySectionWhenUnset() {
+    assertFalse(
+        coreBody(AgentContextGenerator.generateFiles(fullConfig()))
+            .contains("Project-Specific Security Requirements"));
   }
 
   @Test
   void contextIncludesUniversalPrinciples() {
-    var files = AgentContextGenerator.generateFiles(fullConfig());
-    var content =
-        files.stream()
-            .filter(f -> f.remotePath().endsWith(".sail/context.md"))
-            .findFirst()
-            .orElseThrow()
-            .content();
+    var content = coreBody(AgentContextGenerator.generateFiles(fullConfig()));
 
     assertTrue(content.contains("SOLID principles"));
     assertTrue(content.contains("DRY"));
@@ -1045,86 +913,46 @@ class AgentContextGeneratorTest {
   }
 
   @Test
-  void contextReferencesSecurity() {
-    var files = AgentContextGenerator.generateFiles(fullConfig());
-    var content =
-        files.stream()
-            .filter(f -> f.remotePath().endsWith("CLAUDE.md"))
-            .findFirst()
-            .orElseThrow()
-            .content();
+  void contextCarriesAShortSecurityStance() {
+    var content = coreBody(AgentContextGenerator.generateFiles(fullConfig()));
 
-    assertTrue(content.contains("SECURITY.md"));
+    assertTrue(content.contains("## Security"));
+    assertTrue(content.contains("Zero-trust posture"));
+    assertTrue(content.contains("security audit"), "it points at the review-time audit");
+    assertFalse(content.contains("OWASP Top 10 Awareness"), "the full rubric lives in the audit");
   }
 
   @Test
-  void javaConventionsShipAsAJavaSkillNotInTheCore() {
-    var files =
-        AgentContextGenerator.generateFiles(
-            configWithRuntimes(new SailYaml.Runtimes(25, null, null)));
-
-    var skill = fileEndingWith(files, ".claude/skills/java/SKILL.md").content();
-    assertTrue(skill.contains("name: java"));
-    assertTrue(skill.contains("Java (JDK 25) Standards"));
-    assertTrue(skill.contains("Records for all value types"));
-    assertTrue(skill.contains("Virtual threads"));
-    assertTrue(skill.contains("Sealed interfaces"));
-
-    var core = coreBody(files);
-    assertFalse(core.contains("Records for all value types"), "Java standards leave the core body");
-    assertFalse(core.contains("Language-Specific Standards"));
-  }
-
-  @Test
-  void typescriptConventionsShipAsATypescriptSkillNotInTheCore() {
-    var files =
-        AgentContextGenerator.generateFiles(
-            configWithRuntimes(new SailYaml.Runtimes(0, "22", null)));
-
-    var skill = fileEndingWith(files, ".claude/skills/typescript/SKILL.md").content();
-    assertTrue(skill.contains("name: typescript"));
-    assertTrue(skill.contains("Node.js / TypeScript Standards"));
-    assertTrue(skill.contains("Functional components"));
-    assertTrue(skill.contains("TypeScript preferred"));
-    assertTrue(skill.contains("async/await"));
-
-    var core = coreBody(files);
-    assertFalse(core.contains("Functional components"), "TS standards leave the core body");
-    assertFalse(core.contains("Language-Specific Standards"));
-  }
-
-  @Test
-  void bothLanguageSkillsWhenBothRuntimesPresent() {
+  void noHardcodedLanguageStandardsAnywhere() {
     var files =
         AgentContextGenerator.generateFiles(
             configWithRuntimes(new SailYaml.Runtimes(25, "22", null)));
 
     assertTrue(
-        files.stream().anyMatch(f -> f.remotePath().endsWith(".claude/skills/java/SKILL.md")));
+        files.stream().noneMatch(f -> f.content().contains("Records for all value types")),
+        "sail ships no hardcoded Java standards");
     assertTrue(
-        files.stream()
-            .anyMatch(f -> f.remotePath().endsWith(".claude/skills/typescript/SKILL.md")));
-  }
-
-  @Test
-  void noLanguageSkillsWhenNoRuntimes() {
-    var files = AgentContextGenerator.generateFiles(configWithRuntimes(null));
-
-    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/java/")));
-    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/typescript/")));
+        files.stream().noneMatch(f -> f.content().contains("Functional components")),
+        "sail ships no hardcoded TypeScript standards");
+    assertTrue(
+        files.stream().noneMatch(f -> f.remotePath().contains("/skills/java/")),
+        "no java skill is generated");
+    assertTrue(
+        files.stream().noneMatch(f -> f.remotePath().contains("/skills/typescript/")),
+        "no typescript skill is generated");
     assertFalse(coreBody(files).contains("Language-Specific Standards"));
   }
 
   @Test
-  void aNonJavaProjectCarriesNoJavaStandardsAnywhere() {
-    var files =
-        AgentContextGenerator.generateFiles(
-            configWithRuntimes(new SailYaml.Runtimes(0, "22", null)));
+  void runtimesStillOrientTheContextWithoutPrescribingStandards() {
+    var content =
+        coreBody(
+            AgentContextGenerator.generateFiles(
+                configWithRuntimes(new SailYaml.Runtimes(25, "22", null))));
 
-    assertTrue(
-        files.stream().noneMatch(f -> f.content().contains("Records for all value types")),
-        "no generated file — core, entry, or skill — carries Java standards for a Node project");
-    assertFalse(files.stream().anyMatch(f -> f.remotePath().contains("/skills/java/")));
+    assertTrue(content.contains("## Runtimes"), "runtimes still appear as orientation");
+    assertTrue(content.contains("- JDK 25"));
+    assertTrue(content.contains("- Node.js 22"));
   }
 
   @Test
@@ -1173,7 +1001,7 @@ class AgentContextGeneratorTest {
     var config = configWithAgent(agent);
     var files = AgentContextGenerator.generateFiles(config);
 
-    assertEquals(8, files.size());
+    assertEquals(6, files.size(), "per agent: one home file + the spec-board SKILL.md + template");
   }
 
   @Test
@@ -1226,23 +1054,6 @@ class AgentContextGeneratorTest {
         null);
   }
 
-  private static SailYaml configWithAgentContext(SailYaml.AgentContext agentContext) {
-    return new SailYaml(
-        "test",
-        "Test project",
-        new SailYaml.Resources(2, "4GB", "50GB"),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        agentContext,
-        null);
-  }
-
   private static SailYaml configWithRuntimes(SailYaml.Runtimes runtimes) {
     return configWithRuntimesAndContext(runtimes, null);
   }
@@ -1269,7 +1080,7 @@ class AgentContextGeneratorTest {
   }
 
   private static String coreBody(List<GeneratedFile> files) {
-    return fileEndingWith(files, ".sail/context.md").content();
+    return fileEndingWith(files, "/.claude/CLAUDE.md").content();
   }
 
   private static GeneratedFile fileEndingWith(List<GeneratedFile> files, String suffix) {

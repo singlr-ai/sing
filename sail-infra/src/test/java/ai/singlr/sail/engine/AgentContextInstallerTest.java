@@ -18,8 +18,9 @@ import org.junit.jupiter.api.Test;
 class AgentContextInstallerTest {
 
   private static final String CONTAINER = "light-grid";
-  private static final String WORKSPACE = "/home/dev/workspace";
-  private static final String SKILL = WORKSPACE + "/.claude/skills/spec-board/SKILL.md";
+  private static final String HOME = "/home/dev";
+  private static final String CLAUDE = HOME + "/.claude/CLAUDE.md";
+  private static final String SKILL = HOME + "/.claude/skills/spec-board/SKILL.md";
 
   private static SailYaml config() {
     return SailYaml.fromMap(
@@ -63,7 +64,7 @@ class AgentContextInstallerTest {
     var commands = shell.invocations();
     assertTrue(
         commands.stream()
-            .anyMatch(c -> c.contains("mkdir -p " + WORKSPACE + "/.claude/skills/spec-board")),
+            .anyMatch(c -> c.contains("mkdir -p " + HOME + "/.claude/skills/spec-board")),
         "the nested skill directory must be created before the push");
     assertTrue(
         commands.stream().anyMatch(c -> c.contains("incus file push") && c.contains(SKILL)),
@@ -85,53 +86,39 @@ class AgentContextInstallerTest {
   }
 
   @Test
-  void skipsEngineerOwnedFilesThatAlreadyExist() throws Exception {
+  void installsTheHomeContextFileForClaude() throws Exception {
     var shell = okShell();
 
     var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
-    assertFalse(
-        result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")),
-        "an existing engineer-owned CLAUDE.md is never clobbered");
-    assertFalse(
-        result.pushed().stream().anyMatch(p -> p.endsWith("/SECURITY.md")),
-        "an existing engineer-owned SECURITY.md is never clobbered");
-    assertTrue(result.pushed().contains(SKILL), "sail-owned machinery still refreshes every run");
+    assertTrue(
+        result.pushed().contains(CLAUDE),
+        "sail installs its home-level CLAUDE.md, ~/.claude/CLAUDE.md");
   }
 
   @Test
-  void forceOverwritesEngineerOwnedFilesWithoutCheckingExistence() throws Exception {
+  void overwritesEveryGeneratedFileWithoutCheckingExistence() throws Exception {
     var shell = okShell();
 
-    var result = AgentContextInstaller.install(shell, CONTAINER, config(), true);
+    var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")));
-    assertTrue(result.pushed().stream().anyMatch(p -> p.endsWith("/SECURITY.md")));
+    assertTrue(result.pushed().contains(CLAUDE));
+    assertTrue(result.pushed().contains(SKILL));
     assertFalse(
-        shell.invocations().stream().anyMatch(c -> c.contains("test -f " + WORKSPACE)),
-        "--force overwrites engineer-owned files outright, never checking whether they exist");
+        shell.invocations().stream().anyMatch(c -> c.contains("test -f")),
+        "sail owns its home namespace outright, so it never checks whether a file exists");
   }
 
   @Test
-  void pushesAFreshContextFileWhenTheContainerHasNone() throws Exception {
-    var shell = okShell().onFail("test -f " + WORKSPACE + "/CLAUDE.md", "");
+  void neverWritesIntoTheEngineerWorkspace() throws Exception {
+    var shell = okShell();
 
     var result = AgentContextInstaller.install(shell, CONTAINER, config());
 
-    assertTrue(
-        result.pushed().stream().anyMatch(p -> p.endsWith("/CLAUDE.md")),
-        "an absent engineer-owned file is scaffolded fresh");
-  }
-
-  @Test
-  void treatsAFailedExistenceCheckAsAbsent() throws Exception {
-    var shell = okShell().onFail("test -f " + WORKSPACE + "/SECURITY.md", "");
-
-    var result = AgentContextInstaller.install(shell, CONTAINER, config());
-
-    assertTrue(
-        result.pushed().stream().anyMatch(p -> p.endsWith("/SECURITY.md")),
-        "when the existence check fails, the file is treated as absent and scaffolded");
+    assertFalse(result.isEmpty());
+    assertFalse(
+        result.pushed().stream().anyMatch(p -> p.contains("/workspace/")),
+        "sail never writes into the engineer's workspace");
   }
 
   @Test

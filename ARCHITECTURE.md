@@ -316,12 +316,18 @@ environment so in-container hooks correlate events back to the spec. Agents insi
 container manage specs through a dependency-free `spec` shell script that talks to
 `sail-api` over the bind-mounted Unix socket — no `sail` binary, token, or files needed.
 
-**Agent context is generated, then owned by the engineer** (`AgentContextGenerator`):
-`sail project create` writes `CLAUDE.md` (claude-code) or `AGENTS.md` (codex), plus
-`SECURITY.md`, methodology/spec skills, and post-task hooks — but never overwrites a
-hand-written context file (case-insensitive check). The body encodes tech stack,
-conventions, runtimes, services, the spec-driven workflow (DB-authoritative — no `specs/`
-directory to edit), and the autonomous-operation protocol.
+**Agent context: sail owns the home layer, the engineer owns the workspace**
+(`AgentContextGenerator`): both Claude Code and Codex natively merge a home-level context
+file with project-level files, so sail writes its layer to the home namespace
+(`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) and overwrites it every run, while the
+engineer owns `~/workspace/CLAUDE.md`/`AGENTS.md` outright — sail never creates or touches
+it, and being "closer" it overrides sail's layer on conflict. No `@import` pointer and no
+`--force`; sail only ever overwrites its own home namespace. The body encodes project
+orientation (tech stack, conventions, runtimes, services), language-agnostic engineering
+principles, a short security stance (the full OWASP rubric lives in the review/audit
+prompt), the spec-driven workflow (DB-authoritative — no `specs/` directory to edit), and
+the autonomous-operation protocol. Methodology/spec skills land under the home skills
+namespace; sail ships no hardcoded language standards.
 
 **Guardrails + rollback:** `agent.guardrails` sets a `max_duration` and an action
 (`snapshot-and-stop` / `stop` / `notify`). An event-driven watcher (`sail agent watch`,

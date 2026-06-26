@@ -1947,7 +1947,7 @@ class ProjectProvisionerTest {
   }
 
   @Test
-  void contextGenerationLeavesAnExistingAgentFileUntouched() throws Exception {
+  void contextGenerationWritesTheHomeFileNeverTheWorkspace() throws Exception {
     var config =
         new SailYaml(
             "acme-health",
@@ -1996,12 +1996,18 @@ class ProjectProvisionerTest {
     provisioner.provision(config, hostYaml(), null, null);
 
     var cmds = shell.invocations();
-    assertFalse(
-        cmds.stream().anyMatch(c -> c.contains("file push") && c.contains("/CLAUDE.md")),
-        "an existing engineer-owned CLAUDE.md is left untouched on provision");
     assertTrue(
-        cmds.stream().anyMatch(c -> c.contains("file push") && c.contains(".sail/context.md")),
-        "the sail-owned context core is still installed");
+        cmds.stream().anyMatch(c -> c.contains("file push") && c.contains("/.claude/CLAUDE.md")),
+        "the sail-owned home context file is installed on provision");
+    assertFalse(
+        cmds.stream()
+            .anyMatch(
+                c ->
+                    c.contains("file push")
+                        && (c.contains("/workspace/CLAUDE.md")
+                            || c.contains("/workspace/AGENTS.md")
+                            || c.contains("/workspace/SECURITY.md"))),
+        "sail never generates the engineer's workspace context files on provision");
   }
 
   /** Records all step events for assertion. */

@@ -49,13 +49,6 @@ public final class AgentContextRegenCommand implements Runnable {
   @Option(names = "--dry-run", description = "Print commands instead of executing them.")
   private boolean dryRun;
 
-  @Option(
-      names = "--force",
-      description =
-          "Overwrite engineer-owned files (CLAUDE.md, AGENTS.md, SECURITY.md) with the freshly"
-              + " generated template. By default they are kept.")
-  private boolean force;
-
   @Spec private CommandSpec spec;
 
   @Override
@@ -112,7 +105,7 @@ public final class AgentContextRegenCommand implements Runnable {
                 + ")");
       }
     } else {
-      var result = AgentContextInstaller.install(shell, name, config, force);
+      var result = AgentContextInstaller.install(shell, name, config);
       pushed.addAll(result.pushed());
       installSpecCli(shell);
     }

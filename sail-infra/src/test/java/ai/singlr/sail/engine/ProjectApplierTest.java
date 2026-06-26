@@ -274,9 +274,7 @@ class ProjectApplierTest {
 
   @Test
   void applyAgentContextPushesClaudeMd() throws Exception {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onFail("test -f /home/dev/workspace/CLAUDE.md", "");
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var applier = applier(shell);
     var config = minimalConfig("claude-code");
 
@@ -285,14 +283,12 @@ class ProjectApplierTest {
     assertTrue(result.added() > 0);
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("CLAUDE.md")));
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.claude/CLAUDE.md")));
   }
 
   @Test
   void applyAgentContextPushesAgentsMdForCodex() throws Exception {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onFail("test -f /home/dev/workspace/AGENTS.md", "");
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var applier = applier(shell);
     var config = minimalConfig("codex");
 
@@ -301,7 +297,7 @@ class ProjectApplierTest {
     assertTrue(result.added() > 0);
     assertTrue(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("AGENTS.md")));
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.codex/AGENTS.md")));
   }
 
   @Test
@@ -330,22 +326,22 @@ class ProjectApplierTest {
   }
 
   @Test
-  void applyAgentContextLeavesExistingEngineerFilesUntouched() throws Exception {
+  void applyAgentContextWritesTheHomeContextNeverTheWorkspace() throws Exception {
     var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
     var applier = applier(shell);
     var config = minimalConfig("claude-code");
 
     var result = applier.applyAgentContext(CONTAINER, config);
 
+    assertTrue(
+        shell.invocations().stream()
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/.claude/CLAUDE.md")),
+        "sail writes its home-level CLAUDE.md");
     assertFalse(
         shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("/CLAUDE.md")),
-        "an existing engineer-owned CLAUDE.md is never clobbered on a delta apply");
-    assertFalse(
-        shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("/SECURITY.md")),
-        "an existing engineer-owned SECURITY.md is never clobbered");
-    assertTrue(result.added() > 0, "sail-owned machinery (the core and skills) still refreshes");
+            .anyMatch(c -> c.contains("incus file push") && c.contains("/workspace/")),
+        "sail never writes into the engineer's workspace on a delta apply");
+    assertTrue(result.added() > 0, "sail-owned context and skills refresh every run");
   }
 
   @Test
@@ -553,8 +549,8 @@ class ProjectApplierTest {
     assertEquals(
         3,
         result.added(),
-        "the sail-owned core, audit script, and agent settings refresh; the engineer-owned"
-            + " AGENTS.md and SECURITY.md are left as-is");
+        "the home AGENTS.md, the audit script, and the agent hook settings — all sail-owned and"
+            + " overwritten");
     assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("security-audit.sh")));
     assertTrue(
         shell.invocations().stream()

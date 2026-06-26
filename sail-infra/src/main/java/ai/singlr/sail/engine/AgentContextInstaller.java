@@ -17,12 +17,10 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Generates a project's agent context from its {@link SailYaml} and installs it into the running
- * container: the sail-owned {@code .sail/context.md} core, the per-agent entry file (CLAUDE.md /
- * AGENTS.md), SECURITY.md, the methodology and spec-board skills, and the audit/guardrail hooks.
- * Each file is installed by its {@link GeneratedFile.Ownership ownership}: sail-owned files (the
- * core, skills, hooks) are overwritten every run; engineer-owned files (the per-agent entry and
- * SECURITY.md) are written only when absent — sail scaffolds them once and never clobbers the
- * engineer's copy. {@code force} overwrites the engineer-owned files too.
+ * container: the sail-owned home context file per agent ({@code ~/.claude/CLAUDE.md} / {@code
+ * ~/.codex/AGENTS.md}), the methodology and spec-board skills, and the audit/guardrail hooks. Every
+ * generated file is sail-owned and overwritten on every run; sail never writes into the engineer's
+ * workspace, so there is nothing to preserve and no ownership to weigh.
  *
  * <p>Each file's parent directory is created before the push, so deeply nested generated files —
  * the {@code .claude/skills/spec-board/} skill in particular — land even on a container that never
@@ -38,7 +36,7 @@ public final class AgentContextInstaller {
 
   private AgentContextInstaller() {}
 
-  /** The remote paths an install wrote (merged or overwritten). */
+  /** The remote paths an install overwrote. */
   public record Result(List<String> pushed) {
 
     public Result {
@@ -57,25 +55,13 @@ public final class AgentContextInstaller {
   }
 
   /**
-   * Regenerates and installs the agent context for {@code config}, leaving engineer-owned files
-   * that already exist untouched. Equivalent to {@link #install(ShellExec, String, SailYaml,
-   * boolean)} with {@code force=false}.
+   * Regenerates and installs the sail-owned agent context for {@code config} into {@code
+   * container}, overwriting every generated file, and returns the remote paths written. Returns
+   * {@link Result#none()} when no agent is configured. Sail only ever writes its own home
+   * namespace, so the install is an unconditional overwrite — nothing in the engineer's workspace
+   * is read or touched.
    */
   public static Result install(ShellExec shell, String container, SailYaml config)
-      throws IOException, InterruptedException, TimeoutException {
-    return install(shell, container, config, false);
-  }
-
-  /**
-   * Regenerates and installs the agent context for {@code config} into {@code container}, returning
-   * the remote paths actually written. Returns {@link Result#none()} when no agent is configured.
-   *
-   * <p>Sail-owned files (the {@code .sail} core, skills, agent hooks) are overwritten every run.
-   * Engineer-owned files (the per-agent {@code CLAUDE.md}/{@code AGENTS.md} and {@code
-   * SECURITY.md}) are written only when absent — sail scaffolds them once and never clobbers the
-   * engineer's copy. {@code force} overwrites them too, resetting them to the generated template.
-   */
-  public static Result install(ShellExec shell, String container, SailYaml config, boolean force)
       throws IOException, InterruptedException, TimeoutException {
     Objects.requireNonNull(shell, "shell");
     NameValidator.requireValidProjectName(container);
@@ -89,27 +75,10 @@ public final class AgentContextInstaller {
 
     var pushed = new ArrayList<String>();
     for (var file : files) {
-      if (shouldInstall(shell, container, file, force)) {
-        push(shell, container, file);
-        pushed.add(file.remotePath());
-      }
+      push(shell, container, file);
+      pushed.add(file.remotePath());
     }
     return new Result(pushed);
-  }
-
-  /** Sail-owned files always install; engineer-owned files install only when absent or forced. */
-  private static boolean shouldInstall(
-      ShellExec shell, String container, GeneratedFile file, boolean force)
-      throws IOException, InterruptedException, TimeoutException {
-    return switch (file.ownership()) {
-      case SAIL -> true;
-      case ENGINEER -> force || !fileExists(shell, container, file.remotePath());
-    };
-  }
-
-  private static boolean fileExists(ShellExec shell, String container, String remotePath)
-      throws IOException, InterruptedException, TimeoutException {
-    return exec(shell, container, List.of("test", "-f", remotePath)).ok();
   }
 
   private static void push(ShellExec shell, String container, GeneratedFile file)
