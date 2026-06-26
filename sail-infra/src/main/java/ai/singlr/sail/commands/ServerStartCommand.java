@@ -7,6 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.EventBus;
+import ai.singlr.sail.api.MissedStopReconciler;
 import ai.singlr.sail.api.ReviewWiring;
 import ai.singlr.sail.api.SailApiOperations;
 import ai.singlr.sail.api.SailApiServer;
@@ -193,6 +194,12 @@ public final class ServerStartCommand implements Runnable {
       server.start();
       sweeper.start();
       reconciler.start();
+      var replayed = new MissedStopReconciler(specStore, new SessionStore(db), bus).reconcile();
+      if (replayed > 0) {
+        System.out.println(
+            Ansi.AUTO.string(
+                "  @|green ✓|@ Replayed " + replayed + " agent stop(s) missed while offline"));
+      }
       System.out.println(
           Ansi.AUTO.string(
               "  @|green ✓|@ Sail server listening on http://" + host + ":" + server.port()));
