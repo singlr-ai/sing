@@ -7,6 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.api.Event;
 import ai.singlr.sail.api.EventStreamClient;
+import ai.singlr.sail.api.SailEventPublisher;
 import ai.singlr.sail.api.ServerConnectionConfig;
 import ai.singlr.sail.common.DateTimeUtils;
 import ai.singlr.sail.common.Strings;
@@ -19,6 +20,7 @@ import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerStateGuard;
 import ai.singlr.sail.engine.GuardrailChecker;
+import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.NameValidator;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
@@ -30,6 +32,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +57,13 @@ import picocli.CommandLine.Spec;
     description = "Monitor a running agent and enforce guardrails.",
     mixinStandardHelpOptions = true)
 public final class AgentWatchCommand implements Runnable {
+
+  /**
+   * Upper bound on how long the loop sleeps between systemd liveness polls. Caps the event wait so
+   * an agent that exits without its hook firing is detected within this window rather than at the
+   * (possibly hours-away) wall-clock deadline.
+   */
+  private static final long LIVENESS_POLL_MS = 15_000;
 
   @Parameters(index = "0", description = "Project name.")
   private String name;
@@ -109,6 +119,7 @@ public final class AgentWatchCommand implements Runnable {
 
     var queue = new LinkedBlockingQueue<Event>();
     var token = ServerConnectionConfig.resolve().token();
+    var publisher = resolvePublisher();
     try (var ignored = EventStreamClient.subscribe(apiHost, apiPort, token, name, queue)) {
       runLoop(
           queue,
@@ -120,7 +131,16 @@ public final class AgentWatchCommand implements Runnable {
           notifier,
           config.agent() != null ? config.agent().notifications() : null,
           config.repoPaths(),
-          startedAt);
+          startedAt,
+          publisher);
+    }
+  }
+
+  private SailEventPublisher resolvePublisher() {
+    try {
+      return SailEventPublisher.localDefault();
+    } catch (Exception e) {
+      return null;
     }
   }
 
@@ -134,14 +154,16 @@ public final class AgentWatchCommand implements Runnable {
       WebhookNotifier notifier,
       Notifications notifications,
       List<String> repoPaths,
-      Instant startedAt)
+      Instant startedAt,
+      SailEventPublisher publisher)
       throws Exception {
     var guardrailFired = false;
     var maxIdle = Guardrails.parseDuration(guardrails.maxIdle());
     var lastProgressAt = startedAt;
     while (true) {
       var stallDeadline = maxIdle != null ? lastProgressAt.plus(maxIdle) : Instant.MAX;
-      var waitMs = waitMsUntil(earlier(deadline, stallDeadline), guardrailFired);
+      var waitMs =
+          Math.min(LIVENESS_POLL_MS, waitMsUntil(earlier(deadline, stallDeadline), guardrailFired));
       Event event = waitMs <= 0 ? null : queue.poll(waitMs, TimeUnit.MILLISECONDS);
 
       if (event != null && isAgentExit(event)) {
@@ -153,6 +175,13 @@ public final class AgentWatchCommand implements Runnable {
           lastProgressAt = DateTimeUtils.now();
         }
         continue;
+      }
+
+      var exit = agentSession.queryExitStatus(name);
+      if (!exit.active()) {
+        emitSyntheticStop(publisher, exit);
+        handleAgentExited(notifier, notifications);
+        return;
       }
 
       if (guardrailFired) {
@@ -322,6 +351,34 @@ public final class AgentWatchCommand implements Runnable {
     if (!snapshotLabel.isEmpty()) {
       System.out.println(Ansi.AUTO.string("    @|bold Snapshot:|@ " + snapshotLabel));
     }
+  }
+
+  private void emitSyntheticStop(SailEventPublisher publisher, AgentSession.ExitState exit) {
+    if (publisher == null || Strings.isBlank(exit.specId())) {
+      return;
+    }
+    try {
+      publisher.publish(syntheticStop(name, exit));
+    } catch (Exception e) {
+      System.err.println(
+          "  [watch] could not publish synthetic stop for " + name + ": " + e.getMessage());
+    }
+  }
+
+  /**
+   * Builds the {@code agent_session_stopped} the watcher emits when it observes the unit exit
+   * without a hook-fired stop reaching the bus. Carries the real exit code so consumers can tell a
+   * crash from a clean finish; {@code source=watcher} marks it as watcher-synthesized.
+   */
+  static Event syntheticStop(String project, AgentSession.ExitState exit) {
+    var agent = Strings.isBlank(exit.agentType()) ? Event.SAIL_AGENT : exit.agentType();
+    return Event.of(
+        project,
+        exit.specId(),
+        Event.WellKnownTypes.AGENT_SESSION_STOPPED,
+        agent,
+        HostInfo.hostname(),
+        Map.of("exit_code", exit.exitCode(), "source", "watcher"));
   }
 
   private void handleAgentExited(WebhookNotifier notifier, Notifications notifications) {

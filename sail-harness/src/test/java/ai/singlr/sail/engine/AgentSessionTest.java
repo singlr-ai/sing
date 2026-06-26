@@ -444,4 +444,108 @@ class AgentSessionTest {
     assertEquals(1, cmds.size());
     assertTrue(cmds.getFirst().contains("agent-task.txt"));
   }
+
+  @Test
+  void parseExitStateReadsActiveUnit() {
+    var state =
+        AgentSession.parseExitState(
+            """
+            ActiveState=active
+            ExecMainStatus=0
+            Environment=SAIL_SPEC_ID=scrum-12 SAIL_AGENT=claude-code LANG=C.UTF-8
+            """);
+
+    assertTrue(state.active());
+    assertEquals(0, state.exitCode());
+    assertEquals("scrum-12", state.specId());
+    assertEquals("claude-code", state.agentType());
+  }
+
+  @Test
+  void parseExitStateReadsCleanExit() {
+    var state =
+        AgentSession.parseExitState(
+            """
+            ActiveState=inactive
+            ExecMainStatus=0
+            Environment=SAIL_SPEC_ID=scrum-12 SAIL_AGENT=codex
+            """);
+
+    assertFalse(state.active());
+    assertEquals(0, state.exitCode());
+    assertEquals("scrum-12", state.specId());
+    assertEquals("codex", state.agentType());
+  }
+
+  @Test
+  void parseExitStateReadsFailedExitWithCode() {
+    var state =
+        AgentSession.parseExitState(
+            """
+            ActiveState=failed
+            ExecMainStatus=137
+            Environment=SAIL_SPEC_ID=scrum-12 SAIL_AGENT=claude-code
+            """);
+
+    assertFalse(state.active());
+    assertEquals(137, state.exitCode());
+    assertEquals("scrum-12", state.specId());
+  }
+
+  @Test
+  void parseExitStateDefaultsToActiveWhenStateUnknown() {
+    var state = AgentSession.parseExitState("");
+
+    assertTrue(state.active());
+    assertEquals(0, state.exitCode());
+    assertEquals("", state.specId());
+    assertEquals("", state.agentType());
+  }
+
+  @Test
+  void parseExitStateToleratesMissingEnvAndGarbageExitCode() {
+    var state =
+        AgentSession.parseExitState(
+            """
+            ActiveState=inactive
+            ExecMainStatus=
+            Environment=
+            """);
+
+    assertFalse(state.active());
+    assertEquals(0, state.exitCode());
+    assertEquals("", state.specId());
+    assertEquals("", state.agentType());
+  }
+
+  @Test
+  void queryExitStatusShowsTheUnit() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk(
+                "systemctl --user show sail-agent.service",
+                """
+                ActiveState=failed
+                ExecMainStatus=1
+                Environment=SAIL_SPEC_ID=auth SAIL_AGENT=claude-code
+                """);
+    var session = new AgentSession(shell);
+
+    var state = session.queryExitStatus("acme");
+
+    assertFalse(state.active());
+    assertEquals(1, state.exitCode());
+    assertEquals("auth", state.specId());
+  }
+
+  @Test
+  void queryExitStatusTreatsAShellFailureAsStillActive() throws Exception {
+    var shell =
+        new ScriptedShellExecutor().onFail("systemctl --user show sail-agent.service", "boom");
+    var session = new AgentSession(shell);
+
+    var state = session.queryExitStatus("acme");
+
+    assertTrue(state.active());
+  }
 }

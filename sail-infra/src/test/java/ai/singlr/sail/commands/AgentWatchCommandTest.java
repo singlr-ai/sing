@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.api.Event;
+import ai.singlr.sail.engine.AgentSession;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -153,6 +154,30 @@ class AgentWatchCommandTest {
 
     assertEquals(soon, AgentWatchCommand.earlier(soon, later));
     assertEquals(soon, AgentWatchCommand.earlier(later, soon));
+  }
+
+  @Test
+  void syntheticStopCarriesExitCodeSpecAndAgent() {
+    var exit = new AgentSession.ExitState(false, 137, "scrum-12", "claude-code");
+
+    var event = AgentWatchCommand.syntheticStop("acme", exit);
+
+    assertEquals(Event.WellKnownTypes.AGENT_SESSION_STOPPED, event.type());
+    assertEquals("acme", event.project());
+    assertEquals("scrum-12", event.spec());
+    assertEquals("claude-code", event.agent());
+    assertEquals(137, event.data().get("exit_code"));
+    assertEquals("watcher", event.data().get("source"));
+  }
+
+  @Test
+  void syntheticStopFallsBackToSailAgentWhenTypeUnknown() {
+    var exit = new AgentSession.ExitState(false, 0, "scrum-12", "");
+
+    var event = AgentWatchCommand.syntheticStop("acme", exit);
+
+    assertEquals(Event.SAIL_AGENT, event.agent());
+    assertEquals(0, event.data().get("exit_code"));
   }
 
   private static Event sampleEvent(String type) {

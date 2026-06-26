@@ -38,6 +38,19 @@ public final class AgentSession {
   public record SessionInfo(
       boolean running, int pid, String task, String startedAt, String branch, String logPath) {}
 
+  /**
+   * Terminal state of the agent's systemd unit, read straight from systemd — the authoritative
+   * source independent of whether the agent's own lifecycle hook fired.
+   *
+   * @param active whether the unit is still running ({@code false} only once it is inactive/failed)
+   * @param exitCode the unit's {@code ExecMainStatus} (the agent process's exit code); meaningful
+   *     once {@code active} is {@code false}
+   * @param specId the {@code SAIL_SPEC_ID} the unit was launched with, or {@code ""} for an ad-hoc
+   *     non-spec session
+   * @param agentType the {@code SAIL_AGENT} the unit was launched with, or {@code ""} when unknown
+   */
+  public record ExitState(boolean active, int exitCode, String specId, String agentType) {}
+
   /** Ensures the ~/.sail directory exists inside the container. */
   public void ensureDirectory(String containerName)
       throws IOException, InterruptedException, TimeoutException {
@@ -320,6 +333,73 @@ public final class AgentSession {
   /** Returns the path to the agent log file inside the container. */
   public static String logPath() {
     return LOG_FILE;
+  }
+
+  /**
+   * Reads the agent unit's terminal state from systemd in a single call: liveness, exit code, and
+   * the spec/agent it was launched for (parsed from the unit's recorded environment). Lets the
+   * watcher detect an exit and synthesize a reliable stop signal even when the agent's own hook
+   * never fired.
+   */
+  public ExitState queryExitStatus(String containerName)
+      throws IOException, InterruptedException, TimeoutException {
+    var cmd =
+        ContainerExec.asDevUser(
+            containerName,
+            List.of(
+                "systemctl",
+                "--user",
+                "show",
+                SYSTEMD_UNIT,
+                "--property=ActiveState",
+                "--property=ExecMainStatus",
+                "--property=Environment"));
+    var result = shell.exec(cmd);
+    return parseExitState(result.ok() ? result.stdout() : "");
+  }
+
+  static ExitState parseExitState(String show) {
+    var activeState = "";
+    var exitCode = 0;
+    var environment = "";
+    for (var line : show.split("\n")) {
+      var eq = line.indexOf('=');
+      if (eq < 0) {
+        continue;
+      }
+      var key = line.substring(0, eq);
+      var value = line.substring(eq + 1).trim();
+      switch (key) {
+        case "ActiveState" -> activeState = value;
+        case "ExecMainStatus" -> exitCode = parseIntOrZero(value);
+        case "Environment" -> environment = value;
+        default -> {}
+      }
+    }
+    var active = !("inactive".equals(activeState) || "failed".equals(activeState));
+    return new ExitState(
+        active,
+        exitCode,
+        envValue(environment, "SAIL_SPEC_ID"),
+        envValue(environment, "SAIL_AGENT"));
+  }
+
+  private static String envValue(String environment, String key) {
+    var prefix = key + "=";
+    for (var token : environment.split(" ")) {
+      if (token.startsWith(prefix)) {
+        return token.substring(prefix.length());
+      }
+    }
+    return "";
+  }
+
+  private static int parseIntOrZero(String value) {
+    try {
+      return Integer.parseInt(value.trim());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
   }
 
   private Integer querySystemdPid(String containerName)
