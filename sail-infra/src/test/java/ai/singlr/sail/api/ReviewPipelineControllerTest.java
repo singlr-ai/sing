@@ -74,7 +74,12 @@ class ReviewPipelineControllerTest {
 
   private Event agentStoppedEvent(String specId) {
     return Event.of(
-        "test-project", specId, Event.WellKnownTypes.AGENT_SESSION_STOPPED, "claude-code", "host");
+        "test-project",
+        specId,
+        Event.WellKnownTypes.AGENT_SESSION_STOPPED,
+        "claude-code",
+        "host",
+        Map.of(Event.WellKnownData.SOURCE, Event.WellKnownData.SOURCE_WATCHER));
   }
 
   private Event agentStoppedEvent(String specId, int exitCode) {
@@ -84,7 +89,16 @@ class ReviewPipelineControllerTest {
         Event.WellKnownTypes.AGENT_SESSION_STOPPED,
         "claude-code",
         "host",
-        Map.of("exit_code", exitCode, "source", "watcher"));
+        Map.of(
+            Event.WellKnownData.EXIT_CODE,
+            exitCode,
+            Event.WellKnownData.SOURCE,
+            Event.WellKnownData.SOURCE_WATCHER));
+  }
+
+  private Event hookTurnEndEvent(String specId) {
+    return Event.of(
+        "test-project", specId, Event.WellKnownTypes.AGENT_SESSION_STOPPED, "claude-code", "host");
   }
 
   private ReviewPipelineConfig singleAgentStage(String gate) {
@@ -623,6 +637,17 @@ class ReviewPipelineControllerTest {
     errDb.close();
 
     assertDoesNotThrow(() -> ctrl.onEvent(agentStoppedEvent("auth")));
+  }
+
+  @Test
+  void aHookTurnEndStopIsIgnoredUntilTheAuthoritativeStopArrives() {
+    createSpec("auth", "in_progress");
+    var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
+
+    ctrl.onEvent(hookTurnEndEvent("auth"));
+
+    assertEquals(SpecStatus.IN_PROGRESS, specStore.findById("auth").orElseThrow().status());
+    assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
   }
 
   @Test

@@ -60,8 +60,13 @@ public final class MissedStopReconciler {
     var agent = spec.agent() != null ? spec.agent() : Event.SAIL_AGENT;
     var data =
         replay.exitCode() != null
-            ? Map.<String, Object>of("exit_code", replay.exitCode(), "source", "startup-reconcile")
-            : Map.<String, Object>of("source", "startup-reconcile");
+            ? Map.<String, Object>of(
+                Event.WellKnownData.EXIT_CODE,
+                replay.exitCode(),
+                Event.WellKnownData.SOURCE,
+                Event.WellKnownData.SOURCE_STARTUP_RECONCILE)
+            : Map.<String, Object>of(
+                Event.WellKnownData.SOURCE, Event.WellKnownData.SOURCE_STARTUP_RECONCILE);
     return Event.of(
         spec.project(),
         spec.id(),

@@ -120,24 +120,6 @@ class AgentWatchCommandTest {
   }
 
   @Test
-  void isAgentExitDetectsStoppedAndCompleted() {
-    var stopped = sampleEvent(Event.WellKnownTypes.AGENT_SESSION_STOPPED);
-    var completed = sampleEvent(Event.WellKnownTypes.AGENT_SESSION_COMPLETED);
-
-    assertTrue(AgentWatchCommand.isAgentExit(stopped));
-    assertTrue(AgentWatchCommand.isAgentExit(completed));
-  }
-
-  @Test
-  void isAgentExitIgnoresUnrelatedTypes() {
-    var started = sampleEvent(Event.WellKnownTypes.AGENT_SESSION_STARTED);
-    var snapshot = sampleEvent(Event.WellKnownTypes.SNAPSHOT_CREATED);
-
-    assertFalse(AgentWatchCommand.isAgentExit(started));
-    assertFalse(AgentWatchCommand.isAgentExit(snapshot));
-  }
-
-  @Test
   void isProgressEventDetectsToolAndLogActivity() {
     assertTrue(
         AgentWatchCommand.isProgressEvent(sampleEvent(Event.WellKnownTypes.AGENT_TOOL_STARTED)));

@@ -197,10 +197,6 @@ public final class AgentWatchCommand implements Runnable {
       var waitMs = Math.min(LIVENESS_POLL_MS, waitMsUntil(deadlineAt, guardrailFired));
       Event event = waitMs <= 0 ? null : queue.poll(waitMs, TimeUnit.MILLISECONDS);
 
-      if (event != null && isAgentExit(event)) {
-        handleAgentExited(notifier, notifications);
-        return;
-      }
       if (event != null) {
         if (isProgressEvent(event)) {
           lastProgressAt = DateTimeUtils.now();
@@ -289,12 +285,6 @@ public final class AgentWatchCommand implements Runnable {
     }
     var remaining = Duration.between(DateTimeUtils.now(), deadline).toMillis();
     return Math.max(0, remaining);
-  }
-
-  static boolean isAgentExit(Event event) {
-    var type = event.type();
-    return Event.WellKnownTypes.AGENT_SESSION_STOPPED.equals(type)
-        || Event.WellKnownTypes.AGENT_SESSION_COMPLETED.equals(type);
   }
 
   /** Whether an event signals the agent is actively working — resets the stall timer. */
@@ -411,7 +401,11 @@ public final class AgentWatchCommand implements Runnable {
         Event.WellKnownTypes.AGENT_SESSION_STOPPED,
         agent,
         HostInfo.hostname(),
-        Map.of("exit_code", exit.exitCode(), "source", "watcher"));
+        Map.of(
+            Event.WellKnownData.EXIT_CODE,
+            exit.exitCode(),
+            Event.WellKnownData.SOURCE,
+            Event.WellKnownData.SOURCE_WATCHER));
   }
 
   private void handleAgentExited(WebhookNotifier notifier, Notifications notifications) {

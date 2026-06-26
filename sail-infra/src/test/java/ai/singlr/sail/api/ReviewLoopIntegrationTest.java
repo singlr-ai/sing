@@ -100,7 +100,12 @@ class ReviewLoopIntegrationTest {
 
   private Event stop(String specId) {
     return Event.of(
-        "test-project", specId, Event.WellKnownTypes.AGENT_SESSION_STOPPED, "claude-code", "host");
+        "test-project",
+        specId,
+        Event.WellKnownTypes.AGENT_SESSION_STOPPED,
+        "claude-code",
+        "host",
+        Map.of(Event.WellKnownData.SOURCE, Event.WellKnownData.SOURCE_WATCHER));
   }
 
   private Event stop(String specId, int exitCode) {
@@ -110,7 +115,16 @@ class ReviewLoopIntegrationTest {
         Event.WellKnownTypes.AGENT_SESSION_STOPPED,
         "claude-code",
         "host",
-        Map.of("exit_code", exitCode, "source", "watcher"));
+        Map.of(
+            Event.WellKnownData.EXIT_CODE,
+            exitCode,
+            Event.WellKnownData.SOURCE,
+            Event.WellKnownData.SOURCE_WATCHER));
+  }
+
+  private Event hookTurnEndStop(String specId) {
+    return Event.of(
+        "test-project", specId, Event.WellKnownTypes.AGENT_SESSION_STOPPED, "claude-code", "host");
   }
 
   @Test
@@ -144,6 +158,19 @@ class ReviewLoopIntegrationTest {
 
     BusTesting.awaitDelivery(latch);
     assertEquals("failed", reviewStore.latestReviewForSpec("auth").orElseThrow().status());
+  }
+
+  @Test
+  void aHookTurnEndStopThroughTheBusDoesNotTriggerReview() throws Exception {
+    createSpec("auth");
+    var latch = new CountDownLatch(1);
+    subscribe(singleStage("no_critical"), (p, a, pr) -> "[]", latch);
+
+    bus.publish(hookTurnEndStop("auth"));
+
+    BusTesting.awaitDelivery(latch);
+    assertEquals(SpecStatus.IN_PROGRESS, specStore.findById("auth").orElseThrow().status());
+    assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
   }
 
   @Test

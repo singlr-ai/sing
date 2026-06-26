@@ -162,6 +162,8 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
 
     if (spec.get().status() != SpecStatus.IN_PROGRESS) return;
 
+    if (!isAuthoritative(event)) return;
+
     var exitCode = exitCodeOf(event);
     if (exitCode != null && exitCode != 0) {
       publishEvent(event.project(), specId, Event.WellKnownTypes.AGENT_FAILED, "exit " + exitCode);
@@ -321,8 +323,20 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
     eventBus.publish(Event.of(project, specId, type, Event.SAIL_AGENT, hostname(), data));
   }
 
+  /**
+   * Whether this stop is the real termination, not a mid-run turn-end. The in-container agent hook
+   * fires {@code Stop} when a turn ends — before the process exits and with no exit code — so the
+   * controller waits for the watcher's poll-derived stop (which carries a {@code source}) rather
+   * than reviewing on a turn boundary, or on a crash the hook can't report an exit code for.
+   */
+  private static boolean isAuthoritative(Event event) {
+    return event.data().get(Event.WellKnownData.SOURCE) != null;
+  }
+
   private static Integer exitCodeOf(Event event) {
-    return event.data().get("exit_code") instanceof Number n ? n.intValue() : null;
+    return event.data().get(Event.WellKnownData.EXIT_CODE) instanceof Number n
+        ? n.intValue()
+        : null;
   }
 
   private static String hostname() {

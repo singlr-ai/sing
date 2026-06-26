@@ -106,6 +106,18 @@ public final class SessionStore {
         id);
   }
 
+  /**
+   * Records the exit code on an already-finished session. Used when the authoritative stop (which
+   * knows the process exit code) arrives after a turn-end stop has already completed the session
+   * without one.
+   */
+  public void recordExitCode(String id, Integer exitCode) {
+    db.execute(
+        "UPDATE agent_sessions SET exit_code = ? WHERE id = ?",
+        exitCode != null ? exitCode.longValue() : null,
+        id);
+  }
+
   private SessionRow mapSession(Sqlite.Row row) {
     return new SessionRow(
         row.text(0),

@@ -83,6 +83,28 @@ public record Event(
     private WellKnownTypes() {}
   }
 
+  /**
+   * Well-known keys and values in an event's {@link #data} payload. A stop is
+   * <em>authoritative</em> — the real termination, not a mid-run turn-end — only when it carries a
+   * {@link #SOURCE}; the in-container agent hook never sets one, so its turn-end stop is
+   * distinguishable from the watcher's poll-derived stop that knows the process {@link #EXIT_CODE}.
+   */
+  public static final class WellKnownData {
+    /** Who emitted an authoritative stop; absent on a raw agent-hook stop. */
+    public static final String SOURCE = "source";
+
+    /** {@link #SOURCE} value: the guardrail watcher, which observed the process exit code. */
+    public static final String SOURCE_WATCHER = "watcher";
+
+    /** {@link #SOURCE} value: startup replay of a stop missed while the control plane was down. */
+    public static final String SOURCE_STARTUP_RECONCILE = "startup-reconcile";
+
+    /** The agent process's exit code, carried on an authoritative stop. */
+    public static final String EXIT_CODE = "exit_code";
+
+    private WellKnownData() {}
+  }
+
   public Event {
     if (v <= 0) {
       throw new IllegalArgumentException("v must be positive, got " + v);

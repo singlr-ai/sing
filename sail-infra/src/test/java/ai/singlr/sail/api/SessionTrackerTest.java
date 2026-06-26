@@ -128,6 +128,31 @@ class SessionTrackerTest {
   }
 
   @Test
+  void anAuthoritativeStopUpgradesTheExitCodeOfAnAlreadyFinishedSession() {
+    tracker.onEvent(
+        Event.of(
+            "backend", "auth", Event.WellKnownTypes.AGENT_SESSION_STARTED, "claude-code", "host"));
+    tracker.onEvent(
+        Event.of(
+            "backend", "auth", Event.WellKnownTypes.AGENT_SESSION_STOPPED, "claude-code", "host"));
+
+    tracker.onEvent(
+        Event.of(
+            "backend",
+            "auth",
+            Event.WellKnownTypes.AGENT_SESSION_STOPPED,
+            "claude-code",
+            "host",
+            Map.of(
+                Event.WellKnownData.EXIT_CODE,
+                137,
+                Event.WellKnownData.SOURCE,
+                Event.WellKnownData.SOURCE_WATCHER)));
+
+    assertEquals(137, sessionStore.latestForProject("backend").orElseThrow().exitCode());
+  }
+
+  @Test
   void stoppedWithoutAnExitCodeLeavesItNull() {
     tracker.onEvent(
         Event.of(

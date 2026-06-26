@@ -73,14 +73,22 @@ public final class SessionTracker implements EventSubscriber {
   }
 
   private void handleStopped(Event event, String status) {
-    var exitCode = extractInt(event.data(), "exit_code");
+    var exitCode = extractInt(event.data(), Event.WellKnownData.EXIT_CODE);
     var sessionId = activeSessionsByProject.remove(event.project());
     if (sessionId != null) {
       sessionStore.complete(sessionId, status, exitCode);
-    } else {
+      return;
+    }
+    var running = sessionStore.runningForProject(event.project());
+    if (running.isPresent()) {
+      sessionStore.complete(running.get().id(), status, exitCode);
+      return;
+    }
+    if (exitCode != null) {
       sessionStore
-          .runningForProject(event.project())
-          .ifPresent(session -> sessionStore.complete(session.id(), status, exitCode));
+          .latestForProject(event.project())
+          .filter(session -> session.exitCode() == null)
+          .ifPresent(session -> sessionStore.recordExitCode(session.id(), exitCode));
     }
   }
 
