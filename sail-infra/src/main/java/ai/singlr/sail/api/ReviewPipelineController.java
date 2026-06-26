@@ -53,7 +53,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
   private final EventBus eventBus;
   private final ConcurrentHashMap<String, CompletableFuture<Void>> inFlight =
       new ConcurrentHashMap<>();
-  private final ExecutorService pipelineExecutor = Executors.newVirtualThreadPerTaskExecutor();
+  private final ExecutorService pipelineExecutor;
 
   /**
    * @param reviewerResolver resolves a project's default reviewer agent (the
@@ -67,12 +67,37 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       Function<String, String> reviewerResolver,
       ReviewAgentRunner agentRunner,
       EventBus eventBus) {
+    this(
+        specStore,
+        reviewStore,
+        configResolver,
+        reviewerResolver,
+        agentRunner,
+        eventBus,
+        Executors.newVirtualThreadPerTaskExecutor());
+  }
+
+  /**
+   * Injectable-executor constructor. Production passes a virtual-thread-per-task executor so the
+   * event-bus drain is never blocked; tests pass a same-thread executor so a pipeline runs to
+   * completion synchronously within {@link #onEvent} — no latch, no completion race, deterministic
+   * coverage.
+   */
+  ReviewPipelineController(
+      SpecStore specStore,
+      ReviewStore reviewStore,
+      Function<String, ReviewPipelineConfig> configResolver,
+      Function<String, String> reviewerResolver,
+      ReviewAgentRunner agentRunner,
+      EventBus eventBus,
+      ExecutorService pipelineExecutor) {
     this.specStore = specStore;
     this.reviewStore = reviewStore;
     this.configResolver = configResolver;
     this.reviewerResolver = reviewerResolver;
     this.agentRunner = agentRunner;
     this.eventBus = eventBus;
+    this.pipelineExecutor = pipelineExecutor;
   }
 
   /**
