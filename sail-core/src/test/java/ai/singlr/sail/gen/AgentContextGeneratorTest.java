@@ -176,10 +176,16 @@ class AgentContextGeneratorTest {
     assertTrue(md.contains("## Environment"));
     assertTrue(md.contains("Incus container managed by `sail`"));
     assertTrue(md.contains("Podman (rootless) is the container runtime"));
-    assertTrue(md.contains("## Testcontainers"));
-    assertTrue(md.contains("DOCKER_HOST=unix:///run/user/1000/podman/podman.sock"));
-    assertTrue(md.contains("TESTCONTAINERS_RYUK_DISABLED=true"));
-    assertTrue(md.contains("systemctl --user status podman.socket"));
+  }
+
+  @Test
+  void omitsTheTestcontainersEssay() {
+    var md = AgentContextGenerator.generateContextBody(fullConfig());
+
+    assertFalse(
+        md.contains("## Testcontainers"), "the Podman/Testcontainers essay is not generated");
+    assertFalse(md.contains("TESTCONTAINERS_RYUK_DISABLED"));
+    assertFalse(md.contains("DOCKER_HOST"));
   }
 
   @Test
@@ -903,13 +909,12 @@ class AgentContextGeneratorTest {
 
     assertTrue(content.contains("SOLID principles"));
     assertTrue(content.contains("DRY"));
-    assertTrue(content.contains("Zero trust"));
     assertTrue(content.contains("self-documenting"));
     assertTrue(content.contains("simple and elegant"));
     assertTrue(content.contains("No inline comments in code, ever"));
     assertTrue(content.contains("edge cases"));
-    assertTrue(content.contains("world's best coder"));
     assertTrue(content.contains("Test behavior, not lines"));
+    assertFalse(content.contains("world's best coder"), "the hype line is trimmed");
   }
 
   @Test
@@ -918,7 +923,10 @@ class AgentContextGeneratorTest {
 
     assertTrue(content.contains("## Security"));
     assertTrue(content.contains("Zero-trust posture"));
-    assertTrue(content.contains("security audit"), "it points at the review-time audit");
+    assertTrue(content.contains("parameterized queries"), "it carries the always-true coding rule");
+    assertFalse(
+        content.contains("security audit"),
+        "the stance makes no claim about an audit that may not be configured");
     assertFalse(content.contains("OWASP Top 10 Awareness"), "the full rubric lives in the audit");
   }
 

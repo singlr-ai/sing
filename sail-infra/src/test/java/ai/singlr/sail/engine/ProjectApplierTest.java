@@ -851,18 +851,18 @@ class ProjectApplierTest {
     assertTrue(
         shell.invocations().stream()
             .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-containers.sh")));
-    assertTrue(
-        shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-agents.sh")));
+    assertFalse(
+        shell.invocations().stream().anyMatch(c -> c.contains("cleanup-agents.sh")),
+        "the manual agent-process killer is no longer generated");
   }
 
   @Test
-  void applyCleanupCronSkipsWhenAlreadyUpgraded() throws Exception {
-    var cronWithScript = "0 * * * * /home/dev/.sail/cleanup-containers.sh >/dev/null 2>&1\n";
+  void applyCleanupCronSkipsWhenAlreadyCurrent() throws Exception {
+    var cronWithScript = "*/15 * * * * /home/dev/.sail/cleanup-containers.sh >/dev/null 2>&1\n";
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", cronWithScript)
-            .onOk("test -f /home/dev/workspace/cleanup-agents.sh");
+            .onOk("test -f /home/dev/.sail/cleanup-containers.sh");
     var applier = applier(shell);
 
     var result = applier.applyCleanupCron(CONTAINER, "dev");
@@ -870,6 +870,24 @@ class ProjectApplierTest {
     assertEquals(0, result.added());
     assertEquals(1, result.skipped());
     assertFalse(shell.invocations().stream().anyMatch(c -> c.contains("incus file push")));
+  }
+
+  @Test
+  void applyCleanupCronUpgradesAnOlderHourlyCadence() throws Exception {
+    var hourly = "0 * * * * /home/dev/.sail/cleanup-containers.sh >/dev/null 2>&1\n";
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk("crontab -l", hourly)
+            .onOk("test -f /home/dev/.sail/cleanup-containers.sh")
+            .onOk("incus file push")
+            .onOk("mktemp", "/tmp/sail-crontab.x")
+            .onOk("crontab -u")
+            .onOk("rm -f");
+    var applier = applier(shell);
+
+    var result = applier.applyCleanupCron(CONTAINER, "dev");
+
+    assertEquals(1, result.added(), "a box on the old hourly cadence is upgraded, not skipped");
   }
 
   @Test

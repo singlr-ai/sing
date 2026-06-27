@@ -323,11 +323,11 @@ public final class ProjectApplier {
         shell
             .exec(
                 ContainerExec.asDevUser(
-                    name, List.of("test", "-f", CleanupScripts.AGENT_CLEANUP_PATH)))
+                    name, List.of("test", "-f", CleanupScripts.CONTAINER_CLEANUP_PATH)))
             .ok();
 
-    if (existingCron.contains(CleanupScripts.CONTAINER_CLEANUP_PATH) && scriptsExist) {
-      out.println("  [skip] Container cleanup cron already upgraded");
+    if (existingCron.contains(CleanupScripts.cronLine().strip()) && scriptsExist) {
+      out.println("  [skip] Container cleanup cron already current");
       return new ApplyResult(0, 0, 1, List.of());
     }
 
@@ -339,7 +339,6 @@ public final class ProjectApplier {
         CleanupScripts.CONTAINER_CLEANUP_PATH,
         CleanupScripts.containerCleanupScript(),
         "0755");
-    pushFile(name, CleanupScripts.AGENT_CLEANUP_PATH, CleanupScripts.agentCleanupScript(), "0755");
 
     var newCron = CleanupScripts.buildUpgradedCrontab(existingCron);
     var mktemp =
@@ -357,7 +356,7 @@ public final class ProjectApplier {
           "Failed to install crontab for user '" + sshUser + "': " + cronResult.stderr());
     }
 
-    out.println("  [apply] Agent cleanup helper \u2192 " + CleanupScripts.AGENT_CLEANUP_PATH);
+    out.println("  [apply] Container cleanup cron \u2192 " + CleanupScripts.CONTAINER_CLEANUP_PATH);
     return new ApplyResult(1, 0, 0, List.of());
   }
 
