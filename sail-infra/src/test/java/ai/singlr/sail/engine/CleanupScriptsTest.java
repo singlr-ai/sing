@@ -5,6 +5,7 @@
 
 package ai.singlr.sail.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,11 +38,11 @@ class CleanupScriptsTest {
   }
 
   @Test
-  void cronLineInvokesCleanupScript() {
+  void cronLineRunsEvery15Minutes() {
     var cron = CleanupScripts.cronLine();
 
     assertTrue(cron.contains(CleanupScripts.CONTAINER_CLEANUP_PATH));
-    assertTrue(cron.startsWith("0 * * * *"));
+    assertTrue(cron.startsWith("*/15 * * * *"), "cleanup sweeps every 15 minutes");
     assertTrue(cron.endsWith("\n"));
   }
 
@@ -92,6 +93,27 @@ class CleanupScriptsTest {
     var result = CleanupScripts.buildUpgradedCrontab("");
 
     assertTrue(result.contains(CleanupScripts.CONTAINER_CLEANUP_PATH));
-    assertTrue(result.startsWith("0 * * * *"));
+    assertTrue(result.startsWith("*/15 * * * *"));
+  }
+
+  @Test
+  void buildUpgradedCrontabReplacesAnOlderCadenceWithoutDuplicating() {
+    var hourly = "0 * * * * " + CleanupScripts.CONTAINER_CLEANUP_PATH + " >/dev/null 2>&1\n";
+
+    var result = CleanupScripts.buildUpgradedCrontab(hourly);
+
+    assertFalse(result.contains("0 * * * * "), "the old hourly cadence line is removed");
+    assertTrue(result.contains("*/15 * * * * "), "replaced with the 15-minute cadence");
+    assertEquals(
+        1,
+        result.lines().filter(l -> l.contains(CleanupScripts.CONTAINER_CLEANUP_PATH)).count(),
+        "exactly one cleanup cron line, never a duplicate");
+  }
+
+  @Test
+  void buildUpgradedCrontabIsIdempotent() {
+    var once = CleanupScripts.buildUpgradedCrontab("");
+
+    assertEquals(once, CleanupScripts.buildUpgradedCrontab(once), "re-applying converges");
   }
 }

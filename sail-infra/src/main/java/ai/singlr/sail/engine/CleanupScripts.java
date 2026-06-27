@@ -49,16 +49,19 @@ public final class CleanupScripts {
   }
 
   /**
-   * Returns the cron line that invokes the automated container cleanup script hourly. Replaces the
-   * legacy {@code podman system prune} cron line.
+   * Returns the cron line that invokes the automated container cleanup script every 15 minutes, so
+   * stray test containers are swept promptly rather than lingering up to an hour. The age threshold
+   * in the script (not this cadence) is what protects in-flight containers from being removed.
    */
   public static String cronLine() {
-    return "0 * * * * " + CONTAINER_CLEANUP_PATH + " >/dev/null 2>&1\n";
+    return "*/15 * * * * " + CONTAINER_CLEANUP_PATH + " >/dev/null 2>&1\n";
   }
 
   /**
-   * Builds an upgraded crontab by removing legacy {@code podman system prune} lines and appending
-   * the new cleanup script invocation.
+   * Builds an upgraded crontab: drops the legacy {@code podman system prune} line and any prior
+   * cleanup-script line (whatever its cadence), then appends the current {@link #cronLine()}.
+   * Idempotent and cadence-correcting — re-running converges on exactly one current line, so an
+   * older box upgrades from the hourly cadence to the 15-minute one without duplicating entries.
    *
    * @param existingCron the current crontab content (may be empty)
    * @return the updated crontab content
@@ -67,7 +70,7 @@ public final class CleanupScripts {
     var cleaned =
         existingCron
             .lines()
-            .filter(l -> !l.contains(legacyCronPattern()))
+            .filter(l -> !l.contains(legacyCronPattern()) && !l.contains(CONTAINER_CLEANUP_PATH))
             .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
     return (cleaned.isEmpty() ? "" : cleaned + "\n") + cronLine();
   }
