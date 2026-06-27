@@ -23,11 +23,18 @@ import org.junit.jupiter.api.Test;
  * label filter, hold the control connection, then drop it — and checks whether the labelled victim
  * container is gone once Ryuk's reconnection timeout elapses.
  *
- * <p><strong>This test is the empirical gate.</strong> Green here means privileged Ryuk reaps under
- * rootless Podman and sail can safely re-enable it; red (or {@code NOT_REAPED}) means it does not,
- * and the {@code RYUK_DISABLED} + hourly-cron fallback stays. Either way the answer is measured on
- * CI, not guessed. Like every {@code *IT}, it runs only under the {@code integration} profile and
- * fails loudly (never {@code assumeTrue}) once a daemon is reachable.
+ * <p><strong>What this measured (the reason sail keeps Ryuk disabled).</strong> Privileged Ryuk is
+ * mechanically fine under rootless Podman — it connects to the socket, matches the victim by label,
+ * and issues the force-remove. But the rootless force-remove routinely takes longer than Ryuk's
+ * default 10s request timeout (network-namespace teardown), so with the Testcontainers default Ryuk
+ * logs {@code context deadline exceeded} and the container leaks anyway; only when the request
+ * timeout is raised (this test uses {@code RYUK_REQUEST_TIMEOUT=60s}) does the reap succeed.
+ * Because vanilla Testcontainers ships the 10s default, re-enabling Ryuk would be unreliable, so
+ * sail keeps {@code RYUK_DISABLED} and relies on the {@code cleanup-containers.sh} cron (a plain
+ * {@code podman rm -f}, no client-side timeout). This test stands as the reproducible evidence for
+ * that decision; it asserts the reap succeeds with the raised timeout. Like every {@code *IT}, it
+ * runs only under the {@code integration} profile and fails loudly (never {@code assumeTrue}) once
+ * a daemon is reachable.
  */
 class RyukReapsContainersIT extends AbstractIncusIT {
 
