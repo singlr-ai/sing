@@ -6,24 +6,15 @@
 package ai.singlr.sail.engine;
 
 /**
- * Generates cleanup scripts that run inside Incus containers. Two scripts are produced:
- *
- * <ul>
- *   <li>{@code cleanup-containers.sh} — automated hourly cron job that kills stray Podman
- *       containers (Testcontainers leftovers, abandoned builds) while preserving infrastructure
- *       services. Uses restart-policy as the discriminator: services created by {@code sail} use
- *       {@code --restart=always}, while test containers do not.
- *   <li>{@code cleanup-agents.sh} — manual helper script that lists and kills stale agent processes
- *       (e.g. leaked Claude processes from IDE extensions). Not automated because killing agent
- *       processes risks terminating the active session.
- * </ul>
+ * Generates {@code cleanup-containers.sh}: an automated hourly cron job that force-removes stray
+ * Podman containers (Testcontainers leftovers, abandoned builds) while preserving infrastructure
+ * services. Uses restart-policy as the discriminator: services created by {@code sail} use {@code
+ * --restart=always}, while test containers do not.
  */
 public final class CleanupScripts {
 
   static final String SAIL_DIR = "/home/dev/.sail";
-  static final String WORKSPACE = "/home/dev/workspace";
   static final String CONTAINER_CLEANUP_PATH = SAIL_DIR + "/cleanup-containers.sh";
-  static final String AGENT_CLEANUP_PATH = WORKSPACE + "/cleanup-agents.sh";
 
   private CleanupScripts() {}
 
@@ -54,72 +45,6 @@ public final class CleanupScripts {
         fi
 
         podman system prune -f >/dev/null 2>&1
-        """;
-  }
-
-  /**
-   * Generates the manual agent process cleanup helper. Lists stale {@code claude} processes (older
-   * than 24 hours), preserving the most recently started one even if it exceeds the threshold. The
-   * engineer runs this manually when memory pressure is noticed.
-   */
-  public static String agentCleanupScript() {
-    return """
-        #!/bin/bash
-        MAX_AGE_SECONDS=86400
-
-        newest_pid=""
-        newest_start=0
-        stale_pids=()
-
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
-            pid=$(echo "$line" | awk '{print $1}')
-            etime=$(echo "$line" | awk '{print $2}')
-            start_epoch=$(echo "$line" | awk '{print $3}')
-
-            if [ "$start_epoch" -gt "$newest_start" ]; then
-                if [ -n "$newest_pid" ]; then
-                    stale_pids+=("$newest_pid")
-                fi
-                newest_pid="$pid"
-                newest_start="$start_epoch"
-            else
-                stale_pids+=("$pid")
-            fi
-        done < <(ps -eo pid,etimes,lstart,comm --no-headers | awk '$NF == "claude" {
-            cmd="date -d \\"" $3 " " $4 " " $5 " " $6 " " $7 "\\" +%s"
-            cmd | getline epoch
-            close(cmd)
-            print $1, $2, epoch
-        }')
-
-        if [ ${#stale_pids[@]} -eq 0 ]; then
-            echo "No stale claude processes found."
-            exit 0
-        fi
-
-        echo "Found ${#stale_pids[@]} stale claude process(es) (keeping newest PID $newest_pid):"
-        echo ""
-        for pid in "${stale_pids[@]}"; do
-            etime=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d ' ')
-            rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
-            if [ -n "$etime" ] && [ -n "$rss" ]; then
-                hours=$((etime / 3600))
-                mb=$((rss / 1024))
-                echo "  PID $pid — ${hours}h old, ${mb}MB RSS"
-            fi
-        done
-
-        echo ""
-        read -p "Kill these processes? [y/N] " confirm
-        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            for pid in "${stale_pids[@]}"; do
-                kill "$pid" 2>/dev/null && echo "  Killed PID $pid" || echo "  Failed to kill PID $pid"
-            done
-            echo "Done. Kept newest claude process (PID $newest_pid)."
-        else
-            echo "Aborted."
-        fi
         """;
   }
 

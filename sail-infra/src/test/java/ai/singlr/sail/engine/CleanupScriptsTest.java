@@ -37,30 +37,6 @@ class CleanupScriptsTest {
   }
 
   @Test
-  void agentCleanupScriptTargetsClaudeProcesses() {
-    var script = CleanupScripts.agentCleanupScript();
-
-    assertTrue(script.contains("claude"));
-    assertTrue(script.contains("MAX_AGE_SECONDS=86400"));
-  }
-
-  @Test
-  void agentCleanupScriptPreservesNewestProcess() {
-    var script = CleanupScripts.agentCleanupScript();
-
-    assertTrue(script.contains("newest_pid"));
-    assertTrue(script.contains("Kept newest claude process"));
-  }
-
-  @Test
-  void agentCleanupScriptRequiresConfirmation() {
-    var script = CleanupScripts.agentCleanupScript();
-
-    assertTrue(script.contains("read -p"));
-    assertTrue(script.contains("[y/N]"));
-  }
-
-  @Test
   void cronLineInvokesCleanupScript() {
     var cron = CleanupScripts.cronLine();
 
@@ -87,7 +63,7 @@ class CleanupScriptsTest {
   @Test
   void pathConstantsAreConsistent() {
     assertTrue(CleanupScripts.CONTAINER_CLEANUP_PATH.startsWith(CleanupScripts.SAIL_DIR));
-    assertTrue(CleanupScripts.AGENT_CLEANUP_PATH.startsWith(CleanupScripts.WORKSPACE));
+    assertTrue(CleanupScripts.CONTAINER_CLEANUP_PATH.endsWith("cleanup-containers.sh"));
   }
 
   @Test

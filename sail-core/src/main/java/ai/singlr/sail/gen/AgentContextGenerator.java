@@ -171,23 +171,6 @@ public final class AgentContextGenerator {
     sb.append("\n## Environment\n");
     sb.append("This workspace runs inside an Incus container managed by `sail`.\n");
     sb.append("Podman (rootless) is the container runtime. Services run as Podman containers.\n");
-
-    sb.append("\n## Testcontainers\n");
-    sb.append("Testcontainers is pre-configured to use Podman instead of Docker.\n");
-    sb.append(
-        "Environment variables are set system-wide via `/etc/profile.d/testcontainers.sh`:\n");
-    sb.append("```\n");
-    sb.append("DOCKER_HOST=unix:///run/user/1000/podman/podman.sock\n");
-    sb.append("TESTCONTAINERS_RYUK_DISABLED=true\n");
-    sb.append("```\n");
-    sb.append("These are sourced automatically in login shells.\n");
-    sb.append(
-        "If tests fail with \"Previous attempts to find a Docker environment failed\", verify:\n");
-    sb.append("1. The Podman socket is active: `systemctl --user status podman.socket`\n");
-    sb.append("2. The socket file exists: `ls -la /run/user/1000/podman/podman.sock`\n");
-    sb.append(
-        "3. `DOCKER_HOST` is set correctly (not `/run/podman/podman.sock` — that is the root socket)\n");
-    sb.append("Do NOT use Docker. Do NOT install Docker. Podman is the only container runtime.\n");
     if (config.git() != null) {
       sb.append("Git identity: ")
           .append(config.git().name())
@@ -200,8 +183,8 @@ public final class AgentContextGenerator {
     sb.append("\n## Security\n");
     sb.append(
         "Zero-trust posture: validate every input, authenticate every request, authorize every"
-            + " action. Never hardcode secrets, tokens, or credentials. A cross-agent security audit"
-            + " reviews changed files for OWASP Top-10 issues before work is considered done.\n");
+            + " action. Never hardcode secrets, tokens, or credentials. Never concatenate untrusted"
+            + " input into queries or commands — use parameterized queries and safe APIs.\n");
     if (config.agentContext() != null
         && config.agentContext().security() != null
         && !config.agentContext().security().isBlank()) {
@@ -233,8 +216,7 @@ public final class AgentContextGenerator {
   static String universalPrinciples() {
     return """
         - Write simple and elegant code. Simplicity is the ultimate sophistication. \
-        If a solution feels complex, step back and find a simpler approach. \
-        You are trained to be the world's best coder — write code that reads like prose.
+        If a solution feels complex, step back and find a simpler approach.
         - No inline comments in code, ever. Code must be self-documenting through \
         clear naming, small functions, and obvious structure. If you feel the need \
         to add a comment because the code is complex, rethink the code to make it \
@@ -249,10 +231,6 @@ public final class AgentContextGenerator {
         - DRY: don't repeat yourself. Extract common logic into shared utilities when \
         a pattern appears three or more times. But never create premature abstractions — \
         duplication is cheaper than the wrong abstraction.
-        - Zero trust security posture: validate all inputs, authenticate all requests, \
-        authorize all access.
-        - OWASP awareness: never concatenate user input into queries or commands. \
-        Use parameterized queries and safe APIs.
         - Prefer composition over inheritance. Keep inheritance hierarchies shallow.
         - Write small, focused functions. Each function should do one thing well. \
         If a function needs a comment to explain what it does, it's too complex — \

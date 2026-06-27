@@ -851,9 +851,9 @@ class ProjectApplierTest {
     assertTrue(
         shell.invocations().stream()
             .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-containers.sh")));
-    assertTrue(
-        shell.invocations().stream()
-            .anyMatch(c -> c.contains("incus file push") && c.contains("cleanup-agents.sh")));
+    assertFalse(
+        shell.invocations().stream().anyMatch(c -> c.contains("cleanup-agents.sh")),
+        "the manual agent-process killer is no longer generated");
   }
 
   @Test
@@ -862,7 +862,7 @@ class ProjectApplierTest {
     var shell =
         new ScriptedShellExecutor()
             .onOk("crontab -l", cronWithScript)
-            .onOk("test -f /home/dev/workspace/cleanup-agents.sh");
+            .onOk("test -f /home/dev/.sail/cleanup-containers.sh");
     var applier = applier(shell);
 
     var result = applier.applyCleanupCron(CONTAINER, "dev");

@@ -941,8 +941,6 @@ public final class ProjectProvisioner {
         CleanupScripts.CONTAINER_CLEANUP_PATH,
         CleanupScripts.containerCleanupScript(),
         "0755");
-    pushFileToContainer(
-        name, CleanupScripts.AGENT_CLEANUP_PATH, CleanupScripts.agentCleanupScript(), "0755");
     execInContainer(name, List.of("chown", "-R", user + ":" + user, CleanupScripts.SAIL_DIR));
 
     var existingCron = check.ok() ? check.stdout() : "";
