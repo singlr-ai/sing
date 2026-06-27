@@ -39,6 +39,7 @@ class RyukReapsContainersIT extends AbstractIncusIT {
     ensureIncusOrSkip();
     try {
       launch(CONTAINER);
+      configureForNestedPodman();
       waitForNetwork();
       setUpRootlessPodman();
 
@@ -58,6 +59,26 @@ class RyukReapsContainersIT extends AbstractIncusIT {
     } finally {
       deleteContainerQuietly(CONTAINER);
     }
+  }
+
+  /**
+   * Applies the incus container config sail's provisioning uses so rootless Podman can create the
+   * nested user namespaces it needs: {@code security.nesting=true} and an unconfined AppArmor
+   * profile, then a restart so the change takes effect. Without this, rootless {@code podman pull}
+   * fails with "cannot clone: Permission denied".
+   */
+  private void configureForNestedPodman() throws Exception {
+    assertOk(
+        shell.exec(
+            List.of(
+                "incus",
+                "config",
+                "set",
+                CONTAINER,
+                "security.nesting=true",
+                "raw.lxc=lxc.apparmor.profile=unconfined")),
+        "set security.nesting + unconfined AppArmor");
+    assertOk(shell.exec(List.of("incus", "restart", CONTAINER)), "restart after security config");
   }
 
   /** Reproduces sail's rootless-Podman provisioning, asserting each real step. */
