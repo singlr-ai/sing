@@ -24,6 +24,7 @@ import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.WebauthnConfig;
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.BindPolicy;
+import ai.singlr.sail.engine.GracefulShutdown;
 import ai.singlr.sail.engine.HostInfo;
 import ai.singlr.sail.engine.SailPaths;
 import ai.singlr.sail.engine.ShellExecutor;
@@ -114,6 +115,8 @@ public final class ServerStartCommand implements Runnable {
     SailPaths.ensureDataDir(dbPath.getParent());
 
     var db = Sqlite.open(dbPath);
+    var shutdown = new GracefulShutdown().register(db);
+    Runtime.getRuntime().addShutdownHook(new Thread(shutdown::shutdown, "sail-shutdown"));
     var migrationResult =
         MigrationRunner.applyAll(
             db, MigrateCommand.REGISTRY, DataMigration.Prompter.NON_INTERACTIVE);
@@ -182,24 +185,24 @@ public final class ServerStartCommand implements Runnable {
     var auth =
         new SessionAwareAuth(new AuthSessionStore(db), new FdeStore(db), new TokenAuth(tokenStore));
 
-    try (var server =
-            new SailApiServer(
-                host,
-                port,
-                operations,
-                auth,
-                bus,
-                persister,
-                SailPaths.apiSocketPath(),
-                passkeyHandler,
-                specStore,
-                reviewController);
-        var sweeper = new ExpiredRowSweeper(dbPath);
-        var reconciler =
-            new StuckSpecReconciler(
-                dbPath,
-                StuckSpecReconciler.DEFAULT_THRESHOLD,
-                stranded -> surface(bus, stranded))) {
+    var server =
+        new SailApiServer(
+            host,
+            port,
+            operations,
+            auth,
+            bus,
+            persister,
+            SailPaths.apiSocketPath(),
+            passkeyHandler,
+            specStore,
+            reviewController);
+    var sweeper = new ExpiredRowSweeper(dbPath);
+    var reconciler =
+        new StuckSpecReconciler(
+            dbPath, StuckSpecReconciler.DEFAULT_THRESHOLD, stranded -> surface(bus, stranded));
+    shutdown.register(server).register(sweeper).register(reconciler);
+    try {
       server.start();
       sweeper.start();
       reconciler.start();
@@ -227,7 +230,7 @@ public final class ServerStartCommand implements Runnable {
       System.out.println(Ansi.AUTO.string("    @|faint Press Ctrl+C to stop.|@"));
       new CountDownLatch(1).await();
     } finally {
-      db.close();
+      shutdown.shutdown();
     }
   }
 
