@@ -74,6 +74,7 @@ final class CurrentProject {
         .orElseThrow(
             () ->
                 new IllegalStateException(
-                    "No current project. Run 'sail project switch <project>' or pass a project name."));
+                    "No current project. Run 'sail project switch <project>' first, or pass"
+                        + " --project <project>."));
   }
 }

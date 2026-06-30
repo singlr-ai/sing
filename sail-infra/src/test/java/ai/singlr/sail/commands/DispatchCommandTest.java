@@ -77,7 +77,12 @@ class DispatchCommandTest {
 
     var exitCode =
         cmd.execute(
-            "spec", "dispatch", "test-project", "-f", tempDir.resolve("nope.yaml").toString());
+            "spec",
+            "dispatch",
+            "--project",
+            "test-project",
+            "-f",
+            tempDir.resolve("nope.yaml").toString());
 
     assertNotEquals(0, exitCode);
   }
@@ -100,7 +105,8 @@ class DispatchCommandTest {
 
     var cmd = new CommandLine(new Sail());
 
-    var exitCode = cmd.execute("spec", "dispatch", "test-project", "-f", yamlPath.toString());
+    var exitCode =
+        cmd.execute("spec", "dispatch", "--project", "test-project", "-f", yamlPath.toString());
 
     assertNotEquals(0, exitCode);
   }
@@ -226,6 +232,7 @@ class DispatchCommandTest {
     assertEquals(0, exitCode);
     var help = sw.toString();
     assertTrue(help.contains("--spec"));
+    assertTrue(help.contains("--project"));
     assertTrue(help.contains("--background"));
     assertTrue(help.contains("--repo"));
     assertTrue(help.contains("--dry-run"));
@@ -252,7 +259,14 @@ class DispatchCommandTest {
     var cmd = new CommandLine(new Sail());
 
     var exitCode =
-        cmd.execute("spec", "dispatch", "test-project", "--restart", "-f", yamlPath.toString());
+        cmd.execute(
+            "spec",
+            "dispatch",
+            "--project",
+            "test-project",
+            "--restart",
+            "-f",
+            yamlPath.toString());
 
     assertNotEquals(0, exitCode);
     assertTrue(capturedErr.toString().contains("--restart requires --spec"));

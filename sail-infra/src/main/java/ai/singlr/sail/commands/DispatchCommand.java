@@ -42,7 +42,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
 
 /**
  * Dispatches the next ready spec to an agent for autonomous execution. Reads the project's specs
@@ -56,7 +55,13 @@ import picocli.CommandLine.Parameters;
     mixinStandardHelpOptions = true)
 public final class DispatchCommand implements Runnable {
 
-  @Parameters(index = "0", description = "Project name.")
+  @Option(
+      names = {"-p", "--project"},
+      description =
+          "Project whose container runs the agent (default: the current project from 'sail"
+              + " project switch').")
+  private String project;
+
   private String name;
 
   @Option(
@@ -112,6 +117,7 @@ public final class DispatchCommand implements Runnable {
   }
 
   private void execute() throws Exception {
+    name = CurrentProject.require(project);
     NameValidator.requireValidProjectName(name);
     SpecSync.freshenIfNode(syncOptions.noSync());
     if (restart && specId == null) {

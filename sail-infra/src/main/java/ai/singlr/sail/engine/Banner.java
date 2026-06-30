@@ -1159,9 +1159,9 @@ public final class Banner {
       out.println(
           amber(
               ansi,
-              "    sail spec dispatch "
+              "    sail spec dispatch --project "
                   + name
-                  + "               @|faint # continue "
+                  + "   @|faint # continue "
                   + remaining
                   + " remaining specs|@"));
     }
