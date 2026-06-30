@@ -77,12 +77,27 @@ public final class AgentSession {
     }
   }
 
-  /** Writes session metadata JSON inside the container. */
+  /** Writes session metadata JSON inside the container for an ad-hoc (non-spec) launch. */
   public void writeSession(String containerName, String task, String branch)
+      throws IOException, InterruptedException, TimeoutException {
+    writeSession(containerName, task, branch, "", "");
+  }
+
+  /**
+   * Writes session metadata JSON inside the container. The {@code specId} and {@code agentType} are
+   * the durable record of which spec this dispatch is for: the systemd unit's environment carries
+   * them too, but a successfully-exited transient unit is garbage-collected within seconds, taking
+   * its environment with it. The watcher therefore recovers them from this file when the unit is
+   * already gone, so a clean agent exit still produces a spec-attributed stop signal.
+   */
+  public void writeSession(
+      String containerName, String task, String branch, String specId, String agentType)
       throws IOException, InterruptedException, TimeoutException {
     var map = new LinkedHashMap<String, Object>();
     map.put("task", task);
     map.put("branch", branch);
+    map.put("spec_id", Objects.requireNonNullElse(specId, ""));
+    map.put("agent_type", Objects.requireNonNullElse(agentType, ""));
     map.put("started_at", Instant.now().toString());
     map.put("log_path", LOG_FILE);
     var json = YamlUtil.dumpJson(map);
@@ -355,7 +370,35 @@ public final class AgentSession {
                 "--property=ExecMainStatus",
                 "--property=Environment"));
     var result = shell.exec(cmd);
-    return parseExitState(result.ok() ? result.stdout() : "");
+    var state = parseExitState(result.ok() ? result.stdout() : "");
+    if (!state.specId().isBlank()) {
+      return state;
+    }
+    var durable = readSessionDescriptor(containerName);
+    return new ExitState(
+        state.active(),
+        state.exitCode(),
+        durable.specId(),
+        state.agentType().isBlank() ? durable.agentType() : state.agentType());
+  }
+
+  private record SessionDescriptor(String specId, String agentType) {}
+
+  /**
+   * Reads {@code spec_id}/{@code agent_type} from the durable session file. Used as the fallback
+   * when a collected unit no longer reports its environment; returns blanks for an ad-hoc session.
+   */
+  @SuppressWarnings("unchecked")
+  private SessionDescriptor readSessionDescriptor(String containerName)
+      throws IOException, InterruptedException, TimeoutException {
+    var cmd = ContainerExec.asDevUser(containerName, List.of("cat", SESSION_FILE));
+    var result = shell.exec(cmd);
+    if (!result.ok() || result.stdout().isBlank()) {
+      return new SessionDescriptor("", "");
+    }
+    var meta = (Map<String, Object>) YamlUtil.parseMap(result.stdout());
+    return new SessionDescriptor(
+        Objects.toString(meta.get("spec_id"), ""), Objects.toString(meta.get("agent_type"), ""));
   }
 
   static ExitState parseExitState(String show) {

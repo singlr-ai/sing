@@ -9,11 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.api.Event;
 import ai.singlr.sail.engine.AgentSession;
+import ai.singlr.sail.engine.ScriptedShellExecutor;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -213,6 +215,36 @@ class AgentWatchCommandTest {
     AgentWatchCommand.emitSyntheticStop(captured::set, "acme", exit);
 
     assertNull(captured.get());
+  }
+
+  @Test
+  void watcherProducesASpecAttributedStopWhenTheUnitWasAlreadyCollected() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk(
+                "systemctl --user show sail-agent.service",
+                """
+                ActiveState=inactive
+                ExecMainStatus=0
+                Environment=
+                """)
+            .onOk(
+                "cat /home/dev/.sail/agent-session.json",
+                """
+                {"task":"t","branch":"b","spec_id":"auth","agent_type":"claude-code","started_at":"2026-06-30T16:55:14Z","log_path":"/home/dev/.sail/agent.log"}
+                """);
+    var exit = new AgentSession(shell).queryExitStatus("acme");
+
+    var captured = new java.util.concurrent.atomic.AtomicReference<Event>();
+    AgentWatchCommand.emitSyntheticStop(captured::set, "acme", exit);
+
+    var event = captured.get();
+    assertNotNull(
+        event, "a clean exit on a collected unit must still publish a spec-attributed stop");
+    assertEquals(Event.WellKnownTypes.AGENT_SESSION_STOPPED, event.type());
+    assertEquals("auth", event.spec());
+    assertEquals("claude-code", event.agent());
+    assertEquals(0, event.data().get("exit_code"));
   }
 
   @Test

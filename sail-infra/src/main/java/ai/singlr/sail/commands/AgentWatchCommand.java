@@ -377,11 +377,26 @@ public final class AgentWatchCommand implements Runnable {
 
   static void emitSyntheticStop(
       StopPublisher publisher, String project, AgentSession.ExitState exit) {
-    if (publisher == null || Strings.isBlank(exit.specId())) {
+    if (publisher == null) {
+      return;
+    }
+    if (Strings.isBlank(exit.specId())) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|faint [watch] no spec id for "
+                  + project
+                  + "; ad-hoc session, no stop published|@"));
       return;
     }
     try {
       publisher.publish(syntheticStop(project, exit));
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|faint [watch] published stop for spec "
+                  + exit.specId()
+                  + " (exit "
+                  + exit.exitCode()
+                  + ")|@"));
     } catch (Exception e) {
       System.err.println(
           "  [watch] could not publish synthetic stop for " + project + ": " + e.getMessage());

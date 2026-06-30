@@ -258,7 +258,8 @@ public final class DispatchCommand implements Runnable {
     ensureSailSetup(shell, name);
     agentSession.ensureDirectory(name);
     agentSession.writeTaskFile(name, task);
-    agentSession.writeSession(name, task, Objects.requireNonNullElse(branchName, ""));
+    agentSession.writeSession(
+        name, task, Objects.requireNonNullElse(branchName, ""), nextSpec.id(), agentType);
 
     if (background) {
       var sshCmd =
