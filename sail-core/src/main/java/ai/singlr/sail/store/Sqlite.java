@@ -146,7 +146,22 @@ public final class Sqlite implements AutoCloseable {
   }
 
   public <T> T transaction(Supplier<T> work) {
-    execute("BEGIN");
+    return transaction("BEGIN", work);
+  }
+
+  /**
+   * Runs {@code work} under {@code BEGIN IMMEDIATE}, taking the write lock at the start of the
+   * transaction instead of on first write. A compare-and-set that reads then writes needs this:
+   * deferred {@code BEGIN} lets two writers both read the same revision before either writes, so
+   * the second's write fails on the now-stale snapshot rather than seeing the first and rejecting
+   * cleanly. Taking the lock up front serializes them, closing that read-then-write window.
+   */
+  public <T> T immediateTransaction(Supplier<T> work) {
+    return transaction("BEGIN IMMEDIATE", work);
+  }
+
+  private <T> T transaction(String begin, Supplier<T> work) {
+    execute(begin);
     try {
       var result = work.get();
       execute("COMMIT");

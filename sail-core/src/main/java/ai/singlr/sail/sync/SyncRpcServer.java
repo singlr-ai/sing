@@ -42,15 +42,37 @@ public final class SyncRpcServer {
 
   public void serve(Reader in, Writer out) throws IOException {
     for (var line = SyncWire.readFramed(in); line != null; line = SyncWire.readFramed(in)) {
-      switch (SyncWire.decodeRequest(line)) {
-        case SyncWire.Bye ignored -> {
-          return;
-        }
-        case SyncWire.Fetch fetch -> reply(out, fetched(fetch.entityType()));
-        case SyncWire.FetchFdes ignored -> reply(out, new SyncWire.Fdes(fdeRoster.entries()));
-        case SyncWire.Commit commit -> reply(out, onCommit(commit));
+      var request = SyncWire.decodeRequest(line);
+      if (request instanceof SyncWire.Bye) {
+        return;
       }
+      reply(out, respondTo(request));
     }
+  }
+
+  /**
+   * Computes one response, converting any store-side failure into a {@link SyncWire.Failed} the
+   * client can read, rather than letting it propagate and drop the session with no reply — the
+   * client must always be able to tell a refused commit from a broken connection. The clean {@link
+   * SyncWire.Rejected} staleness path is unaffected; only thrown failures land here.
+   */
+  private SyncWire.Response respondTo(SyncWire.Request request) {
+    try {
+      return switch (request) {
+        case SyncWire.Fetch fetch -> fetched(fetch.entityType());
+        case SyncWire.FetchFdes ignored -> new SyncWire.Fdes(fdeRoster.entries());
+        case SyncWire.Commit commit -> onCommit(commit);
+        case SyncWire.Bye ignored -> throw new IllegalStateException("Bye ends the session loop");
+      };
+    } catch (RuntimeException e) {
+      return new SyncWire.Failed(
+          "Main could not apply the request and made no change; retry the sync. Cause: "
+              + rootMessage(e));
+    }
+  }
+
+  private static String rootMessage(Throwable t) {
+    return Objects.toString(t.getMessage(), t.getClass().getSimpleName());
   }
 
   private static void reply(Writer out, SyncWire.Response response) throws IOException {
