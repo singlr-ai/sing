@@ -75,9 +75,9 @@ public final class AgentLogCommand implements Runnable {
               new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
         String line;
         while ((line = reader.readLine()) != null) {
-          var rendered = AgentLogRenderer.render(line);
-          if (!rendered.isEmpty()) {
-            System.out.println(rendered);
+          var out = renderForLog(line, json);
+          if (!out.isEmpty()) {
+            System.out.println(out);
           }
         }
         process.waitFor();
@@ -118,6 +118,14 @@ public final class AgentLogCommand implements Runnable {
 
       System.out.print(renderLines(result.stdout()));
     }
+  }
+
+  /**
+   * Output form for one log line: the raw line under {@code --json} so machine consumers (and the
+   * GUI's live stream) get the structured event verbatim, otherwise the human-rendered form.
+   */
+  static String renderForLog(String line, boolean json) {
+    return json ? line : AgentLogRenderer.render(line);
   }
 
   private static String renderLines(String raw) {

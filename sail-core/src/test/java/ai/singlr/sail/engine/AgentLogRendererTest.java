@@ -93,4 +93,10 @@ class AgentLogRendererTest {
 
     assertEquals(line, AgentLogRenderer.render(line));
   }
+
+  @Test
+  void passesCommentAndBareScalarLinesThroughWithoutCrashing() {
+    assertEquals("# Summary of changes", AgentLogRenderer.render("# Summary of changes"));
+    assertEquals("Building the project now", AgentLogRenderer.render("Building the project now"));
+  }
 }
