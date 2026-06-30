@@ -12,10 +12,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import picocli.CommandLine.Help.Ansi;
 
 /**
@@ -52,15 +54,19 @@ public final class AutoUpgrader {
     }
   }
 
-  /** Package-private for testing. */
   static boolean shouldSkip(String[] args) {
-    if ("dev".equals(SailVersion.version())) {
+    return shouldSkip(SailVersion.version(), System::getenv, args);
+  }
+
+  /** Pure skip decision; version and environment are injected so it is unit-tested. */
+  static boolean shouldSkip(String version, UnaryOperator<String> env, String[] args) {
+    if ("dev".equals(version)) {
       return true;
     }
-    if ("1".equals(System.getenv("SAIL_NO_UPDATE_CHECK"))) {
+    if ("1".equals(env.apply("SAIL_NO_UPDATE_CHECK"))) {
       return true;
     }
-    if ("1".equals(System.getenv("SAIL_AUTO_UPGRADED"))) {
+    if ("1".equals(env.apply("SAIL_AUTO_UPGRADED"))) {
       return true;
     }
     for (var arg : args) {
@@ -71,6 +77,34 @@ public final class AutoUpgrader {
     return false;
   }
 
+  /** Whether {@code latestVersion} is strictly newer than {@code currentVersion}. */
+  static boolean shouldUpgrade(String currentVersion, String latestVersion) {
+    return SemVer.parse(currentVersion).compareTo(SemVer.parse(latestVersion)) < 0;
+  }
+
+  /**
+   * Whether a downloaded artifact may be trusted: its SHA-256 matches the published checksum and it
+   * carries the expected executable magic for the platform. The {@code osName} is injected so the
+   * accept/reject decision is unit-tested.
+   */
+  public static boolean isAcceptable(byte[] binary, String expectedChecksum) {
+    return isAcceptable(binary, expectedChecksum, System.getProperty("os.name", ""));
+  }
+
+  static boolean isAcceptable(byte[] binary, String expectedChecksum, String osName) {
+    return checksumMatches(binary, expectedChecksum)
+        && PlatformDetector.isValidBinary(binary, osName);
+  }
+
+  private static boolean checksumMatches(byte[] binary, String expectedChecksum) {
+    try {
+      var actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(binary));
+      return actual.equalsIgnoreCase(expectedChecksum);
+    } catch (NoSuchAlgorithmException e) {
+      return false;
+    }
+  }
+
   private static void doUpgrade(String[] args) throws Exception {
     var cacheFile = SailPaths.updateCheckFile();
     var latestVersionStr = UpdateChecker.doCheck(cacheFile);
@@ -78,11 +112,10 @@ public final class AutoUpgrader {
       return;
     }
 
-    var current = SemVer.parse(SailVersion.version());
-    var latest = SemVer.parse(latestVersionStr);
-    if (current.compareTo(latest) >= 0) {
+    if (!shouldUpgrade(SailVersion.version(), latestVersionStr)) {
       return;
     }
+    var latest = SemVer.parse(latestVersionStr);
 
     var versionTag = "v" + latest;
     var binaryPath = SailPaths.binaryPath();
@@ -97,15 +130,8 @@ public final class AutoUpgrader {
                 + "...|@"));
 
     var binary = ReleaseFetcher.downloadBinary(versionTag);
-
     var expectedChecksum = ReleaseFetcher.fetchChecksum(versionTag);
-    var digest = MessageDigest.getInstance("SHA-256");
-    var actualChecksum = HexFormat.of().formatHex(digest.digest(binary));
-    if (!actualChecksum.equalsIgnoreCase(expectedChecksum)) {
-      return;
-    }
-
-    if (!PlatformDetector.isValidBinary(binary)) {
+    if (!isAcceptable(binary, expectedChecksum)) {
       return;
     }
 
