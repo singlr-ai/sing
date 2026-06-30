@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 /** The server loop in isolation over a fake authority: framing, the write gate, and clean EOF. */
 class SyncRpcServerTest {
 
-  private static final class FakeMain implements MainReplica {
+  private static class FakeMain implements MainReplica {
     @Override
     public String id() {
       return "main";
@@ -105,5 +105,40 @@ class SyncRpcServerTest {
   void anUnknownEntityTypeCommitIsRefused() throws Exception {
     assertInstanceOf(
         SyncWire.Failed.class, serve(true, new SyncWire.Commit("bogus", "a", Map.of(), null)));
+  }
+
+  @Test
+  void aStoreExceptionOnCommitBecomesAFailedResponseNotADroppedSession() throws Exception {
+    var throwing =
+        new FakeMain() {
+          @Override
+          public CommitOutcome commit(
+              String entityId, Map<String, Object> snapshot, String expectedRev) {
+            throw new IllegalStateException("database is locked");
+          }
+        };
+    var out = new StringWriter();
+    var request = new SyncWire.Commit("spec", "a", Map.of(), null);
+
+    new SyncRpcServer(throwing, true).serve(new StringReader(SyncWire.encode(request) + "\n"), out);
+
+    assertInstanceOf(SyncWire.Failed.class, SyncWire.decodeResponse(out.toString().strip()));
+  }
+
+  @Test
+  void aStoreExceptionOnFetchBecomesAFailedResponse() throws Exception {
+    var throwing =
+        new FakeMain() {
+          @Override
+          public Set<String> entityIds() {
+            throw new IllegalStateException("database is locked");
+          }
+        };
+    var out = new StringWriter();
+
+    new SyncRpcServer(throwing, true)
+        .serve(new StringReader(SyncWire.encode(new SyncWire.Fetch("spec")) + "\n"), out);
+
+    assertInstanceOf(SyncWire.Failed.class, SyncWire.decodeResponse(out.toString().strip()));
   }
 }

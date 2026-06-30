@@ -209,7 +209,7 @@ public final class ProjectStore implements ConflictResolver {
 
   /** Compare-and-set commit as main: accepts only if {@code expectedRev} still matches. */
   public PushOutcome commitRevision(String id, Map<String, Object> snapshot, String expectedRev) {
-    return db.transaction(
+    return db.immediateTransaction(
         () -> {
           if (!Objects.equals(latestRev(id), expectedRev)) {
             return new PushOutcome.Stale(latestRev(id), comparableSnapshot(id));

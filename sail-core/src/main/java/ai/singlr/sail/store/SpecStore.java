@@ -610,7 +610,7 @@ public final class SpecStore implements ConflictResolver {
    * pushing the same row can never both win. Used by the sync engine on the main side.
    */
   public PushOutcome commitRevision(String id, Map<String, Object> snapshot, String expectedRev) {
-    return db.transaction(
+    return db.immediateTransaction(
         () -> {
           if (!Objects.equals(latestRev(id), expectedRev)) {
             return new PushOutcome.Stale(latestRev(id), comparableSnapshot(id));

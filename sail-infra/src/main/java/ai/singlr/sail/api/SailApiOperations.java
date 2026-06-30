@@ -559,7 +559,8 @@ public final class SailApiOperations implements ApiOperations {
       var session = new AgentSession(shell);
       session.ensureDirectory(project);
       session.writeTaskFile(project, task);
-      session.writeSession(project, task, Objects.requireNonNullElse(branch, ""));
+      session.writeSession(
+          project, task, Objects.requireNonNullElse(branch, ""), spec.id(), agentType);
       var agentCli = AgentCli.fromYamlName(agentType);
       var workDir = AgentSession.launchWorkDir(config.sshUser(), targetRepos);
       var command =

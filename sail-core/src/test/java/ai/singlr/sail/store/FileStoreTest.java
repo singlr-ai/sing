@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CyclicBarrier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -224,5 +226,57 @@ class FileStoreTest {
     files.resolveConflict(id("a.txt"), null, Map.of("content", "theirs"));
 
     assertTrue(files.find("acme", "a.txt").isEmpty());
+  }
+
+  @Test
+  void concurrentCommitsAgainstTheSameBaseYieldOneWinnerAndOneCleanStale() throws Exception {
+    try (var db2 = Sqlite.open(tempDir.resolve("test.db"))) {
+      var files2 = new FileStore(db2);
+      for (var i = 0; i < 64; i++) {
+        var fid = id("race-" + i + ".txt");
+        var base = i + "-base";
+        files.applyRevision(fid, Map.of("content", "BASE"), base);
+
+        var gate = new CyclicBarrier(2);
+        var outcomes = new ConcurrentLinkedQueue<PushOutcome>();
+        var errors = new ConcurrentLinkedQueue<Throwable>();
+        var a = racer(files, fid, "A", base, gate, outcomes, errors);
+        var b = racer(files2, fid, "B", base, gate, outcomes, errors);
+        a.start();
+        b.start();
+        a.join();
+        b.join();
+
+        var iteration = i;
+        assertTrue(errors.isEmpty(), () -> "iteration " + iteration + " raced into " + errors);
+        assertEquals(
+            1,
+            outcomes.stream().filter(o -> o instanceof PushOutcome.Accepted).count(),
+            "exactly one writer wins the race");
+        assertEquals(
+            1,
+            outcomes.stream().filter(o -> o instanceof PushOutcome.Stale).count(),
+            "the loser is cleanly rejected as stale, never lost or errored");
+      }
+    }
+  }
+
+  private static Thread racer(
+      FileStore store,
+      String fid,
+      String content,
+      String base,
+      CyclicBarrier gate,
+      ConcurrentLinkedQueue<PushOutcome> outcomes,
+      ConcurrentLinkedQueue<Throwable> errors) {
+    return new Thread(
+        () -> {
+          try {
+            gate.await();
+            outcomes.add(store.commitRevision(fid, Map.of("content", content), base));
+          } catch (Throwable t) {
+            errors.add(t);
+          }
+        });
   }
 }

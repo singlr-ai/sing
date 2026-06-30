@@ -548,4 +548,68 @@ class AgentSessionTest {
 
     assertTrue(state.active());
   }
+
+  @Test
+  void queryExitStatusRecoversSpecIdFromTheSessionFileWhenTheUnitWasCollected() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk(
+                "systemctl --user show sail-agent.service",
+                """
+                ActiveState=inactive
+                ExecMainStatus=0
+                Environment=
+                """)
+            .onOk(
+                "cat /home/dev/.sail/agent-session.json",
+                """
+                {"task":"t","branch":"b","spec_id":"v1-sync-commit-integrity","agent_type":"claude-code","started_at":"2026-06-30T16:55:14Z","log_path":"/home/dev/.sail/agent.log"}
+                """);
+    var session = new AgentSession(shell);
+
+    var state = session.queryExitStatus("sail-mast");
+
+    assertFalse(state.active(), "a successfully-exited unit is collected and reads as inactive");
+    assertEquals(0, state.exitCode());
+    assertEquals(
+        "v1-sync-commit-integrity",
+        state.specId(),
+        "spec id must survive unit garbage collection via the durable session file");
+    assertEquals("claude-code", state.agentType());
+  }
+
+  @Test
+  void queryExitStatusPrefersUnitEnvironmentWhileItIsStillPresent() throws Exception {
+    var shell =
+        new ScriptedShellExecutor()
+            .onOk(
+                "systemctl --user show sail-agent.service",
+                """
+                ActiveState=active
+                ExecMainStatus=0
+                Environment=SAIL_SPEC_ID=scrum-12 SAIL_AGENT=codex
+                """);
+    var session = new AgentSession(shell);
+
+    var state = session.queryExitStatus("acme");
+
+    assertTrue(state.active());
+    assertEquals("scrum-12", state.specId());
+    assertEquals("codex", state.agentType());
+  }
+
+  @Test
+  void writeSessionPersistsSpecIdAndAgentTypeForDurableRecovery() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", ""));
+    var session = new AgentSession(shell);
+
+    session.writeSession(
+        "acme", "implement auth", "branch", "v1-sync-commit-integrity", "claude-code");
+
+    var cmd = shell.invocations().getFirst();
+    assertTrue(cmd.contains("agent-session.json"));
+    assertTrue(cmd.contains("spec_id"), "session must persist spec_id for watcher recovery");
+    assertTrue(cmd.contains("v1-sync-commit-integrity"));
+    assertTrue(cmd.contains("claude-code"));
+  }
 }
