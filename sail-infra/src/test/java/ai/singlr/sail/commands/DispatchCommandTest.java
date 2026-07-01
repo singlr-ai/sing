@@ -8,6 +8,7 @@ package ai.singlr.sail.commands;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.Sail;
@@ -315,6 +316,37 @@ class DispatchCommandTest {
         DispatchCommand.branchRepoDir("/home/dev/workspace", List.of(sing, chorus), chorus);
 
     assertEquals("/home/dev/workspace/chorus", repoDir);
+  }
+
+  @Test
+  void branchCheckoutCreatesAFreshBranchWhenItDoesNotExist() {
+    var args = DispatchCommand.branchCheckoutArgs("/w/mast", "agent/x", false, false);
+    assertEquals(List.of("git", "-C", "/w/mast", "checkout", "-b", "agent/x"), args);
+  }
+
+  @Test
+  void branchCheckoutReusesAnExistingBranchOnRestart() {
+    var args = DispatchCommand.branchCheckoutArgs("/w/mast", "agent/x", true, true);
+    assertEquals(
+        List.of("git", "-C", "/w/mast", "checkout", "agent/x"),
+        args,
+        "a restart must re-dispatch onto the existing branch, not fail trying to recreate it");
+  }
+
+  @Test
+  void branchCheckoutStillCreatesWhenRestartingWithNoPriorBranch() {
+    var args = DispatchCommand.branchCheckoutArgs("/w/mast", "agent/x", false, true);
+    assertEquals(List.of("git", "-C", "/w/mast", "checkout", "-b", "agent/x"), args);
+  }
+
+  @Test
+  void branchCheckoutFailsLoudOnACollisionForAFreshDispatch() {
+    var ex =
+        assertThrows(
+            IllegalStateException.class,
+            () -> DispatchCommand.branchCheckoutArgs("/w/mast", "agent/x", true, false));
+    assertTrue(ex.getMessage().contains("--restart"), "must point the operator at --restart");
+    assertTrue(ex.getMessage().contains("agent/x"));
   }
 
   @TempDir Path dbDir;

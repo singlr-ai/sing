@@ -227,18 +227,35 @@ public final class DispatchCommand implements Runnable {
         var repoExists =
             shell.exec(ContainerExec.asDevUser(name, List.of("test", "-d", repoDir + "/.git")));
         if (repoExists.ok()) {
+          var branchExists =
+              shell
+                  .exec(
+                      ContainerExec.asDevUser(
+                          name,
+                          List.of(
+                              "git",
+                              "-C",
+                              repoDir,
+                              "rev-parse",
+                              "--verify",
+                              "--quiet",
+                              "refs/heads/" + branchName)))
+                  .ok();
+          var args = branchCheckoutArgs(repoDir, branchName, branchExists, resolution.restarted());
           if (!json) {
+            var verb = branchExists ? "Reusing branch:" : "Creating branch:";
             System.out.println(
-                Ansi.AUTO.string(
-                    "  @|bold Creating branch:|@ " + branchName + " in " + repo.path() + "..."));
+                Ansi.AUTO.string("  @|bold " + verb + "|@ " + branchName + " in " + repo.path()));
           }
-          var branchCmd =
-              ContainerExec.asDevUser(
-                  name, List.of("git", "-C", repoDir, "checkout", "-b", branchName));
-          var result = shell.exec(branchCmd);
+          var result = shell.exec(ContainerExec.asDevUser(name, args));
           if (!result.ok()) {
             throw new IOException(
-                "Failed to create branch '" + branchName + "': " + result.stderr());
+                "Failed to "
+                    + (branchExists ? "check out" : "create")
+                    + " branch '"
+                    + branchName
+                    + "': "
+                    + result.stderr());
           }
           if (!json) {
             System.out.println(
@@ -533,6 +550,25 @@ public final class DispatchCommand implements Runnable {
 
   static String branchRepoDir(String workDir, List<SailYaml.Repo> targetRepos, SailYaml.Repo repo) {
     return targetRepos.size() == 1 ? workDir : workDir + "/" + repo.path();
+  }
+
+  /**
+   * The git checkout command for a dispatch's work branch. A fresh branch is created with {@code
+   * checkout -b}; on a restart an already-present branch is reused with a plain {@code checkout} so
+   * re-dispatch resumes onto the prior work instead of failing to recreate it. A collision on a
+   * non-restart dispatch is unexpected and fails loud, pointing the operator at {@code --restart}.
+   */
+  static List<String> branchCheckoutArgs(
+      String repoDir, String branchName, boolean branchExists, boolean restart) {
+    if (branchExists && !restart) {
+      throw new IllegalStateException(
+          "Branch '"
+              + branchName
+              + "' already exists. Pass --restart to re-dispatch onto it, or delete it first.");
+    }
+    return branchExists
+        ? List.of("git", "-C", repoDir, "checkout", branchName)
+        : List.of("git", "-C", repoDir, "checkout", "-b", branchName);
   }
 
   record DispatchPreview(String name, String specId, String specTitle, String mode, String task) {}
