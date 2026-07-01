@@ -284,7 +284,6 @@ public record SailYaml(
       Map<String, String> config,
       Guardrails guardrails,
       String specsDir,
-      SecurityAudit securityAudit,
       Notifications notifications,
       Methodology methodology,
       ReviewPipelineConfig reviewPipeline) {
@@ -297,7 +296,6 @@ public record SailYaml(
         Map<String, String> config,
         Guardrails guardrails,
         String specsDir,
-        SecurityAudit securityAudit,
         Notifications notifications,
         Methodology methodology) {
       this(
@@ -309,7 +307,6 @@ public record SailYaml(
           config,
           guardrails,
           specsDir,
-          securityAudit,
           notifications,
           methodology,
           null);
@@ -324,7 +321,6 @@ public record SailYaml(
         Map<String, String> config,
         Guardrails guardrails,
         String specsDir,
-        SecurityAudit securityAudit,
         Notifications notifications) {
       this(
           type,
@@ -335,7 +331,6 @@ public record SailYaml(
           config,
           guardrails,
           specsDir,
-          securityAudit,
           notifications,
           null,
           null);
@@ -344,7 +339,6 @@ public record SailYaml(
     @SuppressWarnings("unchecked")
     public static Agent fromMap(Map<String, Object> map) {
       var guardrailsRaw = (Map<String, Object>) map.get("guardrails");
-      var securityAuditRaw = (Map<String, Object>) map.get("security_audit");
       var notificationsRaw = (Map<String, Object>) map.get("notifications");
       var methodologyRaw = (Map<String, Object>) map.get("methodology");
       var reviewPipelineRaw = (Map<String, Object>) map.get("review_pipeline");
@@ -357,7 +351,6 @@ public record SailYaml(
           (Map<String, String>) map.get("config"),
           guardrailsRaw != null ? Guardrails.fromMap(guardrailsRaw) : null,
           validatedSpecsDir(Objects.requireNonNullElse((String) map.get("specs_dir"), "specs")),
-          securityAuditRaw != null ? SecurityAudit.fromMap(securityAuditRaw) : null,
           notificationsRaw != null ? Notifications.fromMap(notificationsRaw) : null,
           methodologyRaw != null ? Methodology.fromMap(methodologyRaw) : null,
           reviewPipelineRaw != null ? ReviewPipelineConfig.fromMap(reviewPipelineRaw) : null);
@@ -373,7 +366,6 @@ public record SailYaml(
       if (config != null) map.put("config", new LinkedHashMap<>(config));
       if (guardrails != null) map.put("guardrails", guardrails.toMap());
       map.put("specs_dir", Objects.requireNonNullElse(specsDir, "specs"));
-      if (securityAudit != null) map.put("security_audit", securityAudit.toMap());
       if (notifications != null) map.put("notifications", notifications.toMap());
       if (methodology != null) map.put("methodology", methodology.toMap());
       if (reviewPipeline != null)
@@ -532,7 +524,6 @@ public record SailYaml(
             agent.config(),
             agent.guardrails(),
             agent.specsDir(),
-            agent.securityAudit(),
             agent.notifications(),
             agent.methodology());
     return new SailYaml(
