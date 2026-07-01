@@ -26,4 +26,16 @@ class AgentLogCommandTest {
   void humanOutputRendersStreamJsonToReadableText() {
     assertEquals("Reading.", AgentLogCommand.renderForLog(STREAM_EVENT, false));
   }
+
+  @Test
+  void reviewFlagSelectsTheReviewLogOtherwiseTheBuildLog() {
+    assertEquals(
+        "/home/dev/.sail/agent.log",
+        AgentLogCommand.logPathFor(false),
+        "default follows the coder's build log");
+    assertEquals(
+        "/home/dev/.sail/review.log",
+        AgentLogCommand.logPathFor(true),
+        "--review follows the reviewer/fix negotiation log");
+  }
 }

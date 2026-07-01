@@ -7,7 +7,7 @@ package ai.singlr.sail.commands;
 
 import ai.singlr.sail.config.YamlUtil;
 import ai.singlr.sail.engine.AgentLogRenderer;
-import ai.singlr.sail.engine.AgentSession;
+import ai.singlr.sail.engine.AgentUnit;
 import ai.singlr.sail.engine.ContainerExec;
 import ai.singlr.sail.engine.ContainerManager;
 import ai.singlr.sail.engine.ContainerStateGuard;
@@ -45,6 +45,11 @@ public final class AgentLogCommand implements Runnable {
   @Option(names = "--tail", description = "Number of lines to show.", defaultValue = "50")
   private int tail;
 
+  @Option(
+      names = "--review",
+      description = "Show the review/fix negotiation log instead of the build log.")
+  private boolean review;
+
   @Option(names = "--json", description = "Output in JSON format.")
   private boolean json;
 
@@ -63,7 +68,7 @@ public final class AgentLogCommand implements Runnable {
     var state = mgr.queryState(name);
     ContainerStateGuard.requireRunning(state, name);
 
-    var logPath = AgentSession.logPath();
+    var logPath = logPathFor(review);
 
     if (follow) {
       var tailCmd = ContainerExec.asDevUser(name, List.of("tail", "-f", logPath));
@@ -118,6 +123,14 @@ public final class AgentLogCommand implements Runnable {
 
       System.out.print(renderLines(result.stdout()));
     }
+  }
+
+  /**
+   * The log to tail: the reviewer/fix negotiation ({@code review.log}) with {@code --review}, else
+   * the coder's build log ({@code agent.log}).
+   */
+  static String logPathFor(boolean review) {
+    return (review ? AgentUnit.REVIEW : AgentUnit.BUILD).logPath();
   }
 
   /**
