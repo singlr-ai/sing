@@ -24,7 +24,6 @@ public final class AgentAuditFiles {
     var excludeAgents = resolveSecurityAuditorExclude(config);
     var files = new ArrayList<GeneratedFile>();
     files.addAll(SecurityAuditGenerator.generateFiles(config));
-    files.addAll(CodeReviewGenerator.generateFiles(config, excludeAgents));
     files.addAll(PostTaskHooksGenerator.generateFiles(config, excludeAgents));
     return files;
   }

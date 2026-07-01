@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import ai.singlr.sail.config.CodeReview;
 import ai.singlr.sail.config.SailYaml;
 import ai.singlr.sail.config.SecurityAudit;
 import java.util.List;
@@ -108,73 +107,13 @@ class PostTaskHooksGeneratorTest {
   }
 
   @Test
-  void singleCodeReviewProducesDirectHook() {
-    var review = new CodeReview(true, "codex");
-    var agent =
-        new SailYaml.Agent(
-            "claude-code",
-            true,
-            "sail/",
-            true,
-            List.of("codex"),
-            null,
-            null,
-            null,
-            null,
-            review,
-            null);
-    var config = minimalConfig(agent);
-
-    var files = PostTaskHooksGenerator.generateFiles(config, Set.of());
-
-    assertEquals(1, files.size());
-    assertTrue(files.getFirst().content().contains("code-review.sh"));
-  }
-
-  @Test
-  void bothAuditsProduceOrchestratorPlusHook() {
-    var audit = new SecurityAudit(true, "codex");
-    var review = new CodeReview(true, "codex");
-    var agent =
-        new SailYaml.Agent(
-            "claude-code",
-            true,
-            "sail/",
-            true,
-            List.of("codex"),
-            null,
-            null,
-            null,
-            audit,
-            review,
-            null);
-    var config = minimalConfig(agent);
-
-    var files = PostTaskHooksGenerator.generateFiles(config, Set.of("codex"));
-
-    assertEquals(2, files.size());
-
-    var orchestrator = files.get(0);
-    assertTrue(orchestrator.remotePath().endsWith("post-task.sh"));
-    assertTrue(orchestrator.executable());
-    assertTrue(orchestrator.content().contains("security-audit.sh"));
-    assertTrue(orchestrator.content().contains("code-review.sh"));
-    assertTrue(orchestrator.content().contains("PIDS"));
-
-    var hooks = files.get(1);
-    assertTrue(hooks.remotePath().endsWith("settings.json"));
-    assertFalse(hooks.executable());
-    assertTrue(hooks.content().contains("post-task.sh"));
-  }
-
-  @Test
   void orchestratorScriptRunsScriptsInParallel() {
     var script =
         PostTaskHooksGenerator.generateOrchestratorScript(
-            List.of("/home/dev/.sail/security-audit.sh", "/home/dev/.sail/code-review.sh"));
+            List.of("/home/dev/.sail/security-audit.sh", "/home/dev/.sail/extra-check.sh"));
 
     assertTrue(script.contains("/home/dev/.sail/security-audit.sh &"));
-    assertTrue(script.contains("/home/dev/.sail/code-review.sh &"));
+    assertTrue(script.contains("/home/dev/.sail/extra-check.sh &"));
     assertTrue(script.contains("PIDS+=($!)"));
     assertTrue(script.contains("wait \"$pid\""));
     assertTrue(script.contains("exit $((FAILED > 0 ? 2 : 0))"));
@@ -262,26 +201,14 @@ class PostTaskHooksGeneratorTest {
   @Test
   void disabledSecurityAuditNotCollected() {
     var audit = new SecurityAudit(false, "codex");
-    var review = new CodeReview(true, "codex");
     var agent =
         new SailYaml.Agent(
-            "claude-code",
-            true,
-            "sail/",
-            true,
-            List.of("codex"),
-            null,
-            null,
-            null,
-            audit,
-            review,
-            null);
+            "claude-code", true, "sail/", true, List.of("codex"), null, null, null, audit, null);
     var config = minimalConfig(agent);
 
     var files = PostTaskHooksGenerator.generateFiles(config, Set.of());
 
-    assertEquals(1, files.size());
-    assertTrue(files.getFirst().content().contains("code-review.sh"));
+    assertTrue(files.isEmpty(), "a disabled audit generates no post-task hooks");
   }
 
   private static SailYaml minimalConfig(SailYaml.Agent agent) {

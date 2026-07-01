@@ -253,13 +253,6 @@ public final class SailYamlGenerator {
         sb.append("    auditor: ").append(agent.securityAudit().auditor()).append("\n");
       }
     }
-    if (agent.codeReview() != null) {
-      sb.append("  code_review:\n");
-      sb.append("    enabled: ").append(agent.codeReview().enabled()).append("\n");
-      if (agent.codeReview().auditor() != null) {
-        sb.append("    auditor: ").append(agent.codeReview().auditor()).append("\n");
-      }
-    }
     if (agent.methodology() != null) {
       sb.append("  methodology:\n");
       var m = agent.methodology();

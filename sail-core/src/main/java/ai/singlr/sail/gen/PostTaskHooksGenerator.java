@@ -77,17 +77,6 @@ public final class PostTaskHooksGenerator {
       }
     }
 
-    if (config.agent().codeReview() != null && config.agent().codeReview().enabled()) {
-      var reviewerName =
-          config
-              .agent()
-              .codeReview()
-              .resolveAuditor(config.agent().type(), config.agent().install(), excludeAgents);
-      if (reviewerName != null) {
-        paths.add("/home/" + sshUser + "/.sail/code-review.sh");
-      }
-    }
-
     return paths;
   }
 
