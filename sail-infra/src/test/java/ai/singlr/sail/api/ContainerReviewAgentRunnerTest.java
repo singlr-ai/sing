@@ -36,8 +36,7 @@ class ContainerReviewAgentRunnerTest {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\nEnvironment=\n")
-            .onOk(
-                "cat /home/dev/.sail/review.log", "{\"type\":\"result\",\"result\":\"FINDINGS\"}");
+            .onOk("tail -c", "{\"type\":\"result\",\"result\":\"FINDINGS\"}");
 
     var out = runner(shell, clockOf(T0)).run("acme", "codex", "review please");
 
@@ -45,11 +44,27 @@ class ContainerReviewAgentRunnerTest {
   }
 
   @Test
+  void readsOnlyTheCurrentRunsBytesPastThePriorNegotiation() throws Exception {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("stat -c", "500")
+            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
+            .onOk("tail -c +501", "{\"type\":\"result\",\"result\":\"CURRENT\"}");
+
+    var out = runner(shell, clockOf(T0)).run("acme", "codex", "re-review");
+
+    assertEquals(
+        "CURRENT",
+        out,
+        "reads from the byte after the accumulated negotiation, not the whole appended log");
+  }
+
+  @Test
   void launchesUnderTheSharedReviewUnitStreamingToReviewLog() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
-            .onOk("cat /home/dev/.sail/review.log", "{\"type\":\"result\",\"result\":\"x\"}");
+            .onOk("tail -c", "{\"type\":\"result\",\"result\":\"x\"}");
 
     runner(shell, clockOf(T0)).run("acme", "claude-code", "p");
 
@@ -121,7 +136,7 @@ class ContainerReviewAgentRunnerTest {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
-            .onFail("cat /home/dev/.sail/review.log", "gone");
+            .onFail("tail -c", "gone");
 
     assertEquals("", runner(shell, clockOf(T0)).run("acme", "codex", "p"));
   }

@@ -81,6 +81,8 @@ final class ContainerReviewAgentRunner implements ReviewAgentRunner {
     session.writeTaskFile(project, prompt, AgentUnit.REVIEW);
     session.writeSession(project, prompt, "", "", agent, AgentUnit.REVIEW);
 
+    var startOffset = logSize(project);
+
     var launch =
         AgentSession.buildBackgroundLaunchCommand(
             project, "dev", WORKSPACE, true, cli, null, null, "", agent, AgentUnit.REVIEW);
@@ -95,10 +97,10 @@ final class ContainerReviewAgentRunner implements ReviewAgentRunner {
               + launched.stderr());
     }
 
-    return awaitFindings(project, agent);
+    return awaitFindings(project, agent, startOffset);
   }
 
-  private String awaitFindings(String project, String agent) throws Exception {
+  private String awaitFindings(String project, String agent, long startOffset) throws Exception {
     var startedAt = clock.get();
     var lastProgressAt = startedAt;
     var lastSize = -1L;
@@ -109,7 +111,7 @@ final class ContainerReviewAgentRunner implements ReviewAgentRunner {
           throw new IllegalStateException(
               "Review agent '" + agent + "' exited " + exit.exitCode() + " in '" + project + "'");
         }
-        return StreamJsonResult.extract(readLog(project));
+        return StreamJsonResult.extract(readLogSince(project, startOffset));
       }
 
       var now = clock.get();
@@ -142,9 +144,18 @@ final class ContainerReviewAgentRunner implements ReviewAgentRunner {
     return null;
   }
 
-  private String readLog(String project) throws Exception {
+  /**
+   * The current run's output only: the bytes appended to review.log since {@code startOffset}. The
+   * shared log accumulates the whole attempt's negotiation, so reading from the offset is what
+   * keeps this run's findings from being mistaken for a prior iteration's (which would stall the
+   * loop for a plain, non-stream-json agent whose output carries no per-run delimiter).
+   */
+  private String readLogSince(String project, long startOffset) throws Exception {
     var result =
-        shell.exec(ContainerExec.asDevUser(project, List.of("cat", AgentUnit.REVIEW.logPath())));
+        shell.exec(
+            ContainerExec.asDevUser(
+                project,
+                List.of("tail", "-c", "+" + (startOffset + 1), AgentUnit.REVIEW.logPath())));
     return result.ok() ? result.stdout() : "";
   }
 

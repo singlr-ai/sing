@@ -184,7 +184,7 @@ class ReviewAgentLoopTest {
       if (joined.contains("--property=ActiveState")) {
         return new Result(0, "ActiveState=inactive\nExecMainStatus=0\nEnvironment=\n", "");
       }
-      if (joined.contains("cat /home/dev/.sail/review.log")) {
+      if (joined.contains("tail -c")) {
         if (lastPrompt.contains("Output your findings")) {
           var i = reviewCall++;
           return new Result(0, i < reviewOutputs.size() ? reviewOutputs.get(i) : "[]", "");
