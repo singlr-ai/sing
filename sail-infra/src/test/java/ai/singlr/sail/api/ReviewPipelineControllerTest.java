@@ -332,6 +332,51 @@ class ReviewPipelineControllerTest {
   }
 
   @Test
+  void aRunnerErrorIsRecordedOnTheReviewAndNeverMistakenForAVerdict() {
+    createSpec("auth", "in_progress");
+    var ctrl =
+        controller(
+            singleAgentStage("no_critical"),
+            (p, a, pr) -> {
+              throw new IllegalStateException("Quota exceeded");
+            });
+
+    ctrl.onEvent(agentStoppedEvent("auth"));
+
+    var review = reviewStore.latestReviewForSpec("auth").orElseThrow();
+    assertEquals("failed", review.status());
+    assertEquals("Quota exceeded", review.error(), "why it failed is durable, not journal-only");
+    var stage = reviewStore.stagesForReview(review.id()).getFirst();
+    assertEquals("Quota exceeded", stage.error());
+  }
+
+  @Test
+  void erroredIterationsAreRetriedNotBurnedAgainstMaxIterations() {
+    createSpec("auth", "in_progress");
+    var broken =
+        controller(
+            singleAgentStage("no_critical"),
+            (p, a, pr) -> {
+              throw new IllegalStateException("Quota exceeded");
+            });
+    broken.onEvent(agentStoppedEvent("auth"));
+    assertEquals(1, reviewStore.latestReviewForSpec("auth").orElseThrow().iteration());
+
+    specStore.updateStatus("auth", SpecStatus.IN_PROGRESS);
+    var healthy = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
+    healthy.onEvent(agentStoppedEvent("auth"));
+
+    var review = reviewStore.latestReviewForSpec("auth").orElseThrow();
+    assertEquals(
+        1,
+        review.iteration(),
+        "an infrastructure error must not consume a review iteration — the retry runs as the"
+            + " same iteration, so quota outages can never exhaust max_iterations");
+    assertEquals("passed", review.status());
+    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+  }
+
+  @Test
   void aCriticalFindingThatIsNeverFixedEscalates() {
     createSpec("auth", "in_progress");
     var agentOutput =

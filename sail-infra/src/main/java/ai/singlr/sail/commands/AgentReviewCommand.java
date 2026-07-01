@@ -135,6 +135,11 @@ public final class AgentReviewCommand implements Runnable {
       for (var stage : stagesOf(review)) {
         var reviewer = Objects.toString(stage.get("reviewer"), "-");
         var count = Objects.toString(stage.get("finding_count"), "0");
+        var error = stage.get("error");
+        var tail =
+            error != null
+                ? " @|red error:|@ " + firstLine(Objects.toString(error, ""))
+                : ", " + count + " finding(s)";
         lines.add(
             "      "
                 + stage.get("name")
@@ -142,9 +147,7 @@ public final class AgentReviewCommand implements Runnable {
                 + reviewer
                 + "] — "
                 + statusMarkup(Objects.toString(stage.get("status"), ""))
-                + ", "
-                + count
-                + " finding(s)");
+                + tail);
       }
     }
     return lines;
@@ -162,6 +165,11 @@ public final class AgentReviewCommand implements Runnable {
         + finding.get("line_start")
         + " "
         + finding.get("title");
+  }
+
+  private static String firstLine(String text) {
+    var newline = text.indexOf('\n');
+    return newline < 0 ? text : text.substring(0, newline);
   }
 
   @SuppressWarnings("unchecked")

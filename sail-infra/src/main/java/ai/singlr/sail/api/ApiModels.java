@@ -697,6 +697,7 @@ record ReviewView(
     String completedAt,
     String decidedBy,
     String supersededAt,
+    String error,
     List<StageView> stages)
     implements Mappable {
   static ReviewView from(ReviewStore.ReviewRow row, List<StageView> stages) {
@@ -709,6 +710,7 @@ record ReviewView(
         row.completedAt(),
         row.decidedBy(),
         row.supersededAt(),
+        row.error(),
         stages);
   }
 
@@ -723,6 +725,7 @@ record ReviewView(
     if (completedAt != null) m.put("completed_at", completedAt);
     if (decidedBy != null) m.put("decided_by", decidedBy);
     if (supersededAt != null) m.put("superseded_at", supersededAt);
+    if (error != null) m.put("error", error);
     m.put("stages", stages);
     return m;
   }
@@ -736,7 +739,8 @@ record StageView(
     String reviewer,
     String startedAt,
     String completedAt,
-    int findingCount)
+    int findingCount,
+    String error)
     implements Mappable {
   static StageView from(ReviewStore.StageRow row, int findingCount) {
     return new StageView(
@@ -747,7 +751,8 @@ record StageView(
         row.reviewer(),
         row.startedAt(),
         row.completedAt(),
-        findingCount);
+        findingCount,
+        row.error());
   }
 
   @Override
@@ -761,6 +766,7 @@ record StageView(
     if (startedAt != null) m.put("started_at", startedAt);
     if (completedAt != null) m.put("completed_at", completedAt);
     m.put("finding_count", findingCount);
+    if (error != null) m.put("error", error);
     return m;
   }
 }
