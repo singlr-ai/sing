@@ -208,6 +208,29 @@ class AgentSessionTest {
   }
 
   @Test
+  void buildBackgroundLaunchCommandUnderReviewUnitIsIsolatedFromBuild() {
+    var cmd =
+        AgentSession.buildBackgroundLaunchCommand(
+            "acme",
+            "dev",
+            "/home/dev/workspace",
+            false,
+            AgentCli.CLAUDE_CODE,
+            null,
+            null,
+            "",
+            "",
+            AgentUnit.REVIEW);
+
+    var joined = String.join(" ", cmd);
+    assertTrue(joined.contains("--unit sail-review"), "review runs under its own systemd unit");
+    assertTrue(joined.contains("review.log"), "review streams to its own log, not agent.log");
+    assertTrue(joined.contains("review.pid"));
+    assertFalse(joined.contains("sail-agent"), "must not touch the build unit");
+    assertFalse(joined.contains("/agent.log"), "must not clobber the build log");
+  }
+
+  @Test
   void buildBackgroundLaunchCommandStreamsClaudeOutput() {
     var cmd =
         AgentSession.buildBackgroundLaunchCommand(
