@@ -6,104 +6,87 @@
 package ai.singlr.sail.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.singlr.sail.engine.AgentSession;
+import ai.singlr.sail.engine.ScriptedShellExecutor;
 import ai.singlr.sail.engine.ShellExec;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 class ContainerReviewAgentRunnerTest {
 
-  @Test
-  void runsTheAgentCleanInTheWorkspaceAndReturnsStdout() throws Exception {
-    var shell =
-        new RecordingShell()
-            .script("file push", new ShellExec.Result(0, "", ""))
-            .script("claude --print", new ShellExec.Result(0, "[]", ""));
+  private static final Instant T0 = Instant.parse("2026-01-01T00:00:00Z");
 
-    var output = new ContainerReviewAgentRunner(shell).run("acme", "claude-code", "Review it");
+  private static Supplier<Instant> clockOf(Instant... times) {
+    var q = new ArrayDeque<>(List.of(times));
+    return () -> q.size() > 1 ? q.poll() : q.peek();
+  }
 
-    assertEquals("[]", output);
-    var pushCommand =
-        shell.commands().stream()
-            .filter(c -> c.contains("file push") && c.contains("review-prompt.txt"))
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    new AssertionError("the prompt must be staged to a file, not on the cmd line"));
-    assertTrue(
-        pushCommand.contains("--uid 1000") && pushCommand.contains("--gid 1000"),
-        "the prompt must be owned by the dev user so the reviewer can read it: " + pushCommand);
-    var agentCommand = shell.commandContaining("claude --print");
-    assertFalse(agentCommand.contains("--settings"), "reviewer must not load the sail hooks");
-    assertFalse(agentCommand.contains("SAIL_SPEC_ID"), "reviewer must run without a spec id");
-    assertTrue(agentCommand.contains("cd /home/dev/workspace"));
-    assertTrue(
-        shell.lastTimeout.toMinutes() >= 5,
-        "the agent must run under a generous timeout, not the 2-minute shell default");
+  private static ContainerReviewAgentRunner runner(ShellExec shell, Supplier<Instant> clock) {
+    return new ContainerReviewAgentRunner(shell, new AgentSession(shell), clock, millis -> {}, 0);
   }
 
   @Test
-  void throwsWhenTheReviewAgentFails() {
+  void returnsFindingsFromTheStreamedResultWhenTheReviewerExitsCleanly() throws Exception {
     var shell =
-        new RecordingShell()
-            .script("file push", new ShellExec.Result(0, "", ""))
-            .script("codex exec", new ShellExec.Result(1, "", "boom"));
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\nEnvironment=\n")
+            .onOk(
+                "cat /home/dev/.sail/review.log", "{\"type\":\"result\",\"result\":\"FINDINGS\"}");
+
+    var out = runner(shell, clockOf(T0)).run("acme", "codex", "review please");
+
+    assertEquals("FINDINGS", out, "findings come from the terminal stream-json result event");
+  }
+
+  @Test
+  void launchesUnderTheSharedReviewUnitStreamingToReviewLog() throws Exception {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
+            .onOk("cat /home/dev/.sail/review.log", "{\"type\":\"result\",\"result\":\"x\"}");
+
+    runner(shell, clockOf(T0)).run("acme", "claude-code", "p");
+
+    var joined = String.join(" | ", shell.invocations());
+    assertTrue(joined.contains("--unit sail-review"), "must launch on the shared REVIEW unit");
+    assertTrue(joined.contains("review.log"), "must stream to review.log, not agent.log");
+    assertTrue(joined.contains("stream-json"), "the reviewer streams so its log fills live");
+    assertTrue(
+        joined.contains("review-prompt.txt"),
+        "the prompt is staged to the review unit's task file");
+  }
+
+  @Test
+  void throwsWhenTheReviewerExitsNonZero() {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("property=ActiveState", "ActiveState=failed\nExecMainStatus=2\n");
 
     var ex =
-        assertThrows(
-            IllegalStateException.class,
-            () -> new ContainerReviewAgentRunner(shell).run("acme", "codex", "Review it"));
-    assertTrue(ex.getMessage().contains("boom"));
+        assertThrows(Exception.class, () -> runner(shell, clockOf(T0)).run("acme", "codex", "p"));
+    assertTrue(ex.getMessage().contains("exited 2"), ex.getMessage());
   }
 
-  private static final class RecordingShell implements ShellExec {
-    private final List<String> commands = new ArrayList<>();
-    private final Map<String, Result> scripts = new LinkedHashMap<>();
+  @Test
+  void killsAndFailsWhenTheReviewerStallsPastMaxIdle() {
+    var shell =
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
+            .onOk("property=ActiveState", "ActiveState=active\nExecMainStatus=0\n")
+            .onOk("wc -c /home/dev/.sail/review.log", "100 /home/dev/.sail/review.log")
+            .onOk("cat /home/dev/.sail/review.pid", "9999");
 
-    RecordingShell script(String substring, Result result) {
-      scripts.put(substring, result);
-      return this;
-    }
+    var clock = clockOf(T0, T0, T0.plusSeconds(11 * 60));
 
-    List<String> commands() {
-      return commands;
-    }
-
-    String commandContaining(String substring) {
-      return commands.stream().filter(c -> c.contains(substring)).findFirst().orElseThrow();
-    }
-
-    @Override
-    public Result exec(List<String> command) {
-      var joined = String.join(" ", command);
-      commands.add(joined);
-      for (var entry : scripts.entrySet()) {
-        if (joined.contains(entry.getKey())) {
-          return entry.getValue();
-        }
-      }
-      return new Result(1, "", "no script for " + joined);
-    }
-
-    private Duration lastTimeout;
-
-    @Override
-    public Result exec(List<String> command, Path workDir, Duration timeout) {
-      lastTimeout = timeout;
-      return exec(command);
-    }
-
-    @Override
-    public boolean isDryRun() {
-      return false;
-    }
+    var ex = assertThrows(Exception.class, () -> runner(shell, clock).run("acme", "codex", "p"));
+    assertTrue(ex.getMessage().toLowerCase().contains("no progress"), ex.getMessage());
+    assertTrue(
+        shell.invocations().stream().anyMatch(c -> c.contains("kill")),
+        "a stalled reviewer must be killed, not left running");
   }
 }
