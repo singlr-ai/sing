@@ -19,30 +19,26 @@ package ai.singlr.sail.engine;
  * AgentSession} and the watcher read them from here rather than hardcoding their own copies.
  */
 public record AgentUnit(
-    String unitName,
-    String logPath,
-    String pidPath,
-    String sessionPath,
-    String taskPath,
-    boolean appendsLog) {
+    String unitName, String logPath, String pidPath, String sessionPath, String taskPath) {
 
   private static final String DIR = "/home/dev/.sail";
 
-  /** The dispatched build. Truncates its log so each dispatch starts with a fresh transcript. */
+  /**
+   * The dispatched build: launched as a detached systemd unit and streamed to {@code agent.log}.
+   */
   public static final AgentUnit BUILD =
       new AgentUnit(
           "sail-agent",
           DIR + "/agent.log",
           DIR + "/agent.pid",
           DIR + "/agent-session.json",
-          DIR + "/agent-task.txt",
-          false);
+          DIR + "/agent-task.txt");
 
   /**
-   * The read-only reviewer and the fix agent, which share this unit's log. It <em>appends</em> so
-   * every reviewer↔fix turn within one dispatch attempt lands in a single {@code review.log}; the
-   * attempt boundary resets it (the dispatch clears it before the build), keeping the whole
-   * negotiation in one file without growing across attempts.
+   * The read-only reviewer and the fix agent. They share {@code review.log}, which the runner
+   * appends so a dispatch attempt's whole reviewer↔fix negotiation lands in one live-followable
+   * file (the attempt boundary resets it via {@link AgentSession#resetLog}). Review runs as a
+   * blocking foreground exec, not a systemd unit, so only its task file and log are used here.
    */
   public static final AgentUnit REVIEW =
       new AgentUnit(
@@ -50,8 +46,7 @@ public record AgentUnit(
           DIR + "/review.log",
           DIR + "/review.pid",
           DIR + "/review-session.json",
-          DIR + "/review-prompt.txt",
-          true);
+          DIR + "/review-prompt.txt");
 
   /** The systemd unit name with the {@code .service} suffix, as {@code systemctl} expects it. */
   public String service() {

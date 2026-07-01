@@ -279,50 +279,19 @@ public final class AgentSession {
       String reasoningEffort,
       String specId,
       String agentType) {
-    return buildBackgroundLaunchCommand(
-        containerName,
-        sshUser,
-        workDir,
-        fullPermissions,
-        agentCli,
-        model,
-        reasoningEffort,
-        specId,
-        agentType,
-        AgentUnit.BUILD);
-  }
-
-  /**
-   * Same as the 9-arg overload but launches under the given {@link AgentUnit}, so the reviewer and
-   * fix agent get their own systemd unit and streamed log instead of clobbering the build's. The
-   * unit name is interpolated (a trusted constant, never user input) rather than passed as a
-   * positional argument, so the {@code printf "%s"} in the launch script stays literal.
-   */
-  public static List<String> buildBackgroundLaunchCommand(
-      String containerName,
-      String sshUser,
-      String workDir,
-      boolean fullPermissions,
-      AgentCli agentCli,
-      String model,
-      String reasoningEffort,
-      String specId,
-      String agentType,
-      AgentUnit unit) {
     var cli = Objects.requireNonNullElse(agentCli, AgentCli.CLAUDE_CODE);
     var settingsPath = cli == AgentCli.CLAUDE_CODE ? ClaudeCodeHookConfig.SETTINGS_PATH : null;
     var agentCmd =
-        cli.headlessCommand(
-            unit.taskPath(), fullPermissions, model, reasoningEffort, settingsPath, true);
+        cli.headlessCommand(TASK_FILE, fullPermissions, model, reasoningEffort, settingsPath, true);
     var effectiveSpec = Objects.requireNonNullElse(specId, "");
     var effectiveAgent = agentType == null || agentType.isBlank() ? cli.yamlName() : agentType;
     var script =
         """
         mkdir -p "$1"
         rm -f "$5"
-        @RESET@
+        : > "$4"
         systemctl --user reset-failed @SERVICE@ >/dev/null 2>&1 || true
-        systemd-run --user --setenv "SAIL_SPEC_ID=$6" --setenv "SAIL_AGENT=$7" --unit @UNIT@ bash -lc 'printf "%s\\n" "$$" > "$4"; cd "$1" && exec bash -l -c "$2" @REDIR@ "$3" 2>&1' bash "$2" "$3" "$4" "$5"
+        systemd-run --user --setenv "SAIL_SPEC_ID=$6" --setenv "SAIL_AGENT=$7" --unit @UNIT@ bash -lc 'printf "%s\\n" "$$" > "$4"; cd "$1" && exec bash -l -c "$2" > "$3" 2>&1' bash "$2" "$3" "$4" "$5"
         for i in $(seq 1 25); do
           test -s "$5" && exit 0
           pid="$(systemctl --user show @SERVICE@ --property=MainPID --value 2>/dev/null || true)"
@@ -335,10 +304,8 @@ public final class AgentSession {
         systemctl --user status @SERVICE@ --no-pager || true
         exit 1
         """
-            .replace("@SERVICE@", unit.service())
-            .replace("@UNIT@", unit.unitName())
-            .replace("@RESET@", unit.appendsLog() ? "true" : ": > \"$4\"")
-            .replace("@REDIR@", unit.appendsLog() ? ">>" : ">");
+            .replace("@SERVICE@", AgentUnit.BUILD.service())
+            .replace("@UNIT@", AgentUnit.BUILD.unitName());
     return ContainerExec.asDevUser(
         containerName,
         List.of(
@@ -349,8 +316,8 @@ public final class AgentSession {
             SAIL_DIR,
             workDir,
             agentCmd,
-            unit.logPath(),
-            unit.pidPath(),
+            AgentUnit.BUILD.logPath(),
+            AgentUnit.BUILD.pidPath(),
             effectiveSpec,
             effectiveAgent));
   }
