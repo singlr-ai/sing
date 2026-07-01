@@ -86,6 +86,20 @@ public final class ReviewStore {
         reviewId);
   }
 
+  /**
+   * Marks every {@code running} review {@code failed}, returning how many were swept. A review's
+   * execution lives only in the controller's memory, so after a server restart a {@code running}
+   * row is an orphan of an interrupted run; left in place it silently blocks every future review
+   * for its spec (the pipeline skips a spec whose latest review is running). Called once at server
+   * start, before missed stops are replayed.
+   */
+  public int failOrphanedRunning() {
+    db.execute(
+        "UPDATE reviews SET status = 'failed', completed_at = ? WHERE status = 'running'",
+        DateTimeUtils.now().toString());
+    return db.changes();
+  }
+
   public void updateReviewStatus(String reviewId, String status) {
     var completedAt =
         "passed".equals(status) || "failed".equals(status) || "escalated".equals(status)

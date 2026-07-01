@@ -164,10 +164,19 @@ public final class ServerStartCommand implements Runnable {
     var operations =
         new SailApiOperations(
             new ShellExecutor(false), SailPaths.PROJECT_DESCRIPTOR, bus, persister, specStore);
+    var reviewStore = new ReviewStore(db);
+    var orphaned = reviewStore.failOrphanedRunning();
+    if (orphaned > 0) {
+      System.out.println(
+          Ansi.AUTO.string(
+              "  @|yellow ⚠|@ Failed "
+                  + orphaned
+                  + " review(s) interrupted by a restart (they were blocking their specs)"));
+    }
     var reviewController =
         ReviewWiring.controller(
             specStore,
-            new ReviewStore(db),
+            reviewStore,
             bus,
             ServerStartCommand::loadProjectYaml,
             new ShellExecutor(false));
