@@ -366,6 +366,26 @@ class ReviewStoreTest {
   }
 
   @Test
+  void anErroredReviewRecordsWhyAndIsDistinguishableFromAVerdict() {
+    var review = store.createReview("auth", 1);
+    var stage = store.createStage(review, "security", "agent");
+
+    store.completeStage(stage, "failed", "Quota exceeded");
+    store.failReviewWithError(review, "Quota exceeded");
+
+    var reviewRow = store.findReview(review).orElseThrow();
+    assertEquals("failed", reviewRow.status());
+    assertTrue(reviewRow.errored());
+    assertEquals("Quota exceeded", reviewRow.error());
+    assertEquals("Quota exceeded", store.findStage(stage).orElseThrow().error());
+    var gateFailed = store.createReview("auth", 2);
+    store.updateReviewStatus(gateFailed, "failed");
+    assertTrue(
+        !store.findReview(gateFailed).orElseThrow().errored(),
+        "a gate failure carries no error; only infrastructure failures do");
+  }
+
+  @Test
   void supersedeForSpecClosesPriorAttemptsSoIterationsRestartOnRedispatch() {
     var first = store.createReview("auth", 2);
     store.updateReviewStatus(first, "escalated");

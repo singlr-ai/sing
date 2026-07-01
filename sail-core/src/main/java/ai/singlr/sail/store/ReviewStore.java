@@ -34,10 +34,15 @@ public final class ReviewStore {
       String createdAt,
       String completedAt,
       String decidedBy,
-      String supersededAt) {
+      String supersededAt,
+      String error) {
 
     public boolean superseded() {
       return supersededAt != null;
+    }
+
+    public boolean errored() {
+      return error != null;
     }
   }
 
@@ -49,7 +54,8 @@ public final class ReviewStore {
       String status,
       String reviewer,
       String startedAt,
-      String completedAt) {}
+      String completedAt,
+      String error) {}
 
   public String createReview(String specId, int iteration) {
     var id = DateTimeUtils.newId().toString();
@@ -65,7 +71,7 @@ public final class ReviewStore {
   public Optional<ReviewRow> findReview(String reviewId) {
     return db.queryOne(
         "SELECT id, spec_id, iteration, status, created_at, completed_at, decided_by,"
-            + " superseded_at FROM reviews WHERE id = ?",
+            + " superseded_at, error FROM reviews WHERE id = ?",
         this::mapReview,
         reviewId);
   }
@@ -80,7 +86,7 @@ public final class ReviewStore {
     return db.queryOne(
         """
         SELECT id, spec_id, iteration, status, created_at, completed_at, decided_by,
-          superseded_at
+          superseded_at, error
         FROM reviews WHERE spec_id = ? AND superseded_at IS NULL
         ORDER BY created_at DESC, rowid DESC LIMIT 1""",
         this::mapReview,
@@ -92,7 +98,7 @@ public final class ReviewStore {
     return db.query(
         """
         SELECT id, spec_id, iteration, status, created_at, completed_at, decided_by,
-          superseded_at
+          superseded_at, error
         FROM reviews WHERE spec_id = ? ORDER BY created_at ASC, rowid ASC""",
         this::mapReview,
         specId);
@@ -136,6 +142,18 @@ public final class ReviewStore {
     return db.changes();
   }
 
+  /**
+   * Marks the review failed by infrastructure error, not verdict; retried without burning an
+   * iteration.
+   */
+  public void failReviewWithError(String reviewId, String error) {
+    db.execute(
+        "UPDATE reviews SET status = 'failed', error = ?, completed_at = ? WHERE id = ?",
+        error,
+        DateTimeUtils.now().toString(),
+        reviewId);
+  }
+
   public void updateReviewStatus(String reviewId, String status) {
     var completedAt =
         "passed".equals(status) || "failed".equals(status) || "escalated".equals(status)
@@ -162,7 +180,7 @@ public final class ReviewStore {
   public Optional<StageRow> findStage(String stageId) {
     return db.queryOne(
         """
-        SELECT id, review_id, name, stage_type, status, reviewer, started_at, completed_at
+        SELECT id, review_id, name, stage_type, status, reviewer, started_at, completed_at, error
         FROM review_stages WHERE id = ?""",
         this::mapStage,
         stageId);
@@ -171,7 +189,7 @@ public final class ReviewStore {
   public List<StageRow> stagesForReview(String reviewId) {
     return db.query(
         """
-        SELECT id, review_id, name, stage_type, status, reviewer, started_at, completed_at
+        SELECT id, review_id, name, stage_type, status, reviewer, started_at, completed_at, error
         FROM review_stages WHERE review_id = ? ORDER BY rowid ASC""",
         this::mapStage,
         reviewId);
@@ -186,10 +204,21 @@ public final class ReviewStore {
   }
 
   public void completeStage(String stageId, String status) {
+    completeStage(stageId, status, null);
+  }
+
+  /**
+   * Completes a stage, optionally recording why it failed for reasons other than its gate — the
+   * reviewer process erroring (quota, exec failure) rather than findings tripping the gate. The
+   * error is what {@code sail agent review} shows, so an infrastructure failure is never mistaken
+   * for a genuine review verdict.
+   */
+  public void completeStage(String stageId, String status, String error) {
     db.execute(
-        "UPDATE review_stages SET status = ?, completed_at = ? WHERE id = ?",
+        "UPDATE review_stages SET status = ?, completed_at = ?, error = ? WHERE id = ?",
         status,
         DateTimeUtils.now().toString(),
+        error,
         stageId);
   }
 
@@ -275,7 +304,8 @@ public final class ReviewStore {
         row.text(4),
         row.text(5),
         row.text(6),
-        row.text(7));
+        row.text(7),
+        row.text(8));
   }
 
   private StageRow mapStage(Sqlite.Row row) {
@@ -287,7 +317,8 @@ public final class ReviewStore {
         row.text(4),
         row.text(5),
         row.text(6),
-        row.text(7));
+        row.text(7),
+        row.text(8));
   }
 
   private Finding mapFinding(Sqlite.Row row) {

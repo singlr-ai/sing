@@ -72,6 +72,31 @@ class AgentReviewCommandTest {
   }
 
   @Test
+  void rendersAStageErrorInsteadOfPretendingItWasAVerdict() {
+    var errored =
+        Map.of(
+            "iteration",
+            1,
+            "status",
+            "failed",
+            "stages",
+            List.of(
+                Map.of(
+                    "name", "codeandsecurity",
+                    "reviewer", "codex",
+                    "status", "failed",
+                    "finding_count", 0,
+                    "error", "Quota exceeded. Check your plan.\nsecond line")));
+
+    var out = String.join("\n", AgentReviewCommand.render("auth", "review", List.of(errored)));
+
+    assertTrue(out.contains("error:"), out);
+    assertTrue(out.contains("Quota exceeded. Check your plan."), out);
+    assertTrue(!out.contains("second line"), "only the first line, keep it scannable: " + out);
+    assertTrue(!out.contains("finding(s)"), "an errored stage reviewed nothing: " + out);
+  }
+
+  @Test
   void rendersFindingsWhenPresent() {
     var finding =
         Map.<String, Object>of(

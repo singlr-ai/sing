@@ -531,7 +531,7 @@ class ApiRouterTest {
   void reviewModelsCoverConstruction() {
     var stageRow =
         new ai.singlr.sail.store.ReviewStore.StageRow(
-            "s1", "r1", "security", "agent", "passed", "codex", "t1", "t2");
+            "s1", "r1", "security", "agent", "passed", "codex", "t1", "t2", null);
     var stageView = StageView.from(stageRow, 3);
     assertEquals("security", stageView.name());
     assertEquals(3, stageView.findingCount());
@@ -540,7 +540,7 @@ class ApiRouterTest {
 
     var reviewRow =
         new ai.singlr.sail.store.ReviewStore.ReviewRow(
-            "r1", "auth", 1, "passed", "t0", "t1", null, null);
+            "r1", "auth", 1, "passed", "t0", "t1", null, null, null);
     var reviewView = ReviewView.from(reviewRow, java.util.List.of(stageView));
     assertEquals(1, reviewView.iteration());
     var rmap = reviewView.toMap();
@@ -1161,19 +1161,28 @@ class ApiRouterTest {
 
     @Override
     public Result<ReviewListResponse> reviewsForSpec(String specId) {
-      var stage = new StageView("s1", "security", "agent", "passed", "codex", "t1", "t2", 2);
+      var stage = new StageView("s1", "security", "agent", "passed", "codex", "t1", "t2", 2, null);
       var review =
           new ReviewView(
-              "r1", specId, 1, "passed", "t0", "t1", null, null, java.util.List.of(stage));
+              "r1", specId, 1, "passed", "t0", "t1", null, null, null, java.util.List.of(stage));
       return Result.success(new ReviewListResponse(specId, java.util.List.of(review)));
     }
 
     @Override
     public Result<ReviewDetailResponse> reviewDetail(String reviewId) {
-      var stage = new StageView("s1", "security", "agent", "passed", "codex", "t1", "t2", 1);
+      var stage = new StageView("s1", "security", "agent", "passed", "codex", "t1", "t2", 1, null);
       var review =
           new ReviewView(
-              reviewId, "spec", 1, "passed", "t0", "t1", null, null, java.util.List.of(stage));
+              reviewId,
+              "spec",
+              1,
+              "passed",
+              "t0",
+              "t1",
+              null,
+              null,
+              null,
+              java.util.List.of(stage));
       var finding =
           java.util.Map.<String, Object>of(
               "id", "f1", "severity", "HIGH", "title", "SQL injection");

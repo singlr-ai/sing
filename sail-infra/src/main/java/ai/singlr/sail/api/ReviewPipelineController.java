@@ -186,8 +186,14 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       return;
     }
 
-    var iteration = existing.map(r -> r.iteration() + 1).orElse(1);
+    var iteration = existing.map(ReviewPipelineController::nextIteration).orElse(1);
     if (iteration > config.maxIterations()) {
+      System.err.println(
+          "review-pipeline: spec "
+              + specId
+              + " escalated — iterations exhausted ("
+              + config.maxIterations()
+              + "); re-dispatch with --restart to start a fresh attempt");
       escalate(event.project(), specId, existing.get().id());
       return;
     }
@@ -226,8 +232,12 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
           return;
         }
 
-        var passed = executeAgentStage(stage, stageConfig, project, specId);
-        if (!passed) {
+        var outcome = executeAgentStage(stage, stageConfig, project, specId);
+        if (outcome instanceof StageOutcome.Errored errored) {
+          handleStageError(reviewId, project, specId, stage.name(), errored.message());
+          return;
+        }
+        if (outcome instanceof StageOutcome.GateFailed) {
           handleStageFailure(reviewId, config, project, specId);
           return;
         }
@@ -247,13 +257,23 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
     }
   }
 
-  private boolean executeAgentStage(
+  /** How an agent stage ended: gate verdicts are review outcomes; errors are infrastructure. */
+  sealed interface StageOutcome {
+    record Passed() implements StageOutcome {}
+
+    record GateFailed() implements StageOutcome {}
+
+    record Errored(String message) implements StageOutcome {}
+  }
+
+  private StageOutcome executeAgentStage(
       ReviewStore.StageRow stage, StageConfig stageConfig, String project, String specId) {
     var agent = stageConfig.agent() != null ? stageConfig.agent() : reviewerResolver.apply(project);
     if (agent == null) {
-      reviewStore.completeStage(stage.id(), "failed");
+      var message = "no reviewer agent resolved; set stages[].agent or agent.install in sail.yaml";
+      reviewStore.completeStage(stage.id(), "failed", message);
       publishEvent(project, specId, "review_stage_failed", stage.name());
-      return false;
+      return new StageOutcome.Errored(message);
     }
     reviewStore.startStage(stage.id(), agent);
     publishEvent(project, specId, "review_stage_started", stage.name());
@@ -277,14 +297,40 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       publishEvent(
           project, specId, passed ? "review_stage_passed" : "review_stage_failed", stage.name());
 
-      return passed;
+      return passed ? new StageOutcome.Passed() : new StageOutcome.GateFailed();
 
     } catch (Exception e) {
       System.err.println(
-          "review-pipeline: agent stage '" + stage.name() + "' failed: " + e.getMessage());
-      reviewStore.completeStage(stage.id(), "failed");
-      return false;
+          "review-pipeline: agent stage '" + stage.name() + "' errored: " + e.getMessage());
+      reviewStore.completeStage(stage.id(), "failed", e.getMessage());
+      return new StageOutcome.Errored(e.getMessage());
     }
+  }
+
+  /**
+   * An errored stage is an infrastructure failure, not a review verdict: record why on the review,
+   * say so loudly, and stop — without a fix iteration (there are no findings to fix) and without
+   * counting against {@code max_iterations} (the next stop retries the same iteration; see {@link
+   * #nextIteration}).
+   */
+  private void handleStageError(
+      String reviewId, String project, String specId, String stageName, String message) {
+    reviewStore.failReviewWithError(reviewId, message);
+    System.err.println(
+        "review-pipeline: review "
+            + reviewId
+            + " for spec "
+            + specId
+            + " errored at stage '"
+            + stageName
+            + "': "
+            + message);
+    publishEvent(project, specId, "review_errored", message);
+  }
+
+  /** The iteration the next review runs as: errored iterations are retried, not burned. */
+  private static int nextIteration(ReviewStore.ReviewRow latest) {
+    return latest.errored() ? latest.iteration() : latest.iteration() + 1;
   }
 
   private void handleStageFailure(
