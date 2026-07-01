@@ -5,73 +5,52 @@
 
 package ai.singlr.sail.api;
 
-import ai.singlr.sail.config.Guardrails;
 import ai.singlr.sail.engine.AgentCli;
 import ai.singlr.sail.engine.AgentSession;
 import ai.singlr.sail.engine.AgentUnit;
 import ai.singlr.sail.engine.ContainerExec;
-import ai.singlr.sail.engine.GuardrailChecker;
-import ai.singlr.sail.engine.GuardrailChecker.GuardrailResult;
 import ai.singlr.sail.engine.ShellExec;
 import ai.singlr.sail.engine.StreamJsonResult;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
- * Runs a review or fix agent inside the project container on the <em>same launch primitive as
- * dispatch</em>: a background systemd unit ({@link AgentUnit#REVIEW}) that streams stream-json to
- * {@code review.log}, so the run is live-followable ({@code sail agent log --review}) and watched,
- * instead of the old blind, non-streaming {@code shell.exec}. It blocks until the unit exits,
- * guarding it against the same {@code max_duration} + stall limits as a dispatched agent — the
- * reviewer runs clean (no hooks), so growth of its streamed log is the liveness signal — then
- * returns the agent's findings, parsed from the stream's terminal result via {@link
- * StreamJsonResult}.
+ * Runs a review or fix agent inside the project container, sharing the dispatch agent's command
+ * (streaming {@code stream-json}) and its {@code review.log}, but <em>not</em> its process wrapper.
+ * Dispatch launches a detached {@code systemd-run --user} unit because it is fire-and-forget and
+ * watched externally; a review blocks the pipeline until it has findings, so it runs as a plain
+ * foreground {@code shell.exec} bounded by a generous per-invocation timeout. Blocking here needs
+ * no systemd user manager or D-Bus session, so it works in any container.
  *
- * <p>Launched with an <em>empty</em> {@code SAIL_SPEC_ID}, which is what stops the reviewer's own
- * completion from re-entering the pipeline (which would recurse forever): the in-container hooks
- * self-gate on the empty id and emit nothing, and any stray event would carry a blank spec that
- * {@link ReviewPipelineController}'s filter already drops. The clock and sleeper are seams so the
- * poll loop runs deterministically and instantly under test.
+ * <p>The agent's output streams to {@code review.log} (appended, so an attempt's reviewer↔fix
+ * negotiation accumulates in one live-followable log), and the findings are read back from the
+ * bytes this run appended — parsed via {@link StreamJsonResult} so a streamed reviewer and a plain
+ * one are handled uniformly.
+ *
+ * <p>Run clean: no {@code SAIL_SPEC_ID} and no agent hooks, so the reviewer's own completion never
+ * re-enters the pipeline (which would recurse forever).
  */
 final class ContainerReviewAgentRunner implements ReviewAgentRunner {
 
   private static final String WORKSPACE = ContainerExec.DEV_HOME + "/workspace";
 
   /**
-   * A review pass is bounded: a hard wall-clock ceiling and a stall window on log growth. Generous
-   * enough for an agent reasoning over a real diff, tight enough that a hung reviewer is reaped.
+   * How long a single review or fix invocation may run before it is reaped. Generous enough for an
+   * agent reasoning over a real diff; the dispatch-level guardrail ceiling is hours, so a bounded
+   * per-invocation budget is the right limit here.
    */
-  private static final Guardrails REVIEW_GUARDRAILS = new Guardrails("30m", "10m", "stop");
-
-  private static final long POLL_MILLIS = 2000;
-
-  /** Sleep seam: production sleeps between polls; tests pass a no-op so the loop runs instantly. */
-  interface Sleeper {
-    void sleep(long millis) throws InterruptedException;
-  }
+  private static final Duration AGENT_TIMEOUT = Duration.ofMinutes(30);
 
   private final ShellExec shell;
   private final AgentSession session;
-  private final Supplier<Instant> clock;
-  private final Sleeper sleeper;
-  private final long pollMillis;
 
   ContainerReviewAgentRunner(ShellExec shell) {
-    this(shell, new AgentSession(shell), Instant::now, Thread::sleep, POLL_MILLIS);
+    this(shell, new AgentSession(shell));
   }
 
-  ContainerReviewAgentRunner(
-      ShellExec shell,
-      AgentSession session,
-      Supplier<Instant> clock,
-      Sleeper sleeper,
-      long pollMillis) {
+  ContainerReviewAgentRunner(ShellExec shell, AgentSession session) {
     this.shell = shell;
     this.session = session;
-    this.clock = clock;
-    this.sleeper = sleeper;
-    this.pollMillis = pollMillis;
   }
 
   @Override
@@ -79,76 +58,33 @@ final class ContainerReviewAgentRunner implements ReviewAgentRunner {
     var cli = AgentCli.fromYamlName(agent);
     session.ensureDirectory(project);
     session.writeTaskFile(project, prompt, AgentUnit.REVIEW);
-    session.writeSession(project, prompt, "", "", agent, AgentUnit.REVIEW);
 
     var startOffset = logSize(project);
 
-    var launch =
-        AgentSession.buildBackgroundLaunchCommand(
-            project, "dev", WORKSPACE, true, cli, null, null, "", agent, AgentUnit.REVIEW);
-    var launched = shell.exec(launch);
-    if (!launched.ok()) {
+    var agentCmd = cli.headlessCommand(AgentUnit.REVIEW.taskPath(), true, null, null, null, true);
+    var command =
+        "cd " + WORKSPACE + " && " + agentCmd + " >> " + AgentUnit.REVIEW.logPath() + " 2>&1";
+    var result =
+        shell.exec(
+            ContainerExec.asDevUser(project, List.of("bash", "-lc", command)), null, AGENT_TIMEOUT);
+    if (!result.ok()) {
       throw new IllegalStateException(
-          "Failed to launch review agent '"
+          "Review agent '"
               + agent
-              + "' in '"
+              + "' exited non-zero in '"
               + project
-              + "': "
-              + launched.stderr());
+              + "' (see review.log): "
+              + result.stderr());
     }
 
-    return awaitFindings(project, agent, startOffset);
-  }
-
-  private String awaitFindings(String project, String agent, long startOffset) throws Exception {
-    var startedAt = clock.get();
-    var lastProgressAt = startedAt;
-    var lastSize = -1L;
-    while (true) {
-      var exit = session.queryExitStatus(project, AgentUnit.REVIEW);
-      if (!exit.active()) {
-        if (exit.exitCode() != 0) {
-          throw new IllegalStateException(
-              "Review agent '" + agent + "' exited " + exit.exitCode() + " in '" + project + "'");
-        }
-        return StreamJsonResult.extract(readLogSince(project, startOffset));
-      }
-
-      var now = clock.get();
-      var size = logSize(project);
-      if (size > lastSize) {
-        lastSize = size;
-        lastProgressAt = now;
-      }
-
-      var trip =
-          firstTrip(
-              GuardrailChecker.checkDuration(startedAt, now, REVIEW_GUARDRAILS),
-              GuardrailChecker.checkStall(lastProgressAt, now, REVIEW_GUARDRAILS));
-      if (trip != null) {
-        session.killAgent(project, AgentUnit.REVIEW);
-        throw new IllegalStateException(
-            "Review agent '" + agent + "' " + trip.reason() + ": " + trip.detail());
-      }
-
-      sleeper.sleep(pollMillis);
-    }
-  }
-
-  private static GuardrailResult.Triggered firstTrip(GuardrailResult... results) {
-    for (var r : results) {
-      if (r instanceof GuardrailResult.Triggered t) {
-        return t;
-      }
-    }
-    return null;
+    return StreamJsonResult.extract(readLogSince(project, startOffset));
   }
 
   /**
    * The current run's output only: the bytes appended to review.log since {@code startOffset}. The
-   * shared log accumulates the whole attempt's negotiation, so reading from the offset is what
-   * keeps this run's findings from being mistaken for a prior iteration's (which would stall the
-   * loop for a plain, non-stream-json agent whose output carries no per-run delimiter).
+   * shared log accumulates the whole attempt's negotiation, so reading from the offset keeps this
+   * run's findings from being mistaken for a prior iteration's (which would stall the loop for a
+   * plain, non-stream-json agent whose output carries no per-run delimiter).
    */
   private String readLogSince(String project, long startOffset) throws Exception {
     var result =

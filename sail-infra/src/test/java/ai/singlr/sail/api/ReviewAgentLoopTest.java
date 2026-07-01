@@ -181,9 +181,6 @@ class ReviewAgentLoopTest {
         lastPrompt = command.get(command.size() - 2);
         return new Result(0, "", "");
       }
-      if (joined.contains("--property=ActiveState")) {
-        return new Result(0, "ActiveState=inactive\nExecMainStatus=0\nEnvironment=\n", "");
-      }
       if (joined.contains("tail -c")) {
         if (lastPrompt.contains("Output your findings")) {
           var i = reviewCall++;

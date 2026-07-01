@@ -6,41 +6,49 @@
 package ai.singlr.sail.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ai.singlr.sail.engine.AgentSession;
 import ai.singlr.sail.engine.ScriptedShellExecutor;
 import ai.singlr.sail.engine.ShellExec;
-import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.List;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 class ContainerReviewAgentRunnerTest {
 
-  private static final Instant T0 = Instant.parse("2026-01-01T00:00:00Z");
-
-  private static Supplier<Instant> clockOf(Instant... times) {
-    var q = new ArrayDeque<>(List.of(times));
-    return () -> q.size() > 1 ? q.poll() : q.peek();
-  }
-
-  private static ContainerReviewAgentRunner runner(ShellExec shell, Supplier<Instant> clock) {
-    return new ContainerReviewAgentRunner(shell, new AgentSession(shell), clock, millis -> {}, 0);
+  private static ContainerReviewAgentRunner runner(ShellExec shell) {
+    return new ContainerReviewAgentRunner(shell, new AgentSession(shell));
   }
 
   @Test
-  void returnsFindingsFromTheStreamedResultWhenTheReviewerExitsCleanly() throws Exception {
+  void returnsFindingsFromReviewLogWhenTheAgentSucceeds() throws Exception {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\nEnvironment=\n")
             .onOk("tail -c", "{\"type\":\"result\",\"result\":\"FINDINGS\"}");
 
-    var out = runner(shell, clockOf(T0)).run("acme", "codex", "review please");
+    assertEquals("FINDINGS", runner(shell).run("acme", "codex", "review please"));
+  }
 
-    assertEquals("FINDINGS", out, "findings come from the terminal stream-json result event");
+  @Test
+  void runsTheStreamingAgentCleanAndAppendsToReviewLog() throws Exception {
+    var shell = new ScriptedShellExecutor(new ShellExec.Result(0, "", "")).onOk("tail -c", "[]");
+
+    runner(shell).run("acme", "claude-code", "p");
+
+    var exec =
+        shell.invocations().stream()
+            .filter(c -> c.contains(">> /home/dev/.sail/review.log"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("the agent must stream to review.log"));
+    assertTrue(exec.contains("stream-json"), "the reviewer streams so review.log fills live");
+    assertTrue(exec.contains("cd /home/dev/workspace"), "runs in the workspace to read the diff");
+    assertTrue(exec.contains("review-prompt.txt"), "prompt staged to the review task file");
+    assertFalse(exec.contains("--settings"), "reviewer loads no hooks");
+    assertFalse(
+        exec.contains("SAIL_SPEC_ID"), "reviewer runs without a spec id, so it can't recurse");
+    assertFalse(
+        exec.contains("systemd-run"), "review blocks; it needs no detached unit or user bus");
   }
 
   @Test
@@ -48,96 +56,29 @@ class ContainerReviewAgentRunnerTest {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
             .onOk("stat -c", "500")
-            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
             .onOk("tail -c +501", "{\"type\":\"result\",\"result\":\"CURRENT\"}");
-
-    var out = runner(shell, clockOf(T0)).run("acme", "codex", "re-review");
 
     assertEquals(
         "CURRENT",
-        out,
+        runner(shell).run("acme", "codex", "re-review"),
         "reads from the byte after the accumulated negotiation, not the whole appended log");
   }
 
   @Test
-  void launchesUnderTheSharedReviewUnitStreamingToReviewLog() throws Exception {
+  void throwsWhenTheReviewAgentExitsNonZero() {
     var shell =
         new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
-            .onOk("tail -c", "{\"type\":\"result\",\"result\":\"x\"}");
+            .onFail(">> /home/dev/.sail/review.log", "boom");
 
-    runner(shell, clockOf(T0)).run("acme", "claude-code", "p");
-
-    var joined = String.join(" | ", shell.invocations());
-    assertTrue(joined.contains("--unit sail-review"), "must launch on the shared REVIEW unit");
-    assertTrue(joined.contains("review.log"), "must stream to review.log, not agent.log");
-    assertTrue(joined.contains("stream-json"), "the reviewer streams so its log fills live");
-    assertTrue(
-        joined.contains("review-prompt.txt"),
-        "the prompt is staged to the review unit's task file");
-  }
-
-  @Test
-  void throwsWhenTheReviewerExitsNonZero() {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=failed\nExecMainStatus=2\n");
-
-    var ex =
-        assertThrows(Exception.class, () -> runner(shell, clockOf(T0)).run("acme", "codex", "p"));
-    assertTrue(ex.getMessage().contains("exited 2"), ex.getMessage());
-  }
-
-  @Test
-  void killsAndFailsWhenTheReviewerStallsPastMaxIdle() {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=active\nExecMainStatus=0\n")
-            .onOk("stat -c", "100")
-            .onOk("cat /home/dev/.sail/review.pid", "9999");
-
-    var clock = clockOf(T0, T0, T0.plusSeconds(11 * 60));
-
-    var ex = assertThrows(Exception.class, () -> runner(shell, clock).run("acme", "codex", "p"));
-    assertTrue(ex.getMessage().toLowerCase().contains("no progress"), ex.getMessage());
-    assertTrue(
-        shell.invocations().stream().anyMatch(c -> c.contains("kill")),
-        "a stalled reviewer must be killed, not left running");
-  }
-
-  @Test
-  void killsAndFailsWhenTheReviewerRunsPastMaxDuration() {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=active\nExecMainStatus=0\n")
-            .onFail("stat -c", "no such file")
-            .onOk("cat /home/dev/.sail/review.pid", "9999");
-
-    var clock = clockOf(T0, T0, T0.plusSeconds(31 * 60));
-
-    var ex = assertThrows(Exception.class, () -> runner(shell, clock).run("acme", "codex", "p"));
-    assertTrue(ex.getMessage().contains("max_duration"), ex.getMessage());
-    assertTrue(shell.invocations().stream().anyMatch(c -> c.contains("kill")));
-  }
-
-  @Test
-  void throwsWhenTheReviewUnitFailsToLaunch() {
-    var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onFail("systemd-run", "unit refused");
-
-    var ex =
-        assertThrows(Exception.class, () -> runner(shell, clockOf(T0)).run("acme", "codex", "p"));
-    assertTrue(ex.getMessage().contains("Failed to launch"), ex.getMessage());
+    var ex = assertThrows(Exception.class, () -> runner(shell).run("acme", "codex", "p"));
+    assertTrue(ex.getMessage().contains("boom"), ex.getMessage());
   }
 
   @Test
   void returnsEmptyWhenTheReviewLogCannotBeRead() throws Exception {
     var shell =
-        new ScriptedShellExecutor(new ShellExec.Result(0, "", ""))
-            .onOk("property=ActiveState", "ActiveState=inactive\nExecMainStatus=0\n")
-            .onFail("tail -c", "gone");
+        new ScriptedShellExecutor(new ShellExec.Result(0, "", "")).onFail("tail -c", "gone");
 
-    assertEquals("", runner(shell, clockOf(T0)).run("acme", "codex", "p"));
+    assertEquals("", runner(shell).run("acme", "codex", "p"));
   }
 }
