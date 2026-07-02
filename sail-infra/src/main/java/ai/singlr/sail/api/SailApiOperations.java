@@ -703,6 +703,7 @@ public final class SailApiOperations implements ApiOperations {
         counts.getOrDefault("pending", 0),
         counts.getOrDefault("in_progress", 0),
         counts.getOrDefault("review", 0),
+        counts.getOrDefault("awaiting_merge", 0),
         counts.getOrDefault("done", 0));
   }
 

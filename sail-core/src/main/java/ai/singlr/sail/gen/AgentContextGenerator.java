@@ -255,9 +255,10 @@ public final class AgentContextGenerator {
         auto-create a branch.
 
         ### Status Lifecycle
-        `pending` → `in_progress` → `review` → `done`
+        `pending` → `in_progress` → `review` → `awaiting_merge` → `done`
         Status is managed by `sail`, not by you. Do not change a spec's status during autonomous
-        execution.
+        execution. `awaiting_merge` means the review passed and the PR waits for a human to merge
+        it; only the engineer marks a spec `done`.
 
         ### Dependencies
         `--depends-on` lists spec ids that must be `done` before a spec can start. Never start a

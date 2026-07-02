@@ -290,13 +290,15 @@ record AgentStatusView(
   }
 }
 
-record SpecSummaryView(int pending, int inProgress, int review, int done) implements Mappable {
+record SpecSummaryView(int pending, int inProgress, int review, int awaitingMerge, int done)
+    implements Mappable {
   @Override
   public Map<String, Object> toMap() {
     var m = new LinkedHashMap<String, Object>();
     m.put("pending", pending);
     m.put("in_progress", inProgress);
     m.put("review", review);
+    m.put("awaiting_merge", awaitingMerge);
     m.put("done", done);
     return m;
   }
@@ -701,6 +703,7 @@ record GlobalBoardResponse(SpecStore.BoardSummary board, int doneOpenFindings) i
     m.put("pending", board.pending());
     m.put("in_progress", board.inProgress());
     m.put("review", board.review());
+    m.put("awaiting_merge", board.awaitingMerge());
     m.put("done", board.done());
     m.put("archived", board.archived());
     m.put("next_ready_id", board.nextReadyId());

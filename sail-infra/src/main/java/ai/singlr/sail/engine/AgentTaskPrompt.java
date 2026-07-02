@@ -65,8 +65,10 @@ public final class AgentTaskPrompt {
         with a clear message, push the branch, and open a pull request.
 
         The spec is not complete until CI is green: after opening the pull request, watch its
-        checks (e.g. `gh pr checks <number> --watch`), and if any check fails, diagnose it, fix it
-        on the branch, push, and watch again until every check passes.
+        checks with the CLI of the forge hosting the repo (e.g. `gh pr checks <number> --watch`
+        on GitHub, `glab ci status --live` on GitLab, or the equivalent on your forge), and if any
+        check fails, diagnose it, fix it on the branch, push, and watch again until every check
+        passes.
 
         Never add AI attribution to the work: no Co-Authored-By trailers and no "Generated with"
         footers in commit messages or pull request descriptions.

@@ -124,7 +124,9 @@ reviewer checks the branch, a fix agent addresses its findings, and the loop rep
 `max_iterations` before escalating to a human. `sail agent review <project>` shows every
 attempt's iterations and findings; `sail agent log <project> --review` follows the
 negotiation live. Guardrails combine a `max_duration` and an action, so a runaway agent is
-stopped and rolled back to the pre-launch snapshot.
+stopped and rolled back to the pre-launch snapshot. A passing review parks the spec in
+`awaiting_merge` — sail never talks to the forge, so you merge the PR there and close the
+loop with `sail spec edit <id> --status done`.
 
 Findings the gate let ship don't die in the review store: `sail spec create --from-review
 <spec-id>` drafts a follow-up spec from the latest review's open findings — one actionable

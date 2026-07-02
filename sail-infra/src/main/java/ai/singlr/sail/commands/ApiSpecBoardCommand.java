@@ -53,18 +53,22 @@ public final class ApiSpecBoardCommand implements Runnable {
 
       var scope = resolvedProject != null ? " — " + resolvedProject : "";
       System.out.println(Ansi.AUTO.string("  @|bold Spec Board" + scope + "|@"));
-      System.out.println(Ansi.AUTO.string("    @|faint Draft:|@       " + result.get("draft")));
-      System.out.println(Ansi.AUTO.string("    @|white Pending:|@     " + result.get("pending")));
+      System.out.println(Ansi.AUTO.string("    @|faint Draft:|@           " + result.get("draft")));
       System.out.println(
-          Ansi.AUTO.string("    @|blue In Progress:|@ " + result.get("in_progress")));
-      System.out.println(Ansi.AUTO.string("    @|yellow Review:|@      " + result.get("review")));
+          Ansi.AUTO.string("    @|white Pending:|@         " + result.get("pending")));
+      System.out.println(
+          Ansi.AUTO.string("    @|blue In Progress:|@     " + result.get("in_progress")));
+      System.out.println(
+          Ansi.AUTO.string("    @|yellow Review:|@          " + result.get("review")));
+      System.out.println(
+          Ansi.AUTO.string("    @|magenta Awaiting Merge:|@  " + result.get("awaiting_merge")));
       var doneOpenFindings = result.get("done_open_findings");
       var doneSuffix =
           doneOpenFindings instanceof Number n && n.intValue() > 0
               ? " @|yellow · " + n + " open findings|@"
               : "";
       System.out.println(
-          Ansi.AUTO.string("    @|green Done:|@        " + result.get("done") + doneSuffix));
+          Ansi.AUTO.string("    @|green Done:|@            " + result.get("done") + doneSuffix));
 
       var nextReady = result.get("next_ready_id");
       if (nextReady != null) {

@@ -21,7 +21,9 @@ import java.util.function.Function;
  *
  * <p>Only {@code in_progress} specs are considered. A clean replay advances the spec out of {@code
  * in_progress} so it is not re-picked on the next start; a crash leaves it {@code in_progress} (its
- * failure already recorded on the session) where it is correctly still unresolved.
+ * failure already recorded on the session) where it is correctly still unresolved. A spec already
+ * past the gate ({@code review}, {@code awaiting_merge}, {@code done}) is never replayed — a replay
+ * would re-run a review it already passed.
  */
 public final class MissedStops {
 

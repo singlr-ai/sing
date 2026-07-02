@@ -89,6 +89,16 @@ class MissedStopsTest {
   }
 
   @Test
+  void neverReplaysASpecAlreadyPastTheGate() {
+    var replays =
+        MissedStops.find(
+            List.of(spec("parked", SpecStatus.AWAITING_MERGE)),
+            latest(Map.of("parked", session("parked", "stopped", 0))));
+
+    assertTrue(replays.isEmpty());
+  }
+
+  @Test
   void ignoresASpecWhoseSessionIsStillRunning() {
     var replays =
         MissedStops.find(

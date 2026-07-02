@@ -34,7 +34,8 @@ import java.util.function.Predicate;
 /**
  * Orchestrates the review pipeline when an agent completes a spec. Subscribes to the event bus,
  * creates review records with stages, executes agent review stages sequentially, evaluates gates,
- * and triggers fix iterations or escalation.
+ * and triggers fix iterations or escalation. A pass parks the spec in {@code awaiting_merge} — the
+ * PR is open but unmerged, and only the human who merges it marks the spec {@code done}.
  *
  * <p>Agent execution is delegated to {@link ReviewAgentRunner}. This keeps the controller testable
  * without containers — tests inject a runner that returns canned agent output.
@@ -246,7 +247,7 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
       }
 
       reviewStore.updateReviewStatus(reviewId, "passed");
-      specStore.updateStatus(specId, SpecStatus.DONE);
+      specStore.updateStatus(specId, SpecStatus.AWAITING_MERGE);
       publishEvent(project, specId, "review_completed", null);
 
     } catch (Exception e) {

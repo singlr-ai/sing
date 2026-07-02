@@ -223,10 +223,10 @@ class SlackMessageTest {
   }
 
   @Test
-  void reviewCompletedIsSpecDone() {
+  void reviewCompletedSaysAwaitingMerge() {
     var text = SlackMessage.forEvent(event("review_completed"), null);
 
-    assertEquals("Review passed. Spec done.", text);
+    assertEquals("Review passed. Awaiting merge.", text);
   }
 
   @Test

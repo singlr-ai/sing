@@ -962,8 +962,8 @@ class ApiRouterTest {
           new SpecsResponse(
               project,
               java.util.List.of(),
-              new SpecSummaryView(0, 0, 0, 0),
-              new BoardSummaryView(new SpecSummaryView(0, 0, 0, 0), 0, 0, null)));
+              new SpecSummaryView(0, 0, 0, 0, 0),
+              new BoardSummaryView(new SpecSummaryView(0, 0, 0, 0, 0), 0, 0, null)));
     }
 
     @Override
@@ -1212,7 +1212,7 @@ class ApiRouterTest {
     public Result<GlobalBoardResponse> globalBoard(String project) {
       return Result.success(
           new GlobalBoardResponse(
-              new ai.singlr.sail.store.SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null), 0));
+              new ai.singlr.sail.store.SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, 0, null), 0));
     }
 
     @Override

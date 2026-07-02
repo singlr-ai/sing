@@ -34,7 +34,8 @@ class StrandedSpecsTest {
             spec("stuck-rev", SpecStatus.REVIEW, old),
             spec("recent", SpecStatus.IN_PROGRESS, recent),
             spec("done", SpecStatus.DONE, old),
-            spec("pending", SpecStatus.PENDING, old));
+            spec("pending", SpecStatus.PENDING, old),
+            spec("waiting-on-human", SpecStatus.AWAITING_MERGE, old));
 
     var stranded = StrandedSpecs.find(specs, NOW, Duration.ofHours(6));
 

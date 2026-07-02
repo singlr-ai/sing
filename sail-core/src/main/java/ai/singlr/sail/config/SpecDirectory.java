@@ -20,7 +20,12 @@ public final class SpecDirectory {
 
   /** Statuses an engineer may assign by hand via {@code sail spec status}. */
   public static final Set<SpecStatus> CLI_SETTABLE =
-      Set.of(SpecStatus.PENDING, SpecStatus.IN_PROGRESS, SpecStatus.REVIEW, SpecStatus.DONE);
+      Set.of(
+          SpecStatus.PENDING,
+          SpecStatus.IN_PROGRESS,
+          SpecStatus.REVIEW,
+          SpecStatus.AWAITING_MERGE,
+          SpecStatus.DONE);
 
   public record Summary(
       Map<String, Integer> counts, int readyCount, int blockedCount, String nextReadyId) {
@@ -169,12 +174,16 @@ public final class SpecDirectory {
         statusCounts(specs), readyCount, blockedCount, nextReady != null ? nextReady.id() : null);
   }
 
-  /** Returns a map of status counts: {pending: N, in_progress: N, review: N, done: N}. */
+  /**
+   * Returns a map of status counts: {pending: N, in_progress: N, review: N, awaiting_merge: N,
+   * done: N}.
+   */
   public static Map<String, Integer> statusCounts(List<Spec> specs) {
     var counts = new LinkedHashMap<String, Integer>();
     counts.put(SpecStatus.PENDING.wire(), 0);
     counts.put(SpecStatus.IN_PROGRESS.wire(), 0);
     counts.put(SpecStatus.REVIEW.wire(), 0);
+    counts.put(SpecStatus.AWAITING_MERGE.wire(), 0);
     counts.put(SpecStatus.DONE.wire(), 0);
     for (var spec : specs) {
       counts.merge(spec.status().wire(), 1, Integer::sum);
@@ -196,6 +205,11 @@ public final class SpecDirectory {
     }
   }
 
+  /**
+   * Only {@code done} satisfies a dependency. {@code awaiting_merge} deliberately does not: the
+   * work exists on an unmerged branch, so a dependent spec building on it would branch from a main
+   * that lacks it.
+   */
   private static Set<String> doneIds(List<Spec> specs) {
     return specs.stream()
         .filter(s -> s.status() == SpecStatus.DONE)

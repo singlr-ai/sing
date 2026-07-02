@@ -129,7 +129,7 @@ class ReviewAgentLoopTest {
   }
 
   @Test
-  void aRealRunnerReviewFixReReviewLoopReachesDone() throws Exception {
+  void aRealRunnerReviewFixReReviewLoopReachesAwaitingMerge() throws Exception {
     createSpec("auth");
     var latch = new CountDownLatch(1);
     subscribe(config(3), new FakeAgentShell(List.of(CRITICAL_FINDING)), latch);
@@ -137,7 +137,7 @@ class ReviewAgentLoopTest {
     bus.publish(stop("auth"));
 
     BusTesting.awaitDelivery(latch);
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
     assertEquals(2, reviewStore.reviewsForSpec("auth").size());
   }
 
