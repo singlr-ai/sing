@@ -54,17 +54,38 @@ class SlackMessageTest {
 
     assertTrue(text.contains("*auth*"));
     assertTrue(text.contains("OAuth flow"));
-    assertTrue(text.contains("dispatched"));
+    assertTrue(text.startsWith("Dispatched *"), text);
     assertTrue(text.contains("project `light`"));
     assertTrue(text.contains("branch `feat/auth`"));
     assertTrue(text.contains("agent `claude-code`"));
   }
 
   @Test
+  void noMessageCarriesEmojiShortcodesOrEmDashes() {
+    for (var type :
+        List.of(
+            "spec_dispatched",
+            "agent_session_stopped",
+            "agent_failed",
+            "guardrail_triggered",
+            "review_stage_started",
+            "review_stage_passed",
+            "review_stage_failed",
+            "review_completed",
+            "review_errored",
+            "review_iteration_started",
+            "review_escalated")) {
+      var text = SlackMessage.forEvent(event(type), spec("OAuth flow", "codex"));
+      assertFalse(text.matches("(?s).*:[a-z_]+:.*"), type + " carries an emoji shortcode: " + text);
+      assertFalse(text.contains("\u2014"), type + " carries an em-dash: " + text);
+    }
+  }
+
+  @Test
   void restartedRootSaysRedispatched() {
     var text = SlackMessage.forEvent(event("spec_restarted"), spec("OAuth flow", "codex"));
 
-    assertTrue(text.contains("re-dispatched"));
+    assertTrue(text.startsWith("Re-dispatched *"), text);
     assertTrue(text.contains("agent `codex`"));
     assertFalse(text.contains("branch"));
   }
@@ -100,7 +121,7 @@ class SlackMessageTest {
         SlackMessage.forEvent(
             event("agent_session_stopped", Map.of("exit_code", 0, "note", "clean run")), null);
 
-    assertEquals("Agent sail stopped (exit 0) — clean run.", text);
+    assertEquals("Agent sail stopped (exit 0): clean run.", text);
   }
 
   @Test
@@ -114,14 +135,14 @@ class SlackMessageTest {
   void agentFailedUsesDetail() {
     var text = SlackMessage.forEvent(event("agent_failed", Map.of("detail", "exit 1")), null);
 
-    assertEquals(":x: Agent failed (exit 1).", text);
+    assertEquals("Agent failed (exit 1).", text);
   }
 
   @Test
   void agentFailedWithoutDetailFallsBack() {
     var text = SlackMessage.forEvent(event("agent_failed"), null);
 
-    assertEquals(":x: Agent failed (no exit code).", text);
+    assertEquals("Agent failed (no exit code).", text);
   }
 
   @Test
@@ -130,14 +151,14 @@ class SlackMessageTest {
         SlackMessage.forEvent(
             event("guardrail_triggered", Map.of("reason", "budget", "action", "paused")), null);
 
-    assertEquals(":no_entry: Guardrail triggered. Reason: budget. Action: paused.", text);
+    assertEquals("Guardrail triggered. Reason: budget. Action: paused.", text);
   }
 
   @Test
   void guardrailWithoutDataIsBare() {
     var text = SlackMessage.forEvent(event("guardrail_triggered"), null);
 
-    assertEquals(":no_entry: Guardrail triggered.", text);
+    assertEquals("Guardrail triggered.", text);
   }
 
   @Test
@@ -145,14 +166,14 @@ class SlackMessageTest {
     var text =
         SlackMessage.forEvent(event("review_stage_started", Map.of("detail", "security")), null);
 
-    assertEquals(":mag: Review started: security.", text);
+    assertEquals("Review started: security.", text);
   }
 
   @Test
   void reviewStageStartedWithoutDetailFallsBack() {
     var text = SlackMessage.forEvent(event("review_stage_started"), null);
 
-    assertEquals(":mag: Review started: review.", text);
+    assertEquals("Review started: review.", text);
   }
 
   @Test
@@ -164,7 +185,7 @@ class SlackMessageTest {
                 Map.of("detail", "security", "findings", Map.of("high", 2, "low", 1))),
             null);
 
-    assertEquals(":white_check_mark: Review stage passed: security — 2 high, 1 low.", text);
+    assertEquals("Review stage passed: security (2 high, 1 low).", text);
   }
 
   @Test
@@ -172,7 +193,7 @@ class SlackMessageTest {
     var text =
         SlackMessage.forEvent(event("review_stage_passed", Map.of("detail", "security")), null);
 
-    assertEquals(":white_check_mark: Review stage passed: security (no findings).", text);
+    assertEquals("Review stage passed: security (no findings).", text);
   }
 
   @Test
@@ -188,7 +209,7 @@ class SlackMessageTest {
                     Map.of("low", 4, "critical", 1, "medium", 2, "high", 3))),
             null);
 
-    assertEquals(":x: Review stage failed: security — 1 critical, 3 high, 2 medium, 4 low.", text);
+    assertEquals("Review stage failed: security (1 critical, 3 high, 2 medium, 4 low).", text);
   }
 
   @Test
@@ -198,14 +219,14 @@ class SlackMessageTest {
             event("review_stage_failed", Map.of("detail", "s", "findings", Map.of("weird", 9))),
             null);
 
-    assertEquals(":x: Review stage failed: s (no findings).", text);
+    assertEquals("Review stage failed: s (no findings).", text);
   }
 
   @Test
   void reviewCompletedIsSpecDone() {
     var text = SlackMessage.forEvent(event("review_completed"), null);
 
-    assertEquals(":tada: Review passed — spec done.", text);
+    assertEquals("Review passed. Spec done.", text);
   }
 
   @Test
@@ -213,29 +234,29 @@ class SlackMessageTest {
     var text =
         SlackMessage.forEvent(event("review_errored", Map.of("detail", "agent timed out")), null);
 
-    assertEquals(":warning: Review errored: agent timed out", text);
+    assertEquals("Review errored: agent timed out", text);
   }
 
   @Test
   void reviewErroredWithoutDetailFallsBack() {
     var text = SlackMessage.forEvent(event("review_errored"), null);
 
-    assertEquals(":warning: Review errored: unknown error", text);
+    assertEquals("Review errored: unknown error", text);
   }
 
   @Test
   void fixIterationStarted() {
     var text = SlackMessage.forEvent(event("review_iteration_started"), null);
 
-    assertEquals(":wrench: Fix iteration started.", text);
+    assertEquals("Fix iteration started.", text);
   }
 
   @Test
   void escalatedIsLoud() {
     var text = SlackMessage.forEvent(event("review_escalated"), null);
 
-    assertTrue(text.contains(":rotating_light:"));
-    assertTrue(text.contains("human"));
+    assertTrue(text.contains("Escalated"), text);
+    assertTrue(text.contains("human"), text);
   }
 
   @Test
