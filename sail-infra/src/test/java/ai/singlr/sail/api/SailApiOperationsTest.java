@@ -217,6 +217,30 @@ class SailApiOperationsTest {
   }
 
   @Test
+  void dispatchPersistsResolvedRepoOverridesOnTheSpec() throws Exception {
+    var stores = new SpecStore[1];
+    var operations =
+        operationsWithStore(
+            multiRepoYaml(),
+            shell()
+                .on("incus list ^acme$", RUNNING_JSON)
+                .on("cat /home/dev/.sail/agent.pid", new ShellExec.Result(1, "", "missing")),
+            store -> {
+              stores[0] = store;
+              seedAuthBillingSetup(store);
+            });
+
+    var result =
+        operations.dispatch(
+            "acme", new DispatchRequest("auth", "background", true, List.of("web")));
+
+    assertEquals(true, get(result, "dispatched"));
+    var persisted = stores[0].findById("auth").orElseThrow();
+    assertEquals(SpecStatus.IN_PROGRESS, persisted.status());
+    assertEquals(List.of("web"), persisted.repos());
+  }
+
+  @Test
   void dispatchRejectsBlockedSpec() throws Exception {
     var operations =
         operationsWithStore(
@@ -1318,6 +1342,22 @@ class SailApiOperationsTest {
         name: acme
         ssh:
           user: dev
+        agent:
+          type: claude-code
+          specs_dir: specs
+        """;
+  }
+
+  private static String multiRepoYaml() {
+    return """
+        name: acme
+        ssh:
+          user: dev
+        repos:
+          - url: https://github.com/acme/app.git
+            path: app
+          - url: https://github.com/acme/web.git
+            path: web
         agent:
           type: claude-code
           specs_dir: specs

@@ -162,7 +162,7 @@ public final class DispatchCommand implements Runnable {
               + name);
     }
 
-    var prepared = prepareDispatch(name, specId, restart);
+    var prepared = prepareDispatch(name, specId, restart, config);
     if (prepared == null) {
       printNoSpecs();
       return;
@@ -173,8 +173,8 @@ public final class DispatchCommand implements Runnable {
     var specBody = prepared.body();
 
     var agentType = nextSpec.agent() != null ? nextSpec.agent() : config.agent().type();
-    var targetRepos = DispatchRepos.resolve(config, nextSpec, repoOverrides);
-    var taskSpec = DispatchRepos.withTargetRepos(nextSpec, targetRepos);
+    var targetRepos = prepared.targetRepos();
+    var taskSpec = prepared.taskSpec();
     var branchName = BranchPolicy.branchName(config, nextSpec);
 
     if (resolution.restarted()) {
@@ -369,16 +369,25 @@ public final class DispatchCommand implements Runnable {
     }
   }
 
-  /** What {@link #prepareDispatch} produces: the resolved spec and its body, both from the DB. */
-  record Prepared(SpecResolution resolution, String body) {}
+  /**
+   * What {@link #prepareDispatch} produces: the resolved spec with its target repos (persisted to
+   * the DB alongside the {@code in_progress} transition) and its body.
+   */
+  record Prepared(
+      SpecResolution resolution, Spec taskSpec, List<SailYaml.Repo> targetRepos, String body) {}
 
   /**
    * Reads the project's specs from the control-plane database — the source of truth — picks the one
-   * to dispatch, marks it {@code in_progress}, and returns it with its body. Returns {@code null}
-   * when the project has no specs or none are ready. The container is never read: a stopped or
-   * file-drifted project is irrelevant because the spec lives in the DB, replicated by sync.
+   * to dispatch, resolves its target repos (honoring {@code --repo} overrides), marks it {@code
+   * in_progress} with those repos persisted, and returns it with its body. Persisting the resolved
+   * repos keeps later store reads (the review pipeline's prompt) aligned with the checkouts the
+   * agent actually works in, and resolving before the status transition means an invalid override
+   * fails before the spec is marked {@code in_progress}. Returns {@code null} when the project has
+   * no specs or none are ready. The container is never read: a stopped or file-drifted project is
+   * irrelevant because the spec lives in the DB, replicated by sync.
    */
-  private Prepared prepareDispatch(String project, String specId, boolean restart) {
+  private Prepared prepareDispatch(
+      String project, String specId, boolean restart, SailYaml config) {
     var fde = HostSync.handle();
     if (fde == null) {
       throw new IllegalStateException(
@@ -403,11 +412,12 @@ public final class DispatchCommand implements Runnable {
       if (resolution.spec() == null) {
         return null;
       }
-      store.updateStatus(resolution.spec().id(), SpecStatus.IN_PROGRESS);
-      new ReviewStore(db).supersedeForSpec(resolution.spec().id());
-      var body =
-          store.getContent(resolution.spec().id()).map(SpecStore.SpecContent::body).orElse("");
-      return new Prepared(resolution, body);
+      var targetRepos = DispatchRepos.resolve(config, resolution.spec(), repoOverrides);
+      var taskSpec = DispatchRepos.withTargetRepos(resolution.spec(), targetRepos);
+      store.updateReposAndStatus(taskSpec.id(), taskSpec.repos(), SpecStatus.IN_PROGRESS);
+      new ReviewStore(db).supersedeForSpec(taskSpec.id());
+      var body = store.getContent(taskSpec.id()).map(SpecStore.SpecContent::body).orElse("");
+      return new Prepared(resolution, taskSpec, targetRepos, body);
     }
   }
 

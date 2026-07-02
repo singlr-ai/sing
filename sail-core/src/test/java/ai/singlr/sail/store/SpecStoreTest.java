@@ -235,6 +235,17 @@ class SpecStoreTest {
   }
 
   @Test
+  void updateReposAndStatusReplacesReposWithTheStatusTransition() {
+    store.create(spec("a", "Test", "pending"));
+    store.updateReposAndStatus("a", List.of("api", "web"), SpecStatus.IN_PROGRESS);
+
+    var found = store.findById("a").orElseThrow();
+    assertEquals(SpecStatus.IN_PROGRESS, found.status());
+    assertEquals(List.of("api", "web"), found.repos());
+    assertEquals(2, store.history("a").size());
+  }
+
+  @Test
   void deleteSpec() {
     store.create(spec("a", "Doomed", "draft"));
     store.delete("a");
