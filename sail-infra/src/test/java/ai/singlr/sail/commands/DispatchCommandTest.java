@@ -187,6 +187,10 @@ class DispatchCommandTest {
         prompt.contains("## Autonomous Operation"),
         "the autonomous protocol belongs in the dispatch prompt, not the always-loaded context");
     assertTrue(prompt.contains("open a pull request"));
+    assertTrue(
+        prompt.contains("not complete until CI is green"),
+        "the agent must watch the PR's checks and fix failures — a red-CI PR is unfinished work");
+    assertTrue(prompt.contains("gh pr checks"));
     assertFalse(prompt.contains("handoff.md"), "no context-handoff cruft");
   }
 

@@ -61,7 +61,12 @@ public final class AgentTaskPrompt {
 
         ## Autonomous Operation
         Execute without waiting for confirmation: plan, implement, test, commit. When complete, run
-        the tests, commit with a clear message, push the branch, and open a pull request.
+        the full local verification the project uses (including any coverage or lint gates), commit
+        with a clear message, push the branch, and open a pull request.
+
+        The spec is not complete until CI is green: after opening the pull request, watch its
+        checks (e.g. `gh pr checks <number> --watch`), and if any check fails, diagnose it, fix it
+        on the branch, push, and watch again until every check passes.
         """
         + multiRepo
         + "If the build fails repeatedly on the same error, or three different approaches fail, stop"
