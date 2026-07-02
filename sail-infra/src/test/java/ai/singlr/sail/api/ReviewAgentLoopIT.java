@@ -103,7 +103,7 @@ class ReviewAgentLoopIT extends AbstractIncusIT {
   }
 
   @Test
-  void theReviewLoopReachesDoneAgainstARealContainer() throws Exception {
+  void theReviewLoopReachesAwaitingMergeAgainstARealContainer() throws Exception {
     var stateDir = Files.createTempDirectory("review-loop-it");
     try (var db = Sqlite.open(stateDir.resolve("loop.db"))) {
       new SchemaManager(db).migrate();
@@ -163,7 +163,7 @@ class ReviewAgentLoopIT extends AbstractIncusIT {
               "host",
               Map.of(Event.WellKnownData.SOURCE, Event.WellKnownData.SOURCE_WATCHER)));
 
-      assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+      assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
       assertEquals(2, reviewStore.reviewsForSpec("auth").size());
     } finally {
       deleteRecursively(stateDir);
