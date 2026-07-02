@@ -247,7 +247,7 @@ public final class SailApiOperations implements ApiOperations {
 
     var targetRepos = DispatchRepos.resolve(loaded.config(), nextSpec, request.repos());
     var taskSpec = DispatchRepos.withTargetRepos(nextSpec, targetRepos);
-    specStore.updateStatus(nextSpec.id(), SpecStatus.IN_PROGRESS);
+    specStore.updateReposAndStatus(nextSpec.id(), taskSpec.repos(), SpecStatus.IN_PROGRESS);
     if (reviewStore != null) {
       reviewStore.supersedeForSpec(nextSpec.id());
     }

@@ -243,6 +243,26 @@ public final class SpecStore implements ConflictResolver {
         });
   }
 
+  /**
+   * Status transition that also persists the spec's resolved target repos in the same transaction.
+   * Dispatch resolves repo overrides at launch time; recording them here keeps later store reads
+   * (the review pipeline builds its prompt from the stored repos) aligned with the checkouts the
+   * agent actually worked in.
+   */
+  public void updateReposAndStatus(String id, List<String> repos, SpecStatus status) {
+    db.transaction(
+        () -> {
+          db.execute(
+              "UPDATE specs SET status = ?, updated_at = ? WHERE id = ?",
+              status.wire(),
+              DateTimeUtils.now().toString(),
+              id);
+          db.execute("DELETE FROM spec_repos WHERE spec_id = ?", id);
+          insertRepos(id, repos);
+          recordRevision(id, "local", false);
+        });
+  }
+
   public void delete(String id) {
     db.transaction(
         () -> {
