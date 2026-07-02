@@ -30,32 +30,30 @@ final class SlackMessage {
       case Event.WellKnownTypes.SPEC_RESTARTED -> root(event, spec, "re-dispatched");
       case Event.WellKnownTypes.AGENT_SESSION_STOPPED -> stopped(event);
       case Event.WellKnownTypes.AGENT_FAILED ->
-          ":x: Agent failed (" + detailOr(event, "no exit code") + ").";
+          "Agent failed (" + detailOr(event, "no exit code") + ").";
       case Event.WellKnownTypes.GUARDRAIL_TRIGGERED -> guardrail(event);
-      case "review_stage_started" -> ":mag: Review started: " + detailOr(event, "review") + ".";
+      case "review_stage_started" -> "Review started: " + detailOr(event, "review") + ".";
       case "review_stage_passed" ->
-          ":white_check_mark: Review stage passed: "
-              + detailOr(event, "review")
-              + findingsSuffix(event)
-              + ".";
+          "Review stage passed: " + detailOr(event, "review") + findingsSuffix(event) + ".";
       case "review_stage_failed" ->
-          ":x: Review stage failed: " + detailOr(event, "review") + findingsSuffix(event) + ".";
-      case "review_completed" -> ":tada: Review passed — spec done.";
-      case "review_errored" -> ":warning: Review errored: " + detailOr(event, "unknown error");
-      case "review_iteration_started" -> ":wrench: Fix iteration started.";
+          "Review stage failed: " + detailOr(event, "review") + findingsSuffix(event) + ".";
+      case "review_completed" -> "Review passed. Spec done.";
+      case "review_errored" -> "Review errored: " + detailOr(event, "unknown error");
+      case "review_iteration_started" -> "Fix iteration started.";
       case "review_escalated" ->
-          ":rotating_light: Escalated — iterations exhausted, this spec needs a human.";
+          "Escalated: review iterations exhausted. This spec needs a human decision.";
       default -> "Event " + event.type() + " from " + event.agent() + ".";
     };
   }
 
   private static String root(Event event, SpecStore.SpecRow spec, String verb) {
-    var sb = new StringBuilder(":rocket: Spec *");
-    sb.append(Objects.toString(event.spec(), "unknown")).append("*");
+    var sb = new StringBuilder();
+    sb.append(capitalize(verb)).append(" *").append(Objects.toString(event.spec(), "unknown"));
+    sb.append("*");
     if (spec != null && spec.title() != null) {
-      sb.append(" — ").append(spec.title());
+      sb.append(": ").append(spec.title());
     }
-    sb.append(" ").append(verb).append("\nproject `").append(event.project()).append("`");
+    sb.append("\nproject `").append(event.project()).append("`");
     var branch = stringFromData(event, "branch");
     if (!branch.isBlank()) {
       sb.append(" · branch `").append(branch).append("`");
@@ -73,13 +71,13 @@ final class SlackMessage {
     }
     var note = stringFromData(event, "note");
     if (!note.isBlank()) {
-      sb.append(" — ").append(note);
+      sb.append(": ").append(note);
     }
     return sb.append(".").toString();
   }
 
   private static String guardrail(Event event) {
-    var sb = new StringBuilder(":no_entry: Guardrail triggered");
+    var sb = new StringBuilder("Guardrail triggered");
     var reason = stringFromData(event, "reason");
     if (!reason.isBlank()) {
       sb.append(". Reason: ").append(reason);
@@ -102,7 +100,11 @@ final class SlackMessage {
         parts.add(count + " " + severity);
       }
     }
-    return parts.isEmpty() ? " (no findings)" : " — " + String.join(", ", parts);
+    return parts.isEmpty() ? " (no findings)" : " (" + String.join(", ", parts) + ")";
+  }
+
+  private static String capitalize(String verb) {
+    return Character.toUpperCase(verb.charAt(0)) + verb.substring(1);
   }
 
   private static String detailOr(Event event, String fallback) {
