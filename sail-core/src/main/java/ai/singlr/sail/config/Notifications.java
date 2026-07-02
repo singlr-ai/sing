@@ -12,16 +12,23 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Webhook notification configuration for agent watch events. Parsed from the {@code notifications}
- * block inside {@code agent} in sail.yaml.
+ * Notification configuration for agent watch events. Parsed from the {@code notifications} block
+ * inside {@code agent} in sail.yaml. At least one destination — a webhook {@code url} or a {@code
+ * slack} block — must be configured.
  *
- * @param url the webhook endpoint URL (required, must be https:// or http:// with SSRF checks)
- * @param events which events to notify on (null or empty means all events)
+ * @param url the webhook endpoint URL (must be https:// or http:// with SSRF checks); may be null
+ *     when a slack block is configured
+ * @param events which events to notify on via the webhook (null or empty means all events)
+ * @param slack Slack channel configuration for per-spec threaded notifications; may be null
  */
-public record Notifications(String url, List<String> events) {
+public record Notifications(String url, List<String> events, SlackNotifications slack) {
 
   public Notifications {
     events = events == null ? null : List.copyOf(events);
+  }
+
+  public Notifications(String url, List<String> events) {
+    this(url, events, null);
   }
 
   /**
@@ -53,10 +60,17 @@ public record Notifications(String url, List<String> events) {
   @SuppressWarnings("unchecked")
   public static Notifications fromMap(Map<String, Object> map) {
     var url = (String) map.get("url");
-    if (Strings.isBlank(url)) {
-      throw new IllegalArgumentException("notifications.url is required.");
+    var slackRaw = (Map<String, Object>) map.get("slack");
+    var slack = slackRaw != null ? SlackNotifications.fromMap(slackRaw) : null;
+    if (Strings.isBlank(url) && slack == null) {
+      throw new IllegalArgumentException(
+          "notifications requires a webhook url or a slack block.");
     }
-    WebhookUrlSafety.requireSafe(url);
+    if (Strings.isNotBlank(url)) {
+      WebhookUrlSafety.requireSafe(url);
+    } else {
+      url = null;
+    }
 
     var eventsRaw = (List<String>) map.get("events");
     if (eventsRaw != null) {
@@ -71,14 +85,19 @@ public record Notifications(String url, List<String> events) {
       }
     }
 
-    return new Notifications(url, eventsRaw);
+    return new Notifications(url, eventsRaw, slack);
   }
 
   public Map<String, Object> toMap() {
     var map = new LinkedHashMap<String, Object>();
-    map.put("url", url);
+    if (url != null) {
+      map.put("url", url);
+    }
     if (events != null && !events.isEmpty()) {
       map.put("events", List.copyOf(events));
+    }
+    if (slack != null) {
+      map.put("slack", slack.toMap());
     }
     return map;
   }

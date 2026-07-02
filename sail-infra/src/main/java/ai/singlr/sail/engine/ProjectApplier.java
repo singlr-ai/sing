@@ -179,8 +179,8 @@ public final class ProjectApplier {
   }
 
   /**
-   * Regenerates agent context files (per-agent context + SECURITY.md + methodology/skill + audit
-   * hooks) via {@link AgentContextInstaller}, so a delta apply keeps engineer-owned files exactly
+   * Regenerates agent context files (per-agent home context + methodology/spec skills + language
+   * rules) via {@link AgentContextInstaller}, so a delta apply keeps engineer-owned files exactly
    * as {@code project reconfigure} and {@code agent context regen} do.
    */
   public ApplyResult applyAgentContext(String name, SailYaml config) throws Exception {

@@ -314,6 +314,15 @@ public final class SchemaManager {
               spec_id TEXT NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
               finding_id TEXT NOT NULL REFERENCES review_findings(id) ON DELETE CASCADE,
               PRIMARY KEY (spec_id, finding_id)
+          )""",
+          """
+          CREATE TABLE IF NOT EXISTS slack_threads (
+              project TEXT NOT NULL,
+              spec_id TEXT NOT NULL,
+              channel TEXT NOT NULL,
+              thread_ts TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              PRIMARY KEY (project, spec_id)
           )""");
 
   private final Sqlite db;

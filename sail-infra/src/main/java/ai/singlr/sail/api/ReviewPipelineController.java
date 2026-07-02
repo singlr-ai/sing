@@ -16,7 +16,9 @@ import ai.singlr.sail.store.Finding;
 import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SpecStore;
 import java.net.InetAddress;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -295,7 +297,11 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
 
       reviewStore.completeStage(stage.id(), passed ? "passed" : "failed");
       publishEvent(
-          project, specId, passed ? "review_stage_passed" : "review_stage_failed", stage.name());
+          project,
+          specId,
+          passed ? "review_stage_passed" : "review_stage_failed",
+          stage.name(),
+          severityCounts(findings));
 
       return passed ? new StageOutcome.Passed() : new StageOutcome.GateFailed();
 
@@ -388,9 +394,32 @@ public final class ReviewPipelineController implements EventSubscriber, AutoClos
   }
 
   private void publishEvent(String project, String specId, String type, String detail) {
+    publishEvent(project, specId, type, detail, Map.of());
+  }
+
+  private void publishEvent(
+      String project, String specId, String type, String detail, Map<String, Object> findings) {
     if (eventBus == null) return;
-    var data = detail != null ? Map.<String, Object>of("detail", detail) : Map.<String, Object>of();
+    var data = new LinkedHashMap<String, Object>();
+    if (detail != null) {
+      data.put("detail", detail);
+    }
+    if (!findings.isEmpty()) {
+      data.put("findings", findings);
+    }
     eventBus.publish(Event.of(project, specId, type, Event.SAIL_AGENT, hostname(), data));
+  }
+
+  /** Finding counts keyed by lowercase severity, omitting zero severities — for event payloads. */
+  private static Map<String, Object> severityCounts(List<Finding> findings) {
+    var counts = new LinkedHashMap<String, Object>();
+    for (var severity : Finding.Severity.values()) {
+      var count = findings.stream().filter(f -> f.severity() == severity).count();
+      if (count > 0) {
+        counts.put(severity.name().toLowerCase(Locale.ROOT), (int) count);
+      }
+    }
+    return counts;
   }
 
   /**

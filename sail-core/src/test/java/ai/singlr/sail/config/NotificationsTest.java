@@ -258,6 +258,70 @@ class NotificationsTest {
   }
 
   @Test
+  void fromMapParsesSlackChannel() {
+    var n = Notifications.fromMap(Map.of("slack", Map.of("channel", "#sail-activity")));
+
+    assertEquals("#sail-activity", n.slack().channel());
+    assertEquals(null, n.url());
+  }
+
+  @Test
+  void fromMapParsesUrlAndSlackTogether() {
+    var n =
+        Notifications.fromMap(
+            Map.of("url", "https://ntfy.sh/test", "slack", Map.of("channel", "#ops")));
+
+    assertEquals("https://ntfy.sh/test", n.url());
+    assertEquals("#ops", n.slack().channel());
+  }
+
+  @Test
+  void fromMapRequiresUrlOrSlack() {
+    var ex =
+        assertThrows(
+            IllegalArgumentException.class, () -> Notifications.fromMap(Map.of("events", List.of())));
+    assertTrue(ex.getMessage().contains("url or a slack block"));
+  }
+
+  @Test
+  void fromMapRejectsSlackWithoutChannel() {
+    var ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> Notifications.fromMap(Map.of("slack", Map.of())));
+    assertTrue(ex.getMessage().contains("notifications.slack.channel"));
+  }
+
+  @Test
+  void fromMapRejectsSlackWithBlankChannel() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Notifications.fromMap(Map.of("slack", Map.of("channel", "  "))));
+  }
+
+  @Test
+  void toMapRoundTripsSlack() {
+    var original = new Notifications(null, null, new SlackNotifications("#sail-activity"));
+    var map = original.toMap();
+    var restored = Notifications.fromMap(map);
+
+    assertFalse(map.containsKey("url"));
+    assertEquals("#sail-activity", restored.slack().channel());
+  }
+
+  @Test
+  void slackNotificationsRoundTrips() {
+    var slack = SlackNotifications.fromMap(Map.of("channel", "#x"));
+    assertEquals(slack, SlackNotifications.fromMap(slack.toMap()));
+  }
+
+  @Test
+  void twoArgConstructorLeavesSlackNull() {
+    var n = new Notifications("https://ntfy.sh/test", List.of());
+    assertEquals(null, n.slack());
+  }
+
+  @Test
   void fromMapRejectsUnresolvableHostname() {
     var ex =
         assertThrows(

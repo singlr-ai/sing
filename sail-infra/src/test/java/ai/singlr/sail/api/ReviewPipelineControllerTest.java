@@ -621,6 +621,82 @@ class ReviewPipelineControllerTest {
   }
 
   @Test
+  void stageEventsCarryFindingCountsBySeverity() throws Exception {
+    createSpec("auth", "in_progress");
+    var agentOutput =
+        """
+        ```json
+        [{"severity": "HIGH", "category": "SECURITY", "file": "Auth.java",
+          "line_start": 1, "line_end": 1, "title": "SQL injection",
+          "description": "d", "confidence": 0.9},
+         {"severity": "HIGH", "category": "SECURITY", "file": "Auth.java",
+          "line_start": 2, "line_end": 2, "title": "XSS",
+          "description": "d", "confidence": 0.9},
+         {"severity": "LOW", "category": "STYLE", "file": "Auth.java",
+          "line_start": 3, "line_end": 3, "title": "Naming",
+          "description": "d", "confidence": 0.9}]
+        ```
+        """;
+
+    try (var bus = new EventBus()) {
+      var captured = captureStagePassedEvents(bus, 1);
+      var ctrl =
+          controller(
+              p -> singleAgentStage("no_critical"), p -> "codex", (p, a, pr) -> agentOutput, bus);
+
+      ctrl.onEvent(agentStoppedEvent("auth"));
+      BusTesting.awaitDelivery(captured.latch());
+
+      var event = captured.events().getFirst();
+      assertEquals("security", event.data().get("detail"));
+      assertEquals(Map.of("high", 2, "low", 1), event.data().get("findings"));
+    }
+  }
+
+  @Test
+  void cleanStageEventOmitsFindingCounts() throws Exception {
+    createSpec("auth", "in_progress");
+
+    try (var bus = new EventBus()) {
+      var captured = captureStagePassedEvents(bus, 1);
+      var ctrl =
+          controller(p -> singleAgentStage("no_critical"), p -> "codex", (p, a, pr) -> "[]", bus);
+
+      ctrl.onEvent(agentStoppedEvent("auth"));
+      BusTesting.awaitDelivery(captured.latch());
+
+      assertFalse(captured.events().getFirst().data().containsKey("findings"));
+    }
+  }
+
+  private record Captured(List<Event> events, CountDownLatch latch) {}
+
+  private static Captured captureStagePassedEvents(EventBus bus, int expected) {
+    var events = new java.util.concurrent.CopyOnWriteArrayList<Event>();
+    var latch = new CountDownLatch(expected);
+    bus.subscribe(
+        BusTesting.latching(
+            new EventSubscriber() {
+              @Override
+              public String name() {
+                return "capture";
+              }
+
+              @Override
+              public java.util.function.Predicate<Event> filter() {
+                return e -> "review_stage_passed".equals(e.type());
+              }
+
+              @Override
+              public void onEvent(Event event) {
+                events.add(event);
+              }
+            },
+            latch));
+    return new Captured(events, latch);
+  }
+
+  @Test
   void aRunningReviewIsNotRestartedByADuplicateEvent() {
     createSpec("auth", "in_progress");
     var reviewId = reviewStore.createReview("auth", 1);
