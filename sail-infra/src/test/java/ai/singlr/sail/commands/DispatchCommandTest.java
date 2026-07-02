@@ -190,7 +190,11 @@ class DispatchCommandTest {
     assertTrue(
         prompt.contains("not complete until CI is green"),
         "the agent must watch the PR's checks and fix failures — a red-CI PR is unfinished work");
-    assertTrue(prompt.contains("gh pr checks"));
+    assertTrue(
+        prompt.contains("the CLI of the forge hosting the repo"),
+        "CI-watching guidance must be forge-neutral so GitLab/Bitbucket agents reach for their"
+            + " own forge CLI");
+    assertTrue(prompt.contains("gh pr checks"), "GitHub stays as one concrete example");
     assertTrue(
         prompt.contains("no Co-Authored-By trailers"),
         "generated work must not carry AI attribution");

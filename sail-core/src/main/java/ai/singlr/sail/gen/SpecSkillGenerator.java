@@ -105,15 +105,15 @@ public final class SpecSkillGenerator {
         `--status pending` or `--assignee me` to filter). Render the result as status columns:
 
         ```
-        ┌─────────────┬─────────────────┬──────────────┬──────────────┐
-        │ Pending (3)  │ In Progress (1) │ Review (0)   │ Done (2)     │
-        ├─────────────┼─────────────────┼──────────────┼──────────────┤
-        │ search-api   │ oauth-flow      │              │ data-model   │
-        │  └─ depends: │                 │              │ auth-setup   │
-        │     oauth    │                 │              │              │
-        │ payments     │                 │              │              │
-        │ notifications│                 │              │              │
-        └─────────────┴─────────────────┴──────────────┴──────────────┘
+        ┌─────────────┬─────────────────┬──────────────┬────────────────────┬──────────────┐
+        │ Pending (3)  │ In Progress (1) │ Review (0)   │ Awaiting Merge (1) │ Done (2)     │
+        ├─────────────┼─────────────────┼──────────────┼────────────────────┼──────────────┤
+        │ search-api   │ oauth-flow      │              │ billing-hooks      │ data-model   │
+        │  └─ depends: │                 │              │                    │ auth-setup   │
+        │     oauth    │                 │              │                    │              │
+        │ payments     │                 │              │                    │              │
+        │ notifications│                 │              │                    │              │
+        └─────────────┴─────────────────┴──────────────┴────────────────────┴──────────────┘
         ```
 
         Show the title under each id. The board marks the next ready spec; flag specs whose \
@@ -153,7 +153,7 @@ public final class SpecSkillGenerator {
 
   private static String updateInstructions() {
     return """
-        Valid statuses: `pending`, `in_progress`, `review`, `done`.
+        Valid statuses: `pending`, `in_progress`, `review`, `awaiting_merge`, `done`.
 
         ```sh
         spec update <id> --status <new-status>
@@ -190,10 +190,12 @@ public final class SpecSkillGenerator {
         ```
 
         ### Status Lifecycle
-        `pending` → `in_progress` → `review` → `done`
+        `pending` → `in_progress` → `review` → `awaiting_merge` → `done`
         - **pending**: ready to be picked up
         - **in_progress**: an agent is actively working on it (set by `sail spec dispatch`)
         - **review**: PR created, waiting for human review (set by `sail`)
+        - **awaiting_merge**: review passed; the PR waits for a human to merge it on the forge
+          (set by `sail`)
         - **done**: PR merged, work complete (set by the engineer via `sail`)
 
         During autonomous execution Sail manages status itself — do not change it. The engineer's
@@ -202,7 +204,7 @@ public final class SpecSkillGenerator {
         ### Fields (set at create or via `spec update`)
         - **id** (required): stable identifier, lowercase with hyphens
         - **title** (required): short human-readable description
-        - **status**: one of pending, in_progress, review, done
+        - **status**: one of pending, in_progress, review, awaiting_merge, done
         - **assignee**: agent type or engineer name
         - **depends-on**: spec ids that must be done first
         - **repos**: target repository paths from `sail.yaml` `repos[].path`

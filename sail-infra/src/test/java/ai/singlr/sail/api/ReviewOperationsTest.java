@@ -18,6 +18,7 @@ import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,7 +106,7 @@ class ReviewOperationsTest {
   }
 
   @Test
-  void approveCompletesHumanStageAndMarksSpecDone() {
+  void approveCompletesHumanStageAndParksSpecAwaitingMerge() {
     var reviewId = reviewStore.createReview("auth", 1);
     var stageId = reviewStore.createStage(reviewId, "human", "human");
     reviewStore.startStage(stageId, "uday");
@@ -116,6 +117,10 @@ class ReviewOperationsTest {
     var review = reviewStore.findReview(reviewId).orElseThrow();
     assertEquals("passed", review.status());
     assertEquals("uday", review.decidedBy());
+    assertEquals(
+        SpecStatus.AWAITING_MERGE,
+        specStore.findById("auth").orElseThrow().status(),
+        "approval decides the findings; merging the PR is a separate human act");
   }
 
   @Test
@@ -292,20 +297,28 @@ class ReviewOperationsTest {
   }
 
   @Test
-  void approveResolvesSourceFindingsOfTheApprovedSpec() {
+  void approveLeavesSourceFindingsOpenUntilTheSpecReachesDone() {
     seedPassedReviewWithOpenFindings();
     ops.createFollowup("auth", new FollowupCreateRequest(null, "uday"));
     var followupReview = reviewStore.createReview("auth-followup", 1);
     var humanStage = reviewStore.createStage(followupReview, "human", "human");
     reviewStore.startStage(humanStage, "uday");
+    var sourceReview = reviewStore.reviewsForSpec("auth").getFirst().id();
 
     ops.approve(followupReview, "uday");
 
-    var resolutions =
-        reviewStore.findingsForReview(reviewStore.reviewsForSpec("auth").getFirst().id()).stream()
-            .map(Finding::resolution)
-            .toList();
-    assertEquals(List.of(Finding.Resolution.FIXED, Finding.Resolution.FIXED), resolutions);
+    var afterApprove =
+        reviewStore.findingsForReview(sourceReview).stream().map(Finding::resolution).toList();
+    assertEquals(List.of(Finding.Resolution.OPEN, Finding.Resolution.OPEN), afterApprove);
+
+    new GlobalSpecOperations(specStore, reviewStore)
+        .update(
+            "auth-followup",
+            SpecUpdateRequest.fromMap(Map.of("status", "done")).withUpdatedBy("uday"));
+
+    var afterDone =
+        reviewStore.findingsForReview(sourceReview).stream().map(Finding::resolution).toList();
+    assertEquals(List.of(Finding.Resolution.FIXED, Finding.Resolution.FIXED), afterDone);
   }
 
   @Test

@@ -16,8 +16,8 @@ import java.util.List;
  * Review-workflow operations against the {@link ReviewStore}. Split out of {@code
  * SailApiOperations} so the review domain is one focused, fully-testable class. Methods return
  * their response value and throw {@link ApiException} on failure; the caller wraps them in a {@code
- * Result}. {@code specStore} is needed only to flip a spec to {@code done} when its human review is
- * approved.
+ * Result}. {@code specStore} is needed only to park a spec in {@code awaiting_merge} when its human
+ * review is approved — merging the PR and marking the spec {@code done} stays a human act.
  */
 final class ReviewOperations {
 
@@ -69,8 +69,7 @@ final class ReviewOperations {
                         ErrorCode.INVALID_REQUEST, "No human review stage awaiting approval."));
     reviewStore.completeStage(humanStage.id(), "passed");
     reviewStore.approve(reviewId, actor);
-    specStore.updateStatus(review.specId(), SpecStatus.DONE);
-    reviewStore.resolveSourceFindings(review.specId());
+    specStore.updateStatus(review.specId(), SpecStatus.AWAITING_MERGE);
     return new ReviewApproveResponse(reviewId, true);
   }
 

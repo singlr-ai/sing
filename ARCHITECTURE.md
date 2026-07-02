@@ -362,6 +362,14 @@ stage's gate fails, a fix agent addresses the open findings on the same branch a
 reviewer runs again, bounded by `max_iterations`, after which the spec `escalates` and parks
 in `review` for a human.
 
+A gate pass is not completion: the PR is still open on whatever forge hosts the repo, so the
+spec parks in `awaiting_merge`. Sail never talks to the forge — the FDE reviews and merges
+the PR there, then closes the loop with `sail spec edit <id> --status done`. Deciding about
+escalated findings (parks in `review`) and merging a passed PR (parks in `awaiting_merge`)
+are different human acts and get distinct states. Because only `done` satisfies
+`depends_on`, a dependent spec never dispatches against a main that lacks its parent's
+unmerged work.
+
 Reviewer and fix agents run on the same agent command and log handling as dispatch, but not
 its process wrapper. Dispatch is fire-and-forget (it launches a detached `systemd-run --user`
 unit and an external `sail agent watch` monitors it); a review blocks the pipeline until it

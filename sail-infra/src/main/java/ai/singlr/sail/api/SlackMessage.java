@@ -37,7 +37,7 @@ final class SlackMessage {
           "Review stage passed: " + detailOr(event, "review") + findingsSuffix(event) + ".";
       case "review_stage_failed" ->
           "Review stage failed: " + detailOr(event, "review") + findingsSuffix(event) + ".";
-      case "review_completed" -> "Review passed. Spec done.";
+      case "review_completed" -> "Review passed. Awaiting merge.";
       case "review_errored" -> "Review errored: " + detailOr(event, "unknown error");
       case "review_iteration_started" -> "Fix iteration started.";
       case "review_escalated" ->

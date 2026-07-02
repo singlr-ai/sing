@@ -286,6 +286,17 @@ class ReviewPipelineControllerTest {
   }
 
   @Test
+  void ignoresAStopForASpecAlreadyAwaitingMerge() {
+    createSpec("auth", "awaiting_merge");
+    var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
+
+    ctrl.onEvent(agentStoppedEvent("auth"));
+
+    assertTrue(reviewStore.reviewsForSpec("auth").isEmpty());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
+  }
+
+  @Test
   void transitionsSpecToReview() {
     createSpec("auth", "in_progress");
     var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
@@ -293,11 +304,11 @@ class ReviewPipelineControllerTest {
     ctrl.onEvent(agentStoppedEvent("auth"));
 
     var spec = specStore.findById("auth").orElseThrow();
-    assertEquals(SpecStatus.DONE, spec.status());
+    assertEquals(SpecStatus.AWAITING_MERGE, spec.status());
   }
 
   @Test
-  void cleanReviewPassesAndTransitionsSpecToDone() {
+  void cleanReviewPassesAndParksSpecAwaitingMerge() {
     createSpec("auth", "in_progress");
     var ctrl = controller(singleAgentStage("no_critical"), (p, a, pr) -> "[]");
 
@@ -306,7 +317,10 @@ class ReviewPipelineControllerTest {
     var review = reviewStore.latestReviewForSpec("auth").orElseThrow();
     assertEquals("passed", review.status());
     assertEquals(1, review.iteration());
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(
+        SpecStatus.AWAITING_MERGE,
+        specStore.findById("auth").orElseThrow().status(),
+        "a gate pass leaves the PR unmerged — done is the human's call after merging");
   }
 
   @Test
@@ -392,7 +406,7 @@ class ReviewPipelineControllerTest {
         "an infrastructure error must not consume a review iteration — the retry runs as the"
             + " same iteration, so quota outages can never exhaust max_iterations");
     assertEquals("passed", review.status());
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
   }
 
   @Test
@@ -427,7 +441,7 @@ class ReviewPipelineControllerTest {
     var review = reviewStore.latestReviewForSpec("auth").orElseThrow();
     assertEquals(1, review.iteration(), "a re-dispatch is a fresh attempt, not iteration 4");
     assertEquals("passed", review.status());
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
   }
 
   @Test

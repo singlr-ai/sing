@@ -158,7 +158,7 @@ class ReviewLoopIntegrationTest {
   }
 
   @Test
-  void aCleanStopPublishedToTheBusAdvancesTheSpecToDone() throws Exception {
+  void aCleanStopPublishedToTheBusAdvancesTheSpecToAwaitingMerge() throws Exception {
     createSpec("auth");
     var latch = new CountDownLatch(1);
     subscribe(singleStage("no_critical"), (p, a, pr) -> "[]", latch);
@@ -166,7 +166,7 @@ class ReviewLoopIntegrationTest {
     bus.publish(stop("auth"));
 
     BusTesting.awaitDelivery(latch);
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
     assertEquals("passed", reviewStore.latestReviewForSpec("auth").orElseThrow().status());
   }
 
@@ -184,7 +184,7 @@ class ReviewLoopIntegrationTest {
   }
 
   @Test
-  void theReviewFixReReviewLoopReachesDoneWhenAFixResolvesTheFindings() throws Exception {
+  void theReviewFixReReviewLoopReachesAwaitingMergeWhenAFixResolvesTheFindings() throws Exception {
     createSpec("auth");
     var latch = new CountDownLatch(1);
     subscribe(singleStage("no_critical"), cyclingRunner(List.of(CRITICAL_FINDING)), latch);
@@ -192,7 +192,7 @@ class ReviewLoopIntegrationTest {
     bus.publish(stop("auth"));
 
     BusTesting.awaitDelivery(latch);
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
     assertEquals(
         2,
         reviewStore.reviewsForSpec("auth").size(),

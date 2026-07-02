@@ -18,6 +18,10 @@ import java.util.Set;
  * active. Beyond a generous threshold (longer than the watchdog ceiling) a still-active spec means
  * something silently failed — a Stop hook that never fired, a watcher that died, a review that
  * crashed — and the spec needs surfacing rather than waiting forever.
+ *
+ * <p>{@code awaiting_merge} is deliberately not flagged: it is an explicit human queue (review
+ * passed, PR waiting to be merged on the forge), visible on the board, with no machinery left
+ * running that could have silently failed.
  */
 public final class StrandedSpecs {
 

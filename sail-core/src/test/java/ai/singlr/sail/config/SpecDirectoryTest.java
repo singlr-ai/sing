@@ -217,7 +217,8 @@ class SpecDirectoryTest {
             new Spec("c", "C", SpecStatus.IN_PROGRESS, null, List.of(), null),
             new Spec("d", "D", SpecStatus.PENDING, null, List.of(), null),
             new Spec("e", "E", SpecStatus.PENDING, null, List.of(), null),
-            new Spec("f", "F", SpecStatus.REVIEW, null, List.of(), null));
+            new Spec("f", "F", SpecStatus.REVIEW, null, List.of(), null),
+            new Spec("g", "G", SpecStatus.AWAITING_MERGE, null, List.of(), null));
 
     var counts = SpecDirectory.statusCounts(specs);
 
@@ -225,6 +226,7 @@ class SpecDirectoryTest {
     assertEquals(1, counts.get("in_progress"));
     assertEquals(2, counts.get("pending"));
     assertEquals(1, counts.get("review"));
+    assertEquals(1, counts.get("awaiting_merge"));
   }
 
   @Test
@@ -235,6 +237,28 @@ class SpecDirectoryTest {
     assertEquals(0, counts.get("in_progress"));
     assertEquals(0, counts.get("pending"));
     assertEquals(0, counts.get("review"));
+    assertEquals(0, counts.get("awaiting_merge"));
+  }
+
+  @Test
+  void awaitingMergeDependencyKeepsDependentBlocked() {
+    var specs =
+        List.of(
+            new Spec("base", "Base", SpecStatus.AWAITING_MERGE, null, List.of(), null),
+            new Spec("child", "Child", SpecStatus.PENDING, null, List.of("base"), null));
+
+    assertNull(SpecDirectory.nextReady(specs));
+    assertTrue(SpecDirectory.isBlocked(specs, specs.get(1)));
+    assertEquals(List.of("base"), SpecDirectory.unmetDependencies(specs, specs.get(1)));
+  }
+
+  @Test
+  void awaitingMergeIsCliSettable() {
+    var specs = List.of(new Spec("auth", "Auth", SpecStatus.REVIEW, null, List.of(), null));
+
+    var updated = SpecDirectory.updateStatus(specs, "auth", SpecStatus.AWAITING_MERGE);
+
+    assertEquals(SpecStatus.AWAITING_MERGE, updated.getFirst().status());
   }
 
   @Test

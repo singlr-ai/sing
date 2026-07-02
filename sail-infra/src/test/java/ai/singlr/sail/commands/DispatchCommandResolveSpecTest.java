@@ -176,6 +176,7 @@ class DispatchCommandResolveSpecTest {
     var store = store();
     store.create(row("done-one", "done"));
     store.create(row("review-one", "review"));
+    store.create(row("parked-one", "awaiting_merge"));
     var specs = specsOf(store);
 
     assertThrows(
@@ -184,6 +185,9 @@ class DispatchCommandResolveSpecTest {
     assertThrows(
         IllegalStateException.class,
         () -> DispatchCommand.resolveSpec("review-one", false, specs, store, FDE));
+    assertThrows(
+        IllegalStateException.class,
+        () -> DispatchCommand.resolveSpec("parked-one", false, specs, store, FDE));
   }
 
   @Test
@@ -200,5 +204,17 @@ class DispatchCommandResolveSpecTest {
         resolution.previousStatus(),
         "previousStatus carries the pre-reset status so the caller can publish spec_restarted");
     assertEquals(SpecStatus.PENDING, store.findById("oauth-flow").orElseThrow().status());
+  }
+
+  @Test
+  void restartResetsAnAwaitingMergeSpecToo() {
+    var store = store();
+    store.create(row("parked", "awaiting_merge"));
+
+    var resolution = DispatchCommand.resolveSpec("parked", true, specsOf(store), store, FDE);
+
+    assertTrue(resolution.restarted());
+    assertEquals("awaiting_merge", resolution.previousStatus());
+    assertEquals(SpecStatus.PENDING, store.findById("parked").orElseThrow().status());
   }
 }

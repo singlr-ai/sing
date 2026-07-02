@@ -323,7 +323,57 @@ public final class SchemaManager {
               thread_ts TEXT NOT NULL,
               created_at TEXT NOT NULL,
               PRIMARY KEY (project, spec_id)
-          )""");
+          )""",
+          """
+          CREATE TABLE specs_v2 (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft', 'pending', 'in_progress', 'review', 'awaiting_merge',
+                      'done', 'archived')),
+              assignee TEXT,
+              agent TEXT,
+              model TEXT,
+              reasoning_effort TEXT
+                  CHECK (reasoning_effort IS NULL OR reasoning_effort IN ('none', 'low', 'medium', 'high', 'xhigh')),
+              branch TEXT,
+              priority INTEGER NOT NULL DEFAULT 0,
+              created_by TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              project TEXT NOT NULL DEFAULT 'unassigned',
+              updated_by TEXT,
+              rev TEXT,
+              base_rev TEXT
+          )""",
+          """
+          INSERT INTO specs_v2 (id, title, status, assignee, agent, model, reasoning_effort,
+                  branch, priority, created_by, created_at, updated_at, project, updated_by,
+                  rev, base_rev)
+              SELECT id, title, status, assignee, agent, model, reasoning_effort,
+                  branch, priority, created_by, created_at, updated_at, project, updated_by,
+                  rev, base_rev FROM specs""",
+          "DROP TABLE specs",
+          "ALTER TABLE specs_v2 RENAME TO specs",
+          "CREATE INDEX IF NOT EXISTS idx_specs_project ON specs(project)");
+
+  /**
+   * The last schema version whose {@code specs.status} CHECK predates {@code awaiting_merge}. The
+   * five migrations after it rebuild the specs table to widen the constraint — SQLite cannot alter
+   * a CHECK in place. The rebuild only works because {@link #migrate()} disables foreign-key
+   * enforcement for the migration window: with it on, {@code DROP TABLE specs} would fire the
+   * children's {@code ON DELETE CASCADE} and wipe spec content, repos, and dependencies.
+   */
+  static final int LAST_VERSION_WITH_NARROW_STATUS_CHECK = versionBefore("CREATE TABLE specs_v2");
+
+  private static int versionBefore(String statementPrefix) {
+    for (var i = 0; i < MIGRATIONS.size(); i++) {
+      if (MIGRATIONS.get(i).startsWith(statementPrefix)) {
+        return i;
+      }
+    }
+    throw new IllegalStateException("No migration starts with: " + statementPrefix);
+  }
 
   private final Sqlite db;
 
@@ -332,18 +382,48 @@ public final class SchemaManager {
   }
 
   public void migrate() {
+    migrateTo(MIGRATIONS.size());
+  }
+
+  /**
+   * Applies pending migrations up to {@code targetVersion} (package-private so tests can stage a
+   * database at a historical version). Foreign-key enforcement is suspended for the migration
+   * window: table rebuilds must drop-and-recreate a parent table without firing the children's
+   * {@code ON DELETE CASCADE}. Referential integrity is verified with {@code PRAGMA
+   * foreign_key_check} before enforcement is restored — a violated rebuild fails loud, never
+   * silently ships a corrupted database.
+   */
+  void migrateTo(int targetVersion) {
     db.execute(MIGRATIONS.getFirst());
     var current = currentVersion();
-    for (var i = current; i < MIGRATIONS.size(); i++) {
-      var version = i + 1;
-      var sql = MIGRATIONS.get(i);
-      db.transaction(
-          () -> {
-            db.execute(sql);
-            db.execute(
-                "INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))",
-                version);
-          });
+    if (current >= targetVersion) {
+      return;
+    }
+    db.execute("PRAGMA foreign_keys = OFF");
+    try {
+      for (var i = current; i < targetVersion; i++) {
+        var version = i + 1;
+        var sql = MIGRATIONS.get(i);
+        db.transaction(
+            () -> {
+              db.execute(sql);
+              db.execute(
+                  "INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))",
+                  version);
+            });
+      }
+      requireForeignKeysIntact();
+    } finally {
+      db.execute("PRAGMA foreign_keys = ON");
+    }
+  }
+
+  private void requireForeignKeysIntact() {
+    var violations =
+        db.query("PRAGMA foreign_key_check", row -> row.text(0) + " row " + row.integer(1));
+    if (!violations.isEmpty()) {
+      throw new SqliteException(
+          "Migration broke referential integrity: " + String.join(", ", violations), 0);
     }
   }
 

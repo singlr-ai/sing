@@ -107,7 +107,7 @@ class MissedStopReconcilerTest {
   }
 
   @Test
-  void replaysACleanMissedStopAndDrivesTheSpecToDone() throws Exception {
+  void replaysACleanMissedStopAndDrivesTheSpecToAwaitingMerge() throws Exception {
     createInProgressSpec("auth");
     finishedSession("auth", "stopped", 0);
     var latch = new CountDownLatch(1);
@@ -117,7 +117,7 @@ class MissedStopReconcilerTest {
 
     assertEquals(1, replayed);
     BusTesting.awaitDelivery(latch);
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
   }
 
   @Test
@@ -131,7 +131,7 @@ class MissedStopReconcilerTest {
 
     assertEquals(1, replayed);
     BusTesting.awaitDelivery(latch);
-    assertEquals(SpecStatus.DONE, specStore.findById("auth").orElseThrow().status());
+    assertEquals(SpecStatus.AWAITING_MERGE, specStore.findById("auth").orElseThrow().status());
   }
 
   @Test

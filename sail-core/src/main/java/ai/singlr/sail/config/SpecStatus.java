@@ -14,15 +14,19 @@ import java.util.stream.Collectors;
  * persisted, serialized, and compared as its {@link #wire()} form (the lowercased name, e.g. {@code
  * IN_PROGRESS} → {@code "in_progress"}).
  *
- * <p>{@link #DRAFT} is the bucket for imported specs whose status is unknown or absent; {@link
- * #ARCHIVED} is hidden from the default board. Only {@link #CLI_SETTABLE} statuses may be assigned
- * by hand via {@code sail spec status}.
+ * <p>{@link #AWAITING_MERGE} sits between the review gate and completion: the review passed, the
+ * pull request is open, and a human still has to merge it on the forge and mark the spec {@link
+ * #DONE}. {@link #DRAFT} is the bucket for imported specs whose status is unknown or absent —
+ * including a status synced from a newer peer that this binary does not know yet, which lands in
+ * the draft column instead of crashing; {@link #ARCHIVED} is hidden from the default board. Only
+ * {@link SpecDirectory#CLI_SETTABLE} statuses may be assigned by hand via {@code sail spec status}.
  */
 public enum SpecStatus {
   DRAFT,
   PENDING,
   IN_PROGRESS,
   REVIEW,
+  AWAITING_MERGE,
   DONE,
   ARCHIVED;
 

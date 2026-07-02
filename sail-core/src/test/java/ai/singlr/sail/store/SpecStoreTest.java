@@ -338,15 +338,66 @@ class SpecStoreTest {
     store.create(spec("e", "E", "review"));
     store.create(spec("f", "F", "done"));
     store.create(spec("g", "G", "archived"));
+    store.create(spec("h", "H", "awaiting_merge"));
 
     var board = store.board();
     assertEquals(1, board.draft());
     assertEquals(2, board.pending());
     assertEquals(1, board.inProgress());
     assertEquals(1, board.review());
+    assertEquals(1, board.awaitingMerge());
     assertEquals(1, board.done());
     assertEquals(1, board.archived());
     assertEquals("b", board.nextReadyId());
+  }
+
+  @Test
+  void awaitingMergePersistsAndReadsBack() {
+    store.create(spec("gate-passed", "Gate passed", "review"));
+
+    store.updateStatus("gate-passed", SpecStatus.AWAITING_MERGE);
+
+    assertEquals(SpecStatus.AWAITING_MERGE, store.findById("gate-passed").get().status());
+  }
+
+  @Test
+  void awaitingMergeDependencyDoesNotUnblockDependents() {
+    store.create(spec("base", "Base", "awaiting_merge"));
+    var dependent =
+        new SpecStore.SpecRow(
+            "child",
+            "test-project",
+            "Child",
+            SpecStatus.PENDING,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            "",
+            "",
+            null,
+            List.of("base"),
+            List.of());
+    store.create(dependent);
+
+    assertTrue(store.readySpecs().isEmpty(), "unmerged work must not satisfy a dependency");
+  }
+
+  @Test
+  void applyRevisionToleratesUnknownStatusFromNewerPeer() {
+    var snapshot = new java.util.LinkedHashMap<String, Object>();
+    snapshot.put("title", "From the future");
+    snapshot.put("status", "warp_speed");
+    snapshot.put("project", "test-project");
+    snapshot.put("body", "");
+    snapshot.put("plan", "");
+
+    store.applyRevision("future-spec", snapshot, "rev-1");
+
+    assertEquals(SpecStatus.DRAFT, store.findById("future-spec").get().status());
   }
 
   @Test

@@ -26,8 +26,8 @@ class TestOperations implements ApiOperations {
         new SpecsResponse(
             project,
             List.of(),
-            new SpecSummaryView(0, 0, 0, 0),
-            new BoardSummaryView(new SpecSummaryView(0, 0, 0, 0), 0, 0, null)));
+            new SpecSummaryView(0, 0, 0, 0, 0),
+            new BoardSummaryView(new SpecSummaryView(0, 0, 0, 0, 0), 0, 0, null)));
   }
 
   @Override
@@ -258,7 +258,7 @@ class TestOperations implements ApiOperations {
   @Override
   public Result<GlobalBoardResponse> globalBoard(String project) {
     return Result.success(
-        new GlobalBoardResponse(new SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, null), 0));
+        new GlobalBoardResponse(new SpecStore.BoardSummary(0, 0, 0, 0, 0, 0, 0, null), 0));
   }
 
   @Override
