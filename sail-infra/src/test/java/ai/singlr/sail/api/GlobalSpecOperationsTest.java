@@ -11,10 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.singlr.sail.store.Finding;
+import ai.singlr.sail.store.ReviewStore;
 import ai.singlr.sail.store.SchemaManager;
 import ai.singlr.sail.store.SpecStore;
 import ai.singlr.sail.store.Sqlite;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +28,17 @@ class GlobalSpecOperationsTest {
 
   @TempDir Path tempDir;
   private Sqlite db;
+  private SpecStore specStore;
+  private ReviewStore reviewStore;
   private GlobalSpecOperations ops;
 
   @BeforeEach
   void setUp() {
     db = Sqlite.open(tempDir.resolve("test.db"));
     new SchemaManager(db).migrate();
-    ops = new GlobalSpecOperations(new SpecStore(db));
+    specStore = new SpecStore(db);
+    reviewStore = new ReviewStore(db);
+    ops = new GlobalSpecOperations(specStore, reviewStore);
   }
 
   @AfterEach
@@ -275,6 +282,74 @@ class GlobalSpecOperationsTest {
     var noStore = new GlobalSpecOperations(null);
     var ex = assertThrows(ApiException.class, () -> noStore.list(SpecStore.SpecFilter.all()));
     assertEquals(ErrorCode.INTERNAL, ex.failure().errorCode());
+  }
+
+  private String seedPassedReviewWithOpenFinding(String specId) {
+    var reviewId = reviewStore.createReview(specId, 1);
+    var stageId = reviewStore.createStage(reviewId, "security", "agent");
+    reviewStore.addFinding(
+        stageId,
+        Finding.create(
+            Finding.Severity.HIGH,
+            Finding.Category.SECURITY,
+            "Auth.java",
+            1,
+            1,
+            "Issue",
+            "Description",
+            "",
+            null,
+            0.9));
+    reviewStore.updateReviewStatus(reviewId, "passed");
+    return reviewId;
+  }
+
+  @Test
+  void getReportsOpenFindingsOfLatestPassedReview() {
+    ops.create(createReq(Map.of("status", "done")));
+    seedPassedReviewWithOpenFinding("auth");
+
+    assertEquals(1, ops.get("auth").openFindings());
+  }
+
+  @Test
+  void updateToDoneResolvesLinkedSourceFindings() {
+    ops.create(createReq(Map.of("status", "done")));
+    var reviewId = seedPassedReviewWithOpenFinding("auth");
+    var findingId = reviewStore.findingsForReview(reviewId).getFirst().id();
+    ops.create(createReq(Map.of("id", "auth-followup", "title", "Follow-up", "status", "pending")));
+    reviewStore.linkSourceFindings("auth-followup", List.of(findingId));
+
+    ops.update(
+        "auth-followup", SpecUpdateRequest.fromMap(Map.of("status", "done")).withUpdatedBy("uday"));
+
+    assertEquals(
+        Finding.Resolution.FIXED, reviewStore.findingsForReview(reviewId).getFirst().resolution());
+  }
+
+  @Test
+  void updateWithoutDoneTransitionLeavesFindingsOpen() {
+    ops.create(createReq(Map.of("status", "done")));
+    var reviewId = seedPassedReviewWithOpenFinding("auth");
+    var findingId = reviewStore.findingsForReview(reviewId).getFirst().id();
+    ops.create(createReq(Map.of("id", "auth-followup", "title", "Follow-up", "status", "pending")));
+    reviewStore.linkSourceFindings("auth-followup", List.of(findingId));
+
+    ops.update(
+        "auth-followup",
+        SpecUpdateRequest.fromMap(Map.of("title", "Renamed")).withUpdatedBy("uday"));
+
+    assertEquals(
+        Finding.Resolution.OPEN, reviewStore.findingsForReview(reviewId).getFirst().resolution());
+  }
+
+  @Test
+  void boardCountsOpenFindingsOnDoneSpecs() {
+    ops.create(createReq(Map.of("status", "done")));
+    seedPassedReviewWithOpenFinding("auth");
+    ops.create(createReq(Map.of("id", "clean", "title", "Clean", "status", "done")));
+
+    assertEquals(1, ops.board("manatee").doneOpenFindings());
   }
 
   @Test
